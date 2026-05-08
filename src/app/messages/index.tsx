@@ -133,7 +133,7 @@ export default function MessagesInboxScreen() {
 
           <Pressable
             style={styles.composeButton}
-            onPress={() => router.push("/messages/new")}
+            onPress={() => router.push("/messages/new" as any)}
           >
             <FontAwesome5 name="edit" size={21} color={COLORS.primary} />
           </Pressable>
@@ -191,10 +191,10 @@ export default function MessagesInboxScreen() {
                 key={item.id}
                 style={styles.cardWrapper}
                 onPress={() =>
-                  router.push({
-                    pathname: "/messages/[id]",
-                    params: { id: item.id },
-                  })
+                router.push({
+                pathname: "/messages/[id]",
+                params: { id: item.id },
+                } as any)
                 }
               >
                 {item.accent && <View style={styles.accentLine} />}
