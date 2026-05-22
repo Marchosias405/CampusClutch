@@ -10,8 +10,12 @@ export const unstable_settings = {
 export default function RootLayout() {
   return (
     <ThemeProvider value={DefaultTheme}>
-      <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="courses/add" />
+        <Stack.Screen name="courses/classmates" />
+        <Stack.Screen name="requests/create" />
+        <Stack.Screen name="students/[id]" />
       </Stack>
       <StatusBar style="auto" />
     </ThemeProvider>

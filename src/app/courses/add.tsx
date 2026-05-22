@@ -46,7 +46,7 @@ export default function AddCourseScreen() {
       status: selectedStatus,
     });
 
-    router.push("/courses" as any);
+    router.back();
   };
 
   const handleFindClassmates = () => {
@@ -72,7 +72,7 @@ export default function AddCourseScreen() {
 
               <Pressable
                 style={styles.closeButton}
-                onPress={() => router.push("/courses" as any)}
+                onPress={() => router.back()}
               >
                 <Ionicons name="close" size={23} color="#555555" />
               </Pressable>

@@ -1,4 +1,4 @@
-import { FontAwesome5, Ionicons } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useMemo, useState } from "react";
 import {
@@ -87,39 +87,6 @@ const mockRequests: CampusRequest[] = [
     location: "Vancouver",
     timeLabel: "ASAP",
     points: 15,
-  },
-];
-
-const bottomTabs = [
-  {
-    id: "home",
-    label: "Home",
-    icon: "home",
-    route: "/",
-  },
-  {
-    id: "courses",
-    label: "Courses",
-    icon: "graduation-cap",
-    route: "/courses",
-  },
-  {
-    id: "requests",
-    label: "Requests",
-    icon: "list-alt",
-    route: "/requests",
-  },
-  {
-    id: "messages",
-    label: "Messages",
-    icon: "comment-alt",
-    route: "/messages",
-  },
-  {
-    id: "profile",
-    label: "Profile",
-    icon: "user",
-    route: "/profile",
   },
 ];
 
@@ -305,31 +272,6 @@ export default function RequestsFeedScreen() {
         <Pressable style={styles.fab} onPress={handleCreateRequest}>
           <Ionicons name="add" size={28} color={COLORS.cardWhite} />
         </Pressable>
-
-        <View style={styles.bottomNav}>
-          {bottomTabs.map((tab) => {
-            const isActive = tab.id === "requests";
-
-            return (
-              <Pressable
-                key={tab.id}
-                style={styles.tabItem}
-                onPress={() => router.push(tab.route as any)}
-              >
-                <FontAwesome5
-                  name={tab.icon}
-                  size={19}
-                  color={isActive ? COLORS.primary : COLORS.inactiveGray}
-                  solid
-                />
-
-                <Text style={[styles.tabText, isActive && styles.activeTabText]}>
-                  {tab.label}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
       </View>
     </SafeAreaView>
   );
@@ -389,7 +331,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 18,
     paddingTop: 22,
-    paddingBottom: 112,
+    paddingBottom: 32,
   },
 
   heroRow: {
@@ -616,7 +558,7 @@ const styles = StyleSheet.create({
   fab: {
     position: "absolute",
     right: 20,
-    bottom: 74,
+    bottom: 24,
     width: 58,
     height: 58,
     borderRadius: 29,
@@ -632,38 +574,5 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 6,
     zIndex: 10,
-  },
-
-  bottomNav: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
-    height: 76,
-    backgroundColor: COLORS.cardWhite,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.border,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-around",
-    paddingTop: 8,
-    paddingBottom: 10,
-  },
-
-  tabItem: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  tabText: {
-    marginTop: 5,
-    fontSize: 10,
-    fontWeight: "700",
-    color: COLORS.inactiveGray,
-  },
-
-  activeTabText: {
-    color: COLORS.primary,
   },
 });

@@ -10,7 +10,6 @@ import {
     Text,
     View,
 } from "react-native";
-import BottomNav from "../../components/BottomNav";
 import { mockCourses, mockStudents } from "../../constants/mockData";
 
 type MatchFilter = "MOST_SHARED" | "SAME_CAMPUS" | "RECENTLY_ACTIVE";
@@ -77,6 +76,10 @@ export default function ClassmateMatchesScreen() {
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.screen}>
         <View style={styles.appHeader}>
+          <Pressable style={styles.backButton} onPress={() => router.back()}>
+            <Ionicons name="arrow-back" size={24} color={COLORS.primary} />
+          </Pressable>
+
           <View style={styles.brandRow}>
             <Image
               source={{
@@ -205,8 +208,6 @@ export default function ClassmateMatchesScreen() {
             ))}
           </View>
         </ScrollView>
-
-        <BottomNav activeTab="courses" />
       </View>
     </SafeAreaView>
   );
@@ -225,11 +226,18 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
   },
-  brandRow: { flexDirection: "row", alignItems: "center" },
+  backButton: {
+    width: 34,
+    height: 34,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 4,
+  },
+  brandRow: { flexDirection: "row", alignItems: "center", flex: 1 },
   logoAvatar: { width: 30, height: 30, borderRadius: 15, marginRight: 10 },
   brandText: { fontSize: 18, fontWeight: "900", color: COLORS.primary },
   scrollView: { flex: 1 },
-  scrollContent: { paddingHorizontal: 20, paddingTop: 28, paddingBottom: 104 },
+  scrollContent: { paddingHorizontal: 20, paddingTop: 28, paddingBottom: 32 },
   pageTitle: { fontSize: 24, fontWeight: "900", color: COLORS.textDark, marginBottom: 6 },
   subtitle: {
     fontSize: 15,

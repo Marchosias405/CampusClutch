@@ -52,39 +52,6 @@ const requestTypes: {
 
 const itemSizes: ItemSize[] = ["Small", "Medium", "Large"];
 
-const bottomTabs = [
-  {
-    id: "home",
-    label: "Home",
-    icon: "home",
-    route: "/",
-  },
-  {
-    id: "courses",
-    label: "Courses",
-    icon: "graduation-cap",
-    route: "/courses",
-  },
-  {
-    id: "requests",
-    label: "Requests",
-    icon: "list-alt",
-    route: "/requests",
-  },
-  {
-    id: "messages",
-    label: "Messages",
-    icon: "comment-alt",
-    route: "/messages",
-  },
-  {
-    id: "profile",
-    label: "Profile",
-    icon: "user",
-    route: "/profile",
-  },
-];
-
 export default function CreateRequestScreen() {
   const router = useRouter();
 
@@ -101,7 +68,7 @@ export default function CreateRequestScreen() {
   const [pointsOffered, setPointsOffered] = useState("50");
 
   const handleBack = () => {
-    router.push("/requests" as any);
+    router.back();
   };
 
   const handleRequestTypeChange = (type: RequestType) => {
@@ -130,7 +97,7 @@ export default function CreateRequestScreen() {
 
     console.log("New request submitted:", formData);
 
-    router.push("/requests" as any);
+    router.back();
   };
 
   return (
@@ -398,31 +365,6 @@ export default function CreateRequestScreen() {
             />
           </Pressable>
         </ScrollView>
-
-        <View style={styles.bottomNav}>
-          {bottomTabs.map((tab) => {
-            const isActive = tab.id === "requests";
-
-            return (
-              <Pressable
-                key={tab.id}
-                style={styles.tabItem}
-                onPress={() => router.push(tab.route as any)}
-              >
-                <FontAwesome5
-                  name={tab.icon}
-                  size={19}
-                  color={isActive ? COLORS.primary : COLORS.inactiveGray}
-                  solid
-                />
-
-                <Text style={[styles.tabText, isActive && styles.activeTabText]}>
-                  {tab.label}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
       </View>
     </SafeAreaView>
   );
@@ -477,7 +419,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 18,
     paddingTop: 18,
-    paddingBottom: 120,
+    paddingBottom: 32,
   },
 
   sectionTitle: {
@@ -744,38 +686,5 @@ const styles = StyleSheet.create({
 
   submitIcon: {
     marginLeft: 8,
-  },
-
-  bottomNav: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
-    height: 76,
-    backgroundColor: COLORS.cardWhite,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.border,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-around",
-    paddingTop: 8,
-    paddingBottom: 10,
-  },
-
-  tabItem: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  tabText: {
-    marginTop: 5,
-    fontSize: 10,
-    fontWeight: "700",
-    color: COLORS.inactiveGray,
-  },
-
-  activeTabText: {
-    color: COLORS.primary,
   },
 });

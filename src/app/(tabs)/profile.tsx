@@ -85,39 +85,6 @@ const settingsItems = [
   },
 ];
 
-const bottomTabs = [
-  {
-    id: "home",
-    title: "Home",
-    icon: "home",
-    route: "/",
-  },
-  {
-    id: "courses",
-    title: "Courses",
-    icon: "graduation-cap",
-    route: "/courses",
-  },
-  {
-    id: "requests",
-    title: "Requests",
-    icon: "list-alt",
-    route: "/requests",
-  },
-  {
-    id: "messages",
-    title: "Messages",
-    icon: "comment-alt",
-    route: "/messages",
-  },
-  {
-    id: "profile",
-    title: "Profile",
-    icon: "user",
-    route: "/profile",
-  },
-];
-
 export default function ProfileScreen() {
   const router = useRouter();
 
@@ -284,36 +251,6 @@ export default function ProfileScreen() {
             <Text style={styles.logoutText}>Log Out</Text>
           </Pressable>
         </ScrollView>
-
-        <View style={styles.bottomNav}>
-          {bottomTabs.map((tab) => {
-            const isActive = tab.id === "profile";
-
-            return (
-              <Pressable
-                key={tab.id}
-                style={styles.tabItem}
-                onPress={() => router.push(tab.route as any)}
-              >
-                <FontAwesome5
-                  name={tab.icon}
-                  size={19}
-                  color={isActive ? COLORS.primary : COLORS.inactiveGray}
-                  solid
-                />
-
-                <Text
-                  style={[
-                    styles.tabText,
-                    isActive && styles.activeTabText,
-                  ]}
-                >
-                  {tab.title}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
       </View>
     </SafeAreaView>
   );
@@ -362,7 +299,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 18,
     paddingTop: 24,
-    paddingBottom: 110,
+    paddingBottom: 32,
   },
 
   profileSection: {
@@ -636,38 +573,5 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
     color: "#B45B67",
-  },
-
-  bottomNav: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
-    height: 78,
-    backgroundColor: COLORS.cardWhite,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.border,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-around",
-    paddingTop: 8,
-    paddingBottom: 11,
-  },
-
-  tabItem: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  tabText: {
-    marginTop: 5,
-    fontSize: 11,
-    fontWeight: "700",
-    color: COLORS.inactiveGray,
-  },
-
-  activeTabText: {
-    color: COLORS.primary,
   },
 });

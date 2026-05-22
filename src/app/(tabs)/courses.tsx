@@ -11,7 +11,6 @@ import {
     TextInput,
     View,
 } from "react-native";
-import BottomNav from "../../components/BottomNav";
 import { mockCourses } from "../../constants/mockData";
 import { Course } from "../../types";
 
@@ -213,8 +212,6 @@ export default function CoursesIndexScreen() {
             <FontAwesome5 name="graduation-cap" size={62} color="#8F96A3" />
           </Pressable>
         </ScrollView>
-
-        <BottomNav activeTab="courses" />
       </View>
     </SafeAreaView>
   );
@@ -237,7 +234,7 @@ const styles = StyleSheet.create({
   logoAvatar: { width: 30, height: 30, borderRadius: 15, marginRight: 10 },
   brandText: { fontSize: 18, fontWeight: "900", color: COLORS.primary },
   scrollView: { flex: 1 },
-  scrollContent: { paddingHorizontal: 20, paddingTop: 24, paddingBottom: 110 },
+  scrollContent: { paddingHorizontal: 20, paddingTop: 24, paddingBottom: 32 },
   titleRow: {
     flexDirection: "row",
     alignItems: "center",

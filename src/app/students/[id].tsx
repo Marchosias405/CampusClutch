@@ -25,7 +25,7 @@ export default function StudentProfilePlaceholderScreen() {
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.header}>
-        <Pressable style={styles.backButton} onPress={() => router.push("/courses/classmates" as any)}>
+        <Pressable style={styles.backButton} onPress={() => router.back()}>
           <Ionicons name="arrow-back" size={24} color={COLORS.primary} />
         </Pressable>
 

@@ -81,39 +81,6 @@ const conversations = [
   },
 ];
 
-const bottomTabs = [
-  {
-    id: "home",
-    label: "Home",
-    icon: "home",
-    route: "/",
-  },
-  {
-    id: "courses",
-    label: "Courses",
-    icon: "book",
-    route: "/courses",
-  },
-  {
-    id: "requests",
-    label: "Requests",
-    icon: "users",
-    route: "/requests",
-  },
-  {
-    id: "messages",
-    label: "Messages",
-    icon: "comment",
-    route: "/messages",
-  },
-  {
-    id: "profile",
-    label: "Profile",
-    icon: "user",
-    route: "/profile",
-  },
-];
-
 export default function MessagesInboxScreen() {
   const router = useRouter();
 
@@ -271,33 +238,6 @@ export default function MessagesInboxScreen() {
             ))}
           </View>
         </ScrollView>
-
-        <View style={styles.bottomNav}>
-          {bottomTabs.map((tab) => {
-            const isActive = tab.id === "messages";
-
-            return (
-              <Pressable
-                key={tab.id}
-                style={styles.tabItem}
-                onPress={() => router.push(tab.route as any)}
-              >
-                <FontAwesome5
-                  name={tab.icon}
-                  size={20}
-                  color={isActive ? COLORS.primary : COLORS.inactiveGray}
-                  solid
-                />
-
-                <Text
-                  style={[styles.tabText, isActive && styles.activeTabText]}
-                >
-                  {tab.label}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
       </View>
     </SafeAreaView>
   );
@@ -357,7 +297,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 20,
     paddingTop: 25,
-    paddingBottom: 110,
+    paddingBottom: 32,
   },
 
   pageTitle: {
@@ -558,38 +498,5 @@ const styles = StyleSheet.create({
     color: COLORS.textDark,
     fontWeight: "800",
     fontStyle: "italic",
-  },
-
-  bottomNav: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
-    height: 76,
-    backgroundColor: COLORS.cardWhite,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.border,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-around",
-    paddingTop: 8,
-    paddingBottom: 10,
-  },
-
-  tabItem: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  tabText: {
-    marginTop: 5,
-    fontSize: 10,
-    fontWeight: "700",
-    color: COLORS.inactiveGray,
-  },
-
-  activeTabText: {
-    color: COLORS.primary,
   },
 });
