@@ -1,37 +1,53 @@
 import { FontAwesome5, Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React from "react";
+import React, { useMemo, useState } from "react";
 import {
     Image,
     Pressable,
-    SafeAreaView,
     ScrollView,
     StyleSheet,
     Text,
+    TextInput,
     View,
 } from "react-native";
+import ScreenHeader from "../../components/ScreenHeader";
 
 const COLORS = {
   primary: "#9B1C31",
   darkRed: "#8F1428",
-  background: "#FFF7F6",
+  background: "#FFFFFF",
   cardWhite: "#FFFFFF",
   textDark: "#2B2525",
   mutedText: "#8C8585",
-  border: "#EFE1E1",
-  filterGray: "#E6E6E6",
-  inputGray: "#EDEDED",
+  border: "#ECE3E3",
   inactiveGray: "#A5AAB3",
+  tagGray: "#F4F1F1",
+  softPink: "#FBECEC",
+  searchGray: "#F2F0F0",
 };
 
-const filters = ["All Messages", "Courses", "Deliveries", "Unread"];
+type ConversationType = "person" | "delivery" | "group";
 
-const conversations = [
+type Conversation = {
+  id: string;
+  name: string;
+  badge: string;
+  preview: string;
+  time: string;
+  unread: boolean;
+  type: ConversationType;
+  avatar?: string;
+};
+
+const filters = ["All", "Courses", "Deliveries", "Unread"] as const;
+type Filter = (typeof filters)[number];
+
+const conversations: Conversation[] = [
   {
     id: "marcus",
     name: "Marcus Jenkins",
     badge: "CMPT 361",
-    preview: "Hey! Are we still meeting at the lib...",
+    preview: "Hey! Are we still meeting at the library at 4?",
     time: "14:02",
     unread: true,
     avatar:
@@ -42,7 +58,7 @@ const conversations = [
     id: "sarah",
     name: "Sarah Chen",
     badge: "ECON 201",
-    preview: "Perfect, see you then. Thanks for t...",
+    preview: "Perfect, see you then. Thanks for the notes!",
     time: "Yesterday",
     unread: false,
     avatar:
@@ -51,19 +67,18 @@ const conversations = [
   },
   {
     id: "delivery",
-    name: "CampusLoop Deliv...",
+    name: "CampusLoop Delivery",
     badge: "ACTIVE ORDER",
-    preview: "Your Starbucks order from Studen...",
+    preview: "Your Starbucks order from Student Union is on the way.",
     time: "Tuesday",
-    unread: false,
+    unread: true,
     type: "delivery",
-    accent: true,
   },
   {
     id: "alex",
     name: "Alex Rodriguez",
     badge: "CMPT 361",
-    preview: "I found the textbook link you were l...",
+    preview: "I found the textbook link you were looking for.",
     time: "Oct 12",
     unread: false,
     avatar:
@@ -74,7 +89,7 @@ const conversations = [
     id: "jordan",
     name: "Jordan Lee",
     badge: "STUDY GROUP",
-    preview: "Should we book the private room i...",
+    preview: "Should we book the private room in the library?",
     time: "Oct 10",
     unread: false,
     type: "group",
@@ -83,67 +98,90 @@ const conversations = [
 
 export default function MessagesInboxScreen() {
   const router = useRouter();
+  const [search, setSearch] = useState("");
+  const [selectedFilter, setSelectedFilter] = useState<Filter>("All");
+
+  const visibleConversations = useMemo(() => {
+    const q = search.trim().toLowerCase();
+
+    return conversations.filter((item) => {
+      if (selectedFilter === "Unread" && !item.unread) return false;
+      if (selectedFilter === "Deliveries" && item.type !== "delivery") return false;
+      if (selectedFilter === "Courses" && item.type === "delivery") return false;
+      if (
+        q &&
+        !item.name.toLowerCase().includes(q) &&
+        !item.preview.toLowerCase().includes(q)
+      ) {
+        return false;
+      }
+      return true;
+    });
+  }, [search, selectedFilter]);
+
+  const openChat = (id: string) => {
+    router.push({ pathname: "/messages/[id]", params: { id } } as any);
+  };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <View style={styles.safeArea}>
       <View style={styles.screen}>
-        <View style={styles.appHeader}>
-          <View style={styles.brandRow}>
-            <Image
-              source={{
-                uri: "https://api.dicebear.com/7.x/personas/png?seed=CampusLoop",
-              }}
-              style={styles.logoAvatar}
-            />
-            <Text style={styles.brandText}>CampusLoop</Text>
-          </View>
+        <ScreenHeader>
+          <Text style={styles.headerTitle}>Messages</Text>
 
           <Pressable
-            style={styles.composeButton}
+            hitSlop={10}
             onPress={() => router.push("/messages/new" as any)}
           >
-            <FontAwesome5 name="edit" size={21} color={COLORS.primary} />
+            <FontAwesome5 name="edit" size={19} color="#FFFFFF" />
           </Pressable>
-        </View>
+        </ScreenHeader>
 
         <ScrollView
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
         >
-          <Text style={styles.pageTitle}>Messages</Text>
-
           <View style={styles.searchBar}>
-            <Ionicons
-              name="search"
-              size={21}
-              color="#777777"
-              style={styles.searchIcon}
+            <Ionicons name="search" size={18} color={COLORS.inactiveGray} />
+            <TextInput
+              value={search}
+              onChangeText={setSearch}
+              placeholder="Search conversations"
+              placeholderTextColor={COLORS.inactiveGray}
+              style={styles.searchInput}
+              autoCorrect={false}
+              returnKeyType="search"
             />
-            <Text style={styles.searchPlaceholder}>Search conversations</Text>
+            {search.length > 0 && (
+              <Pressable hitSlop={10} onPress={() => setSearch("")}>
+                <Ionicons
+                  name="close-circle"
+                  size={18}
+                  color={COLORS.inactiveGray}
+                />
+              </Pressable>
+            )}
           </View>
 
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.filtersRow}
+            keyboardShouldPersistTaps="handled"
           >
-            {filters.map((filter, index) => {
-              const isActive = index === 0;
+            {filters.map((filter) => {
+              const isActive = selectedFilter === filter;
 
               return (
                 <Pressable
                   key={filter}
-                  style={[
-                    styles.filterPill,
-                    isActive && styles.activeFilterPill,
-                  ]}
+                  style={[styles.filterPill, isActive && styles.activeFilterPill]}
+                  onPress={() => setSelectedFilter(filter)}
                 >
                   <Text
-                    style={[
-                      styles.filterText,
-                      isActive && styles.activeFilterText,
-                    ]}
+                    style={[styles.filterText, isActive && styles.activeFilterText]}
                   >
                     {filter}
                   </Text>
@@ -152,80 +190,68 @@ export default function MessagesInboxScreen() {
             })}
           </ScrollView>
 
-          <View style={styles.conversationList}>
-            {conversations.map((item) => (
-              <Pressable
-                key={item.id}
-                style={styles.cardWrapper}
-                onPress={() =>
-                router.push({
-                pathname: "/messages/[id]",
-                params: { id: item.id },
-                } as any)
-                }
-              >
-                {item.accent && <View style={styles.accentLine} />}
-
-                <View style={styles.messageCard}>
-                  <View style={styles.avatarContainer}>
+          {visibleConversations.length === 0 ? (
+            <Text style={styles.emptyText}>No conversations found.</Text>
+          ) : (
+            <View style={styles.conversationList}>
+              {visibleConversations.map((item) => (
+                <Pressable
+                  key={item.id}
+                  style={styles.convRow}
+                  onPress={() => openChat(item.id)}
+                >
+                  <View style={styles.avatarWrap}>
                     {item.type === "person" && (
                       <Image source={{ uri: item.avatar }} style={styles.avatar} />
                     )}
 
                     {item.type === "delivery" && (
-                      <View style={styles.deliveryAvatar}>
-                        <FontAwesome5
-                          name="truck"
-                          size={20}
-                          color={COLORS.cardWhite}
-                        />
+                      <View style={[styles.iconAvatar, styles.deliveryAvatar]}>
+                        <FontAwesome5 name="truck" size={18} color="#FFFFFF" />
                       </View>
                     )}
 
                     {item.type === "group" && (
-                      <View style={styles.groupAvatar}>
-                        <FontAwesome5
-                          name="users"
-                          size={18}
-                          color="#4D5663"
-                        />
+                      <View style={[styles.iconAvatar, styles.groupAvatar]}>
+                        <FontAwesome5 name="users" size={17} color={COLORS.primary} />
                       </View>
                     )}
                   </View>
 
-                  <View style={styles.messageContent}>
-                    <View style={styles.titleRow}>
-                      <Text style={styles.senderName} numberOfLines={1}>
+                  <View style={styles.convBody}>
+                    <View style={styles.convTopRow}>
+                      <Text style={styles.convName} numberOfLines={1}>
                         {item.name}
                       </Text>
-
-                      <Text style={styles.timeText}>{item.time}</Text>
-                    </View>
-
-                    <View
-                      style={[
-                        styles.badge,
-                        item.type === "delivery" && styles.activeOrderBadge,
-                      ]}
-                    >
                       <Text
-                        style={[
-                          styles.badgeText,
-                          item.type === "delivery" && styles.activeOrderText,
-                        ]}
-                        numberOfLines={1}
+                        style={[styles.convTime, item.unread && styles.unreadTime]}
                       >
-                        {item.badge}
+                        {item.time}
                       </Text>
                     </View>
 
-                    <View style={styles.previewRow}>
-                      {item.unread && <View style={styles.unreadDot} />}
+                    <View style={styles.convBottomRow}>
+                      <View
+                        style={[
+                          styles.badge,
+                          item.type === "delivery" && styles.activeOrderBadge,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.badgeText,
+                            item.type === "delivery" && styles.activeOrderText,
+                          ]}
+                          numberOfLines={1}
+                        >
+                          {item.badge}
+                        </Text>
+                      </View>
 
                       <Text
                         style={[
-                          styles.previewText,
-                          item.unread && styles.unreadPreviewText,
+                          styles.convPreview,
+                          item.unread && styles.unreadPreview,
                         ]}
                         numberOfLines={1}
                       >
@@ -233,270 +259,127 @@ export default function MessagesInboxScreen() {
                       </Text>
                     </View>
                   </View>
-                </View>
-              </Pressable>
-            ))}
-          </View>
+
+                  {item.unread && <View style={styles.unreadDot} />}
+                </Pressable>
+              ))}
+            </View>
+          )}
         </ScrollView>
       </View>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
-
-  screen: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
-
-  appHeader: {
-    height: 62,
-    backgroundColor: COLORS.cardWhite,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-    paddingHorizontal: 22,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-
-  brandRow: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-
-  logoAvatar: {
-    width: 33,
-    height: 33,
-    borderRadius: 17,
-    marginRight: 12,
-  },
-
-  brandText: {
-    fontSize: 18,
-    fontWeight: "900",
-    color: COLORS.primary,
-  },
-
-  composeButton: {
-    width: 36,
-    height: 36,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  scrollView: {
-    flex: 1,
-  },
-
-  scrollContent: {
-    paddingHorizontal: 20,
-    paddingTop: 25,
-    paddingBottom: 32,
-  },
-
-  pageTitle: {
-    fontSize: 36,
-    fontWeight: "900",
-    color: COLORS.textDark,
-    marginBottom: 22,
-  },
-
+  safeArea: { flex: 1, backgroundColor: COLORS.background },
+  screen: { flex: 1, backgroundColor: COLORS.background },
+  headerTitle: { fontSize: 20, fontWeight: "900", color: "#FFFFFF" },
+  scrollView: { flex: 1 },
+  scrollContent: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 32 },
   searchBar: {
-    height: 52,
-    borderRadius: 12,
-    backgroundColor: COLORS.inputGray,
+    height: 47,
+    borderRadius: 13,
+    backgroundColor: COLORS.searchGray,
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 17,
-    marginBottom: 24,
+    paddingHorizontal: 14,
+    gap: 8,
+    marginBottom: 18,
   },
-
-  searchIcon: {
-    marginRight: 12,
+  searchInput: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: "600",
+    color: COLORS.textDark,
   },
-
-  searchPlaceholder: {
-    fontSize: 17,
-    color: "#777777",
-    fontWeight: "500",
-  },
-
-  filtersRow: {
-    paddingBottom: 22,
-  },
-
+  filtersRow: { paddingBottom: 20 },
   filterPill: {
     height: 35,
     paddingHorizontal: 18,
     borderRadius: 18,
-    backgroundColor: COLORS.filterGray,
+    backgroundColor: COLORS.cardWhite,
+    borderWidth: 1,
+    borderColor: "#E4CACA",
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 10,
+    marginRight: 9,
   },
-
   activeFilterPill: {
     backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
   },
-
-  filterText: {
-    fontSize: 13,
+  filterText: { fontSize: 13, fontWeight: "700", color: COLORS.mutedText },
+  activeFilterText: { color: "#FFFFFF" },
+  emptyText: {
+    fontSize: 14,
     fontWeight: "600",
-    color: "#777777",
+    color: COLORS.mutedText,
+    paddingVertical: 12,
   },
-
-  activeFilterText: {
-    color: COLORS.cardWhite,
-  },
-
-  conversationList: {
-    gap: 16,
-  },
-
-  cardWrapper: {
-    position: "relative",
-  },
-
-  accentLine: {
-    position: "absolute",
-    left: 0,
-    top: 0,
-    bottom: 0,
-    width: 4,
-    borderTopLeftRadius: 12,
-    borderBottomLeftRadius: 12,
-    backgroundColor: COLORS.primary,
-    zIndex: 2,
-  },
-
-  messageCard: {
-    minHeight: 105,
-    borderRadius: 12,
-    backgroundColor: COLORS.cardWhite,
-    paddingHorizontal: 18,
-    paddingVertical: 16,
+  conversationList: {},
+  convRow: {
     flexDirection: "row",
     alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#F3E9E9",
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.06,
-    shadowRadius: 6,
-    elevation: 2,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F4EDED",
   },
-
-  avatarContainer: {
-    width: 54,
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 14,
-  },
-
+  avatarWrap: { marginRight: 13 },
   avatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: COLORS.softPink,
   },
-
-  deliveryAvatar: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: COLORS.primary,
+  iconAvatar: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     alignItems: "center",
     justifyContent: "center",
   },
-
-  groupAvatar: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: "#EEF0F8",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  messageContent: {
-    flex: 1,
-  },
-
-  titleRow: {
+  deliveryAvatar: { backgroundColor: COLORS.primary },
+  groupAvatar: { backgroundColor: COLORS.softPink },
+  convBody: { flex: 1 },
+  convTopRow: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    marginBottom: 4,
   },
-
-  senderName: {
+  convName: {
     flex: 1,
-    fontSize: 21,
-    fontWeight: "900",
+    fontSize: 16,
+    fontWeight: "800",
     color: COLORS.textDark,
     marginRight: 8,
   },
-
-  timeText: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#817A7A",
-  },
-
+  convTime: { fontSize: 12, fontWeight: "600", color: COLORS.mutedText },
+  unreadTime: { color: COLORS.primary, fontWeight: "800" },
+  convBottomRow: { flexDirection: "row", alignItems: "center" },
   badge: {
-    alignSelf: "flex-start",
-    backgroundColor: "#E8E8E8",
-    borderRadius: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    marginTop: 4,
-    marginBottom: 7,
+    backgroundColor: COLORS.tagGray,
+    borderRadius: 5,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    marginRight: 8,
+    maxWidth: 110,
   },
-
-  badgeText: {
-    fontSize: 11,
-    fontWeight: "900",
-    color: "#9B9B9B",
+  badgeText: { fontSize: 10, fontWeight: "900", color: "#9B9B9B" },
+  activeOrderBadge: { backgroundColor: COLORS.primary },
+  activeOrderText: { color: "#FFFFFF" },
+  convPreview: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: "500",
+    color: COLORS.mutedText,
   },
-
-  activeOrderBadge: {
-    backgroundColor: COLORS.primary,
-  },
-
-  activeOrderText: {
-    color: COLORS.cardWhite,
-  },
-
-  previewRow: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-
+  unreadPreview: { color: COLORS.textDark, fontWeight: "700" },
   unreadDot: {
-    width: 10,
-    height: 10,
+    width: 9,
+    height: 9,
     borderRadius: 5,
     backgroundColor: COLORS.primary,
-    marginRight: 14,
-  },
-
-  previewText: {
-    flex: 1,
-    fontSize: 15,
-    color: COLORS.mutedText,
-    fontWeight: "500",
-  },
-
-  unreadPreviewText: {
-    color: COLORS.textDark,
-    fontWeight: "800",
-    fontStyle: "italic",
+    marginLeft: 10,
   },
 });

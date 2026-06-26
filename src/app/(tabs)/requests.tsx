@@ -1,15 +1,14 @@
-import { Ionicons } from "@expo/vector-icons";
+import { FontAwesome5, Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useMemo, useState } from "react";
 import {
-    Image,
     Pressable,
-    SafeAreaView,
     ScrollView,
     StyleSheet,
     Text,
     View,
 } from "react-native";
+import ScreenHeader from "../../components/ScreenHeader";
 
 type RequestCategory = "ALL" | "DELIVERY" | "EVENT HELP" | "PICKUP" | "STUDY HELP";
 
@@ -28,13 +27,14 @@ type CampusRequest = {
 const COLORS = {
   primary: "#9B1C31",
   darkRed: "#8F1428",
-  background: "#FFF7F6",
+  background: "#FFFFFF",
   cardWhite: "#FFFFFF",
   textDark: "#2B2525",
   mutedText: "#8C8585",
-  border: "#EFE1E1",
+  border: "#ECE3E3",
   inactiveGray: "#A5AAB3",
   lightPillGray: "#F4F1F1",
+  softPink: "#FBECEC",
 };
 
 const filters: RequestCategory[] = [
@@ -125,46 +125,37 @@ export default function RequestsFeedScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <View style={styles.safeArea}>
       <View style={styles.screen}>
-        <View style={styles.appHeader}>
-          <View style={styles.brandRow}>
-            <Image
-              source={{
-                uri: "https://api.dicebear.com/7.x/personas/png?seed=CampusLoop",
-              }}
-              style={styles.logoAvatar}
-            />
-
-            <Text style={styles.brandText}>CampusLoop</Text>
-          </View>
+        <ScreenHeader>
+          <Text style={styles.headerTitle}>Requests</Text>
 
           <Pressable
-            style={styles.headerIconButton}
+            hitSlop={10}
             onPress={() => router.push("/notifications" as any)}
           >
-            <Ionicons name="notifications" size={22} color={COLORS.textDark} />
+            <Ionicons name="notifications-outline" size={22} color="#FFFFFF" />
           </Pressable>
-        </View>
+        </ScreenHeader>
 
         <ScrollView
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          <View style={styles.heroRow}>
-            <View style={styles.heroTextBlock}>
-              <Text style={styles.welcomeText}>Welcome back,</Text>
-              <Text style={styles.pageTitle}>Campus{"\n"}Requests</Text>
+          <View style={styles.balanceBar}>
+            <View style={styles.balanceIcon}>
+              <FontAwesome5 name="star" size={14} color="#FFFFFF" solid />
             </View>
 
-            <View style={styles.balanceCard}>
-              <Text style={styles.balanceLabel}>BALANCE</Text>
+            <View style={styles.balanceTextBlock}>
+              <Text style={styles.balanceLabel}>Your balance</Text>
+              <Text style={styles.balanceAmount}>1,250 points</Text>
+            </View>
 
-              <View style={styles.balanceRow}>
-                <View style={styles.balanceDot} />
-                <Text style={styles.balanceAmount}>1,250 pts</Text>
-              </View>
+            <View style={styles.balanceTrend}>
+              <Ionicons name="trending-up" size={14} color={COLORS.primary} />
+              <Text style={styles.balanceTrendText}>+95 this week</Text>
             </View>
           </View>
 
@@ -206,8 +197,6 @@ export default function RequestsFeedScreen() {
                 style={styles.requestCard}
                 onPress={() => handleOpenRequest(item.id)}
               >
-                <View style={styles.accentLine} />
-
                 <View style={styles.cardTopRow}>
                   <View style={styles.badgesRow}>
                     <View style={styles.categoryBadge}>
@@ -273,7 +262,7 @@ export default function RequestsFeedScreen() {
           <Ionicons name="add" size={28} color={COLORS.cardWhite} />
         </Pressable>
       </View>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -288,40 +277,10 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.background,
   },
 
-  appHeader: {
-    height: 58,
-    backgroundColor: COLORS.cardWhite,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-    paddingHorizontal: 20,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-
-  brandRow: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-
-  logoAvatar: {
-    width: 31,
-    height: 31,
-    borderRadius: 16,
-    marginRight: 10,
-  },
-
-  brandText: {
-    fontSize: 18,
+  headerTitle: {
+    fontSize: 20,
     fontWeight: "900",
-    color: COLORS.primary,
-  },
-
-  headerIconButton: {
-    width: 36,
-    height: 36,
-    alignItems: "center",
-    justifyContent: "center",
+    color: "#FFFFFF",
   },
 
   scrollView: {
@@ -330,73 +289,57 @@ const styles = StyleSheet.create({
 
   scrollContent: {
     paddingHorizontal: 18,
-    paddingTop: 22,
+    paddingTop: 18,
     paddingBottom: 32,
   },
 
-  heroRow: {
+  balanceBar: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    borderRadius: 14,
+    backgroundColor: COLORS.softPink,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
     marginBottom: 18,
   },
 
-  heroTextBlock: {
+  balanceIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: COLORS.primary,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 12,
+  },
+
+  balanceTextBlock: {
     flex: 1,
   },
 
-  welcomeText: {
-    fontSize: 15,
-    fontWeight: "500",
+  balanceLabel: {
+    fontSize: 12,
+    fontWeight: "700",
     color: COLORS.mutedText,
-    marginBottom: 6,
   },
 
-  pageTitle: {
-    fontSize: 31,
-    lineHeight: 36,
+  balanceAmount: {
+    marginTop: 1,
+    fontSize: 17,
     fontWeight: "900",
     color: COLORS.textDark,
   },
 
-  balanceCard: {
-    width: 105,
-    minHeight: 66,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#E7D3D3",
-    backgroundColor: COLORS.cardWhite,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 10,
-    marginLeft: 12,
-  },
-
-  balanceLabel: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: COLORS.mutedText,
-    letterSpacing: 0.5,
-  },
-
-  balanceRow: {
-    marginTop: 4,
+  balanceTrend: {
     flexDirection: "row",
     alignItems: "center",
+    gap: 4,
   },
 
-  balanceDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: COLORS.primary,
-    marginRight: 5,
-  },
-
-  balanceAmount: {
-    fontSize: 16,
+  balanceTrendText: {
+    fontSize: 12,
     fontWeight: "800",
-    color: COLORS.textDark,
+    color: COLORS.primary,
   },
 
   filtersRow: {
@@ -435,39 +378,27 @@ const styles = StyleSheet.create({
   },
 
   requestCard: {
-    position: "relative",
-    minHeight: 166,
-    borderRadius: 14,
+    borderRadius: 16,
     backgroundColor: COLORS.cardWhite,
     borderWidth: 1,
-    borderColor: "#E7CACA",
-    paddingHorizontal: 17,
+    borderColor: COLORS.border,
+    paddingHorizontal: 16,
     paddingVertical: 15,
-    overflow: "hidden",
     shadowColor: "#000",
     shadowOffset: {
       width: 0,
       height: 2,
     },
     shadowOpacity: 0.05,
-    shadowRadius: 7,
+    shadowRadius: 8,
     elevation: 2,
-  },
-
-  accentLine: {
-    position: "absolute",
-    left: 0,
-    top: 0,
-    bottom: 0,
-    width: 4,
-    backgroundColor: COLORS.primary,
   },
 
   cardTopRow: {
     flexDirection: "row",
-    alignItems: "flex-start",
+    alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 12,
+    marginBottom: 11,
   },
 
   badgesRow: {
@@ -479,8 +410,8 @@ const styles = StyleSheet.create({
   },
 
   categoryBadge: {
-    backgroundColor: "#FFE7E9",
-    borderRadius: 6,
+    backgroundColor: COLORS.softPink,
+    borderRadius: 7,
     paddingHorizontal: 10,
     paddingVertical: 5,
   },
@@ -489,13 +420,19 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "900",
     color: "#C2606B",
+    letterSpacing: 0.2,
   },
 
   pointsText: {
-    fontSize: 17,
+    fontSize: 13,
     fontWeight: "900",
     color: COLORS.primary,
     marginLeft: 8,
+    backgroundColor: COLORS.softPink,
+    overflow: "hidden",
+    borderRadius: 9,
+    paddingHorizontal: 11,
+    paddingVertical: 5,
   },
 
   requestTitle: {
@@ -543,8 +480,8 @@ const styles = StyleSheet.create({
   offerButton: {
     height: 38,
     paddingHorizontal: 20,
-    borderRadius: 10,
-    backgroundColor: COLORS.darkRed,
+    borderRadius: 19,
+    backgroundColor: COLORS.primary,
     alignItems: "center",
     justifyContent: "center",
   },

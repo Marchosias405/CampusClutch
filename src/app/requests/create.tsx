@@ -2,15 +2,14 @@ import { FontAwesome5, Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
-    Image,
     Pressable,
-    SafeAreaView,
     ScrollView,
     StyleSheet,
     Text,
     TextInput,
     View,
 } from "react-native";
+import ScreenHeader from "../../components/ScreenHeader";
 
 type RequestType = "Delivery" | "Event Help" | "Study Help" | "Pickup";
 type ItemSize = "Small" | "Medium" | "Large";
@@ -18,7 +17,7 @@ type ItemSize = "Small" | "Medium" | "Large";
 const COLORS = {
   primary: "#9B1C31",
   darkRed: "#8F1428",
-  background: "#FFF7F6",
+  background: "#FFFFFF",
   cardWhite: "#FFFFFF",
   textDark: "#2B2525",
   mutedText: "#8C8585",
@@ -101,22 +100,17 @@ export default function CreateRequestScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <View style={styles.safeArea}>
       <View style={styles.screen}>
-        <View style={styles.header}>
-          <Pressable style={styles.backButton} onPress={handleBack}>
-            <Ionicons name="arrow-back" size={24} color={COLORS.primary} />
+        <ScreenHeader>
+          <Pressable hitSlop={10} onPress={handleBack}>
+            <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
           </Pressable>
 
           <Text style={styles.headerTitle}>New Request</Text>
 
-          <Image
-            source={{
-              uri: "https://api.dicebear.com/7.x/personas/png?seed=CampusUser",
-            }}
-            style={styles.headerAvatar}
-          />
-        </View>
+          <View style={styles.headerSpacer} />
+        </ScreenHeader>
 
         <ScrollView
           style={styles.scrollView}
@@ -366,7 +360,7 @@ export default function CreateRequestScreen() {
           </Pressable>
         </ScrollView>
       </View>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -381,35 +375,16 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.background,
   },
 
-  header: {
-    height: 58,
-    paddingHorizontal: 18,
-    backgroundColor: COLORS.cardWhite,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-    flexDirection: "row",
-    alignItems: "center",
-  },
-
-  backButton: {
-    width: 34,
-    height: 34,
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 4,
-  },
-
   headerTitle: {
     flex: 1,
+    marginLeft: 12,
     fontSize: 19,
     fontWeight: "900",
-    color: COLORS.primary,
+    color: "#FFFFFF",
   },
 
-  headerAvatar: {
-    width: 31,
-    height: 31,
-    borderRadius: 16,
+  headerSpacer: {
+    width: 24,
   },
 
   scrollView: {

@@ -3,15 +3,15 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import React from "react";
 import {
     Pressable,
-    SafeAreaView,
     StyleSheet,
     Text,
     View,
 } from "react-native";
+import ScreenHeader from "../../components/ScreenHeader";
 
 const COLORS = {
   primary: "#9B1C31",
-  background: "#FFF7F6",
+  background: "#FFFFFF",
   cardWhite: "#FFFFFF",
   textDark: "#2B2525",
   mutedText: "#8C8585",
@@ -23,14 +23,19 @@ export default function StudentProfilePlaceholderScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <View style={styles.header}>
-        <Pressable style={styles.backButton} onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color={COLORS.primary} />
+    <View style={styles.safeArea}>
+      <ScreenHeader>
+        <Pressable
+          style={styles.backRow}
+          hitSlop={10}
+          onPress={() => router.back()}
+        >
+          <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+          <Text style={styles.headerTitle}>Student Profile</Text>
         </Pressable>
 
-        <Text style={styles.headerTitle}>Student Profile</Text>
-      </View>
+        <View />
+      </ScreenHeader>
 
       <View style={styles.content}>
         <Text style={styles.title}>Profile page works</Text>
@@ -40,7 +45,7 @@ export default function StudentProfilePlaceholderScreen() {
           Later, replace this placeholder with the full Aisha R. profile screen.
         </Text>
       </View>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -50,28 +55,16 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.background,
   },
 
-  header: {
-    height: 58,
-    backgroundColor: COLORS.cardWhite,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-    paddingHorizontal: 18,
+  backRow: {
     flexDirection: "row",
     alignItems: "center",
-  },
-
-  backButton: {
-    width: 36,
-    height: 36,
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 8,
+    gap: 10,
   },
 
   headerTitle: {
     fontSize: 19,
     fontWeight: "900",
-    color: COLORS.textDark,
+    color: "#FFFFFF",
   },
 
   content: {

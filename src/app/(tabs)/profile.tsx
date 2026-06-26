@@ -4,17 +4,17 @@ import React from "react";
 import {
   Image,
   Pressable,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from "react-native";
+import ScreenHeader from "../../components/ScreenHeader";
 
 const COLORS = {
   primary: "#9B1C31",
   darkRed: "#8F1428",
-  background: "#FFF7F6",
+  background: "#FFFFFF",
   cardWhite: "#FFFFFF",
   textDark: "#2B2525",
   mutedText: "#8C8585",
@@ -46,65 +46,22 @@ const activities = [
   },
 ];
 
-const settingsItems = [
-  {
-    id: "edit-profile",
-    title: "Edit Profile",
-    icon: "user-edit",
-    route: "/profile/edit",
-  },
-  {
-    id: "manage-courses",
-    title: "Manage Courses",
-    icon: "graduation-cap",
-    route: "/courses",
-  },
-  {
-    id: "manage-interests",
-    title: "Manage Interests",
-    icon: "shapes",
-    route: "/profile/interests",
-  },
-  {
-    id: "notifications",
-    title: "Notification Settings",
-    icon: "bell",
-    route: "/notifications",
-  },
-  {
-    id: "privacy",
-    title: "Privacy Settings",
-    icon: "lock",
-    route: "/profile/privacy",
-  },
-  {
-    id: "help",
-    title: "Help & Safety",
-    icon: "question-circle",
-    route: "/help",
-  },
-];
-
 export default function ProfileScreen() {
   const router = useRouter();
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <View style={styles.safeArea}>
       <View style={styles.screen}>
-        <View style={styles.header}>
-          <Pressable style={styles.headerIconButton}>
-            <Ionicons name="menu" size={27} color={COLORS.textDark} />
-          </Pressable>
-
+        <ScreenHeader>
           <Text style={styles.headerTitle}>Profile</Text>
 
           <Pressable
-            style={styles.headerIconButton}
+            hitSlop={10}
             onPress={() => router.push("/profile/settings" as any)}
           >
-            <Ionicons name="settings-sharp" size={24} color={COLORS.textDark} />
+            <Ionicons name="settings-sharp" size={23} color="#FFFFFF" />
           </Pressable>
-        </View>
+        </ScreenHeader>
 
         <ScrollView
           style={styles.scrollView}
@@ -204,10 +161,7 @@ export default function ProfileScreen() {
                   </View>
 
                   <Text
-                    style={[
-                      styles.activityPoints,
-                      { color: item.pointsColor },
-                    ]}
+                    style={[styles.activityPoints, { color: item.pointsColor }]}
                   >
                     {item.points}
                   </Text>
@@ -216,43 +170,12 @@ export default function ProfileScreen() {
             </View>
           </View>
 
-          <Text style={styles.sectionTitle}>Account Settings</Text>
-
-          <View style={styles.settingsCard}>
-            {settingsItems.map((item, index) => (
-              <Pressable
-                key={item.id}
-                style={[
-                  styles.settingsRow,
-                  index !== settingsItems.length - 1 && styles.settingsDivider,
-                ]}
-                onPress={() => router.push(item.route as any)}
-              >
-                <View style={styles.settingsLeft}>
-                  <FontAwesome5
-                    name={item.icon}
-                    size={17}
-                    color={COLORS.inactiveGray}
-                    style={styles.settingsIcon}
-                  />
-                  <Text style={styles.settingsText}>{item.title}</Text>
-                </View>
-
-                <Ionicons
-                  name="chevron-forward"
-                  size={20}
-                  color="#D3D6DB"
-                />
-              </Pressable>
-            ))}
-          </View>
-
           <Pressable style={styles.logoutButton}>
             <Text style={styles.logoutText}>Log Out</Text>
           </Pressable>
         </ScrollView>
       </View>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -284,13 +207,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
 
-  headerTitle: {
-    flex: 1,
-    marginLeft: 7,
-    fontSize: 18,
-    fontWeight: "800",
-    color: COLORS.primary,
-  },
+  headerTitle: { fontSize: 20, fontWeight: "900", color: "#FFFFFF" },
 
   scrollView: {
     flex: 1,

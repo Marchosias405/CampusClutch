@@ -4,19 +4,19 @@ import React, { useMemo, useState } from "react";
 import {
     Image,
     Pressable,
-    SafeAreaView,
     ScrollView,
     StyleSheet,
     Text,
     View,
 } from "react-native";
+import ScreenHeader from "../../components/ScreenHeader";
 import { mockCourses, mockStudents } from "../../constants/mockData";
 
 type MatchFilter = "MOST_SHARED" | "SAME_CAMPUS" | "RECENTLY_ACTIVE";
 
 const COLORS = {
   primary: "#9B1C31",
-  background: "#FFF7F6",
+  background: "#FFFFFF",
   cardWhite: "#FFFFFF",
   textDark: "#2B2525",
   mutedText: "#8C8585",
@@ -73,28 +73,20 @@ export default function ClassmateMatchesScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <View style={styles.safeArea}>
       <View style={styles.screen}>
-        <View style={styles.appHeader}>
-          <Pressable style={styles.backButton} onPress={() => router.back()}>
-            <Ionicons name="arrow-back" size={24} color={COLORS.primary} />
+        <ScreenHeader>
+          <Pressable
+            style={styles.backRow}
+            hitSlop={10}
+            onPress={() => router.back()}
+          >
+            <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+            <Text style={styles.headerTitle}>Classmates</Text>
           </Pressable>
 
-          <View style={styles.brandRow}>
-            <Image
-              source={{
-                uri: "https://api.dicebear.com/7.x/personas/png?seed=CampusLoop",
-              }}
-              style={styles.logoAvatar}
-            />
-
-            <Text style={styles.brandText}>CampusLoop</Text>
-          </View>
-
-          <Pressable onPress={() => router.push("/notifications" as any)}>
-            <Ionicons name="notifications" size={22} color={COLORS.primary} />
-          </Pressable>
-        </View>
+          <View />
+        </ScreenHeader>
 
         <ScrollView
           style={styles.scrollView}
@@ -209,7 +201,7 @@ export default function ClassmateMatchesScreen() {
           </View>
         </ScrollView>
       </View>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -235,7 +227,8 @@ const styles = StyleSheet.create({
   },
   brandRow: { flexDirection: "row", alignItems: "center", flex: 1 },
   logoAvatar: { width: 30, height: 30, borderRadius: 15, marginRight: 10 },
-  brandText: { fontSize: 18, fontWeight: "900", color: COLORS.primary },
+  backRow: { flexDirection: "row", alignItems: "center", gap: 12 },
+  headerTitle: { fontSize: 19, fontWeight: "900", color: "#FFFFFF" },
   scrollView: { flex: 1 },
   scrollContent: { paddingHorizontal: 20, paddingTop: 28, paddingBottom: 32 },
   pageTitle: { fontSize: 24, fontWeight: "900", color: COLORS.textDark, marginBottom: 6 },

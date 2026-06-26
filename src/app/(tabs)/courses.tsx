@@ -2,15 +2,15 @@ import { FontAwesome5, Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useMemo, useState } from "react";
 import {
-    Image,
-    Pressable,
-    SafeAreaView,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    View,
+  Image,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from "react-native";
+import ScreenHeader from "../../components/ScreenHeader";
 import { mockCourses } from "../../constants/mockData";
 import { Course } from "../../types";
 
@@ -19,11 +19,11 @@ type CourseFilter = "current" | "previous" | "shared";
 const COLORS = {
   primary: "#9B1C31",
   darkRed: "#8F1428",
-  background: "#FFF7F6",
+  background: "#FFFFFF",
   cardWhite: "#FFFFFF",
   textDark: "#2B2525",
   mutedText: "#8C8585",
-  border: "#EFE1E1",
+  border: "#ECE3E3",
   inactiveGray: "#A5AAB3",
   tagGray: "#F4F1F1",
   softPink: "#FBECEC",
@@ -40,13 +40,28 @@ export default function CoursesIndexScreen() {
   const [selectedFilter, setSelectedFilter] = useState<CourseFilter>("current");
   const [search, setSearch] = useState("");
 
-  const currentCourses = useMemo(() => {
-    return mockCourses.filter((course) => course.status === "current");
-  }, []);
+  const query = search.trim().toLowerCase();
 
-  const previousCourses = useMemo(() => {
-    return mockCourses.filter((course) => course.status === "previous");
-  }, []);
+  const matchesQuery = (course: Course) =>
+    !query ||
+    course.code.toLowerCase().includes(query) ||
+    course.title.toLowerCase().includes(query);
+
+  const currentCourses = useMemo(
+    () =>
+      mockCourses.filter(
+        (course) => course.status === "current" && matchesQuery(course),
+      ),
+    [query],
+  );
+
+  const previousCourses = useMemo(
+    () =>
+      mockCourses.filter(
+        (course) => course.status === "previous" && matchesQuery(course),
+      ),
+    [query],
+  );
 
   const handleOpenClassmates = (course?: Course) => {
     router.push({
@@ -56,40 +71,38 @@ export default function CoursesIndexScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <View style={styles.safeArea}>
       <View style={styles.screen}>
-        <View style={styles.appHeader}>
-          <View style={styles.brandRow}>
-            <Image
-              source={{
-                uri: "https://api.dicebear.com/7.x/personas/png?seed=CampusLoop",
-              }}
-              style={styles.logoAvatar}
-            />
-            <Text style={styles.brandText}>CampusLoop</Text>
-          </View>
+        <ScreenHeader>
+          <Text style={styles.headerTitle}>Courses</Text>
 
-          <Pressable onPress={() => router.push("/notifications" as any)}>
-            <Ionicons name="notifications" size={21} color={COLORS.textDark} />
-          </Pressable>
-        </View>
+          <View style={styles.headerActions}>
+            <Pressable
+              hitSlop={10}
+              onPress={() => router.push("/courses/add" as any)}
+            >
+              <Ionicons name="add" size={26} color="#FFFFFF" />
+            </Pressable>
+
+            <Pressable
+              hitSlop={10}
+              onPress={() => router.push("/notifications" as any)}
+            >
+              <Ionicons
+                name="notifications-outline"
+                size={22}
+                color="#FFFFFF"
+              />
+            </Pressable>
+          </View>
+        </ScreenHeader>
 
         <ScrollView
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
         >
-          <View style={styles.titleRow}>
-            <Text style={styles.pageTitle}>My Courses</Text>
-
-            <Pressable
-              style={styles.addButton}
-              onPress={() => router.push("/courses/add" as any)}
-            >
-              <Text style={styles.addButtonText}>+ Add Course</Text>
-            </Pressable>
-          </View>
-
           <View style={styles.searchBar}>
             <Ionicons name="search" size={18} color={COLORS.inactiveGray} />
             <TextInput
@@ -98,13 +111,25 @@ export default function CoursesIndexScreen() {
               placeholder="Search course or student"
               placeholderTextColor={COLORS.inactiveGray}
               style={styles.searchInput}
+              returnKeyType="search"
+              autoCorrect={false}
             />
+            {search.length > 0 && (
+              <Pressable hitSlop={10} onPress={() => setSearch("")}>
+                <Ionicons
+                  name="close-circle"
+                  size={18}
+                  color={COLORS.inactiveGray}
+                />
+              </Pressable>
+            )}
           </View>
 
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.filtersRow}
+            keyboardShouldPersistTaps="handled"
           >
             {filters.map((filter) => {
               const isActive = selectedFilter === filter.id;
@@ -112,10 +137,18 @@ export default function CoursesIndexScreen() {
               return (
                 <Pressable
                   key={filter.id}
-                  style={[styles.filterPill, isActive && styles.activeFilterPill]}
+                  style={[
+                    styles.filterPill,
+                    isActive && styles.activeFilterPill,
+                  ]}
                   onPress={() => setSelectedFilter(filter.id)}
                 >
-                  <Text style={[styles.filterText, isActive && styles.activeFilterText]}>
+                  <Text
+                    style={[
+                      styles.filterText,
+                      isActive && styles.activeFilterText,
+                    ]}
+                  >
                     {filter.label}
                   </Text>
                 </Pressable>
@@ -128,143 +161,121 @@ export default function CoursesIndexScreen() {
             <Text style={styles.currentText}>Current</Text>
           </View>
 
-          <View style={styles.courseList}>
-            {currentCourses.map((course) => (
-              <Pressable
-                key={course.id}
-                style={styles.courseCard}
-                onPress={() => handleOpenClassmates(course)}
-              >
-                <View style={styles.courseAccent} />
-
-                <View style={styles.courseIconBox}>
-                  <FontAwesome5 name={course.icon} size={16} color={COLORS.primary} />
-                </View>
-
-                <View style={styles.courseInfo}>
-                  <Text style={styles.courseCode}>{course.code}</Text>
-                  <Text style={styles.courseTitle} numberOfLines={2}>
-                    {course.title}
-                  </Text>
-                </View>
-
-                <View style={styles.studentStack}>
-                  <View style={styles.avatarCluster}>
-                    <Image
-                      source={{
-                        uri: "https://api.dicebear.com/7.x/personas/png?seed=Mini1",
-                      }}
-                      style={styles.miniAvatar}
-                    />
-                    <Image
-                      source={{
-                        uri: "https://api.dicebear.com/7.x/personas/png?seed=Mini2",
-                      }}
-                      style={[styles.miniAvatar, styles.overlapAvatar]}
-                    />
+          {currentCourses.length === 0 ? (
+            <Text style={styles.emptyText}>No courses match “{search}”.</Text>
+          ) : (
+            <View style={styles.courseList}>
+              {currentCourses.map((course) => (
+                <Pressable
+                  key={course.id}
+                  style={styles.courseCard}
+                  onPress={() => handleOpenClassmates(course)}
+                >
+                  <View style={styles.courseInfo}>
+                    <Text style={styles.courseCode}>{course.code}</Text>
+                    <Text style={styles.courseTitle} numberOfLines={1}>
+                      {course.title}
+                    </Text>
                   </View>
 
-                  <Text style={styles.studentCount}>{course.studentCount} students</Text>
-                </View>
-              </Pressable>
-            ))}
-          </View>
+                  <View style={styles.studentStack}>
+                    <View style={styles.avatarCluster}>
+                      <Image
+                        source={{
+                          uri: `https://api.dicebear.com/7.x/personas/png?seed=${course.id}-1`,
+                        }}
+                        style={styles.miniAvatar}
+                      />
+                      <Image
+                        source={{
+                          uri: `https://api.dicebear.com/7.x/personas/png?seed=${course.id}-2`,
+                        }}
+                        style={[styles.miniAvatar, styles.overlapAvatar]}
+                      />
+                    </View>
 
-          <Text style={styles.previousTitle}>Previous Courses</Text>
+                    <Text style={styles.studentCount}>
+                      {course.studentCount} students
+                    </Text>
+                  </View>
+                </Pressable>
+              ))}
+            </View>
+          )}
 
-          <View style={styles.previousList}>
-            {previousCourses.map((course) => (
-              <Pressable key={course.id} style={styles.previousCard}>
-                <View>
-                  <Text style={styles.previousCode}>{course.code}</Text>
-                  <Text style={styles.previousTerm}>{course.term}</Text>
-                </View>
+          {previousCourses.length > 0 && (
+            <>
+              <Text style={styles.previousTitle}>Previous Courses</Text>
 
-                <View style={styles.archivedRow}>
-                  <Text style={styles.archivedText}>Archived</Text>
-                  <Ionicons
-                    name="chevron-forward"
-                    size={17}
-                    color={COLORS.inactiveGray}
-                  />
-                </View>
-              </Pressable>
-            ))}
-          </View>
+              <View style={styles.previousList}>
+                {previousCourses.map((course) => (
+                  <Pressable key={course.id} style={styles.previousCard}>
+                    <View>
+                      <Text style={styles.previousCode}>{course.code}</Text>
+                      <Text style={styles.previousTerm}>{course.term}</Text>
+                    </View>
+
+                    <View style={styles.archivedRow}>
+                      <Text style={styles.archivedText}>Archived</Text>
+                      <Ionicons
+                        name="chevron-forward"
+                        size={17}
+                        color={COLORS.inactiveGray}
+                      />
+                    </View>
+                  </Pressable>
+                ))}
+              </View>
+            </>
+          )}
 
           <Pressable
             style={styles.findCard}
             onPress={() => handleOpenClassmates()}
           >
-            <View style={styles.findTextBlock}>
-              <Text style={styles.findTitle}>Find Classmates</Text>
-              <Text style={styles.findDescription}>
-                Connect with students in your same sections for study groups or delivery
-                splits.
-              </Text>
-
-              <View style={styles.discoverButton}>
-                <Text style={styles.discoverText}>Discover Now</Text>
-                <FontAwesome5 name="user-friends" size={12} color={COLORS.primary} />
-              </View>
+            <View style={styles.findIcon}>
+              <FontAwesome5 name="user-friends" size={16} color="#FFFFFF" />
             </View>
 
-            <FontAwesome5 name="graduation-cap" size={62} color="#8F96A3" />
+            <View style={styles.findTextBlock}>
+              <Text style={styles.findTitle}>Find Classmates</Text>
+              <Text style={styles.findDescription} numberOfLines={2}>
+                Connet with other students in your classes to ask questions,
+                share notes.
+              </Text>
+            </View>
+
+            <View style={styles.discoverPill}>
+              <Text style={styles.discoverText}>Discover</Text>
+            </View>
           </Pressable>
         </ScrollView>
       </View>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: COLORS.background },
   screen: { flex: 1, backgroundColor: COLORS.background },
-  appHeader: {
-    height: 58,
-    backgroundColor: COLORS.cardWhite,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-    paddingHorizontal: 20,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  brandRow: { flexDirection: "row", alignItems: "center" },
-  logoAvatar: { width: 30, height: 30, borderRadius: 15, marginRight: 10 },
-  brandText: { fontSize: 18, fontWeight: "900", color: COLORS.primary },
+  headerTitle: { fontSize: 20, fontWeight: "900", color: "#FFFFFF" },
+  headerActions: { flexDirection: "row", alignItems: "center", gap: 18 },
   scrollView: { flex: 1 },
-  scrollContent: { paddingHorizontal: 20, paddingTop: 24, paddingBottom: 32 },
-  titleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 22,
-  },
-  pageTitle: { fontSize: 30, fontWeight: "900", color: COLORS.textDark },
-  addButton: {
-    backgroundColor: COLORS.primary,
-    paddingHorizontal: 15,
-    height: 35,
-    borderRadius: 11,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  addButtonText: { color: COLORS.cardWhite, fontSize: 13, fontWeight: "900" },
+  scrollContent: { paddingHorizontal: 20, paddingTop: 22, paddingBottom: 32 },
   searchBar: {
     height: 47,
     borderRadius: 13,
     backgroundColor: COLORS.cardWhite,
     borderWidth: 1,
-    borderColor: "#F1E9E9",
+    borderColor: COLORS.border,
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 14,
+    gap: 8,
     marginBottom: 20,
   },
   searchInput: {
     flex: 1,
-    marginLeft: 10,
     fontSize: 14,
     color: COLORS.textDark,
     fontWeight: "600",
@@ -294,46 +305,57 @@ const styles = StyleSheet.create({
   },
   sectionTitle: { fontSize: 23, fontWeight: "900", color: COLORS.textDark },
   currentText: { fontSize: 12, fontWeight: "700", color: COLORS.inactiveGray },
-  courseList: { gap: 14 },
+  emptyText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: COLORS.mutedText,
+    paddingVertical: 14,
+  },
+  courseList: { gap: 11 },
   courseCard: {
-    position: "relative",
-    minHeight: 82,
+    minHeight: 76,
     borderRadius: 14,
     backgroundColor: COLORS.cardWhite,
+    borderWidth: 1,
+    borderColor: COLORS.border,
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 16,
-    overflow: "hidden",
+    paddingHorizontal: 14,
     shadowColor: "#000",
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  courseAccent: {
-    position: "absolute",
-    left: 0,
-    top: 0,
-    bottom: 0,
-    width: 4,
-    backgroundColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 7,
+    elevation: 1,
   },
   courseIconBox: {
-    width: 44,
-    height: 44,
-    borderRadius: 10,
+    width: 46,
+    height: 46,
+    borderRadius: 12,
     backgroundColor: COLORS.softPink,
     alignItems: "center",
     justifyContent: "center",
     marginRight: 14,
   },
-  courseInfo: { flex: 1 },
-  courseCode: { fontSize: 18, fontWeight: "900", color: COLORS.textDark },
-  courseTitle: { fontSize: 13, fontWeight: "600", color: COLORS.mutedText },
-  studentStack: { alignItems: "flex-end", marginLeft: 8 },
+  courseInfo: { flex: 1, marginRight: 8 },
+  courseCode: { fontSize: 16, fontWeight: "900", color: COLORS.textDark },
+  courseTitle: {
+    marginTop: 2,
+    fontSize: 12,
+    fontWeight: "600",
+    color: COLORS.mutedText,
+  },
+  studentStack: { alignItems: "flex-end" },
   avatarCluster: { flexDirection: "row", marginBottom: 5 },
-  miniAvatar: { width: 20, height: 20, borderRadius: 10, borderWidth: 1, borderColor: COLORS.cardWhite },
-  overlapAvatar: { marginLeft: -7 },
-  studentCount: { fontSize: 11, fontWeight: "800", color: "#B45B67" },
+  miniAvatar: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 1.5,
+    borderColor: COLORS.cardWhite,
+    backgroundColor: COLORS.softPink,
+  },
+  overlapAvatar: { marginLeft: -8 },
+  studentCount: { fontSize: 11, fontWeight: "800", color: COLORS.primary },
   previousTitle: {
     fontSize: 23,
     fontWeight: "900",
@@ -346,7 +368,7 @@ const styles = StyleSheet.create({
     height: 69,
     borderRadius: 13,
     borderWidth: 1,
-    borderColor: "#EFE1E1",
+    borderColor: COLORS.border,
     backgroundColor: COLORS.cardWhite,
     paddingHorizontal: 16,
     flexDirection: "row",
@@ -358,34 +380,39 @@ const styles = StyleSheet.create({
   archivedRow: { flexDirection: "row", alignItems: "center" },
   archivedText: { fontSize: 12, fontWeight: "700", color: COLORS.inactiveGray },
   findCard: {
-    marginTop: 32,
-    minHeight: 176,
-    borderRadius: 18,
-    backgroundColor: "#5E6472",
-    padding: 21,
+    marginTop: 28,
+    borderRadius: 16,
+    backgroundColor: COLORS.softPink,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
   },
-  findTextBlock: { flex: 1, marginRight: 15 },
-  findTitle: { fontSize: 21, fontWeight: "900", color: COLORS.cardWhite },
+  findIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: COLORS.primary,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 13,
+  },
+  findTextBlock: { flex: 1, marginRight: 12 },
+  findTitle: { fontSize: 16, fontWeight: "900", color: COLORS.textDark },
   findDescription: {
-    marginTop: 8,
-    fontSize: 14,
-    lineHeight: 18,
+    marginTop: 2,
+    fontSize: 12,
+    lineHeight: 16,
     fontWeight: "600",
-    color: "#F3F3F3",
+    color: COLORS.mutedText,
   },
-  discoverButton: {
-    marginTop: 18,
-    alignSelf: "flex-start",
-    height: 39,
-    paddingHorizontal: 17,
-    borderRadius: 20,
-    backgroundColor: COLORS.cardWhite,
-    flexDirection: "row",
+  discoverPill: {
+    height: 36,
+    paddingHorizontal: 16,
+    borderRadius: 18,
+    backgroundColor: COLORS.primary,
     alignItems: "center",
-    gap: 8,
+    justifyContent: "center",
   },
-  discoverText: { fontSize: 13, fontWeight: "900", color: COLORS.primary },
+  discoverText: { fontSize: 13, fontWeight: "800", color: "#FFFFFF" },
 });

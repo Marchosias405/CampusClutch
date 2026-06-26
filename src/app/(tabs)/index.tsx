@@ -1,15 +1,8 @@
 import { FontAwesome5, Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React from "react";
-import {
-    Image,
-    Pressable,
-    SafeAreaView,
-    ScrollView,
-    StyleSheet,
-    Text,
-    View,
-} from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import ScreenHeader from "../../components/ScreenHeader";
 
 type Course = {
   id: string;
@@ -18,52 +11,16 @@ type Course = {
   title: string;
 };
 
-type QuickAction = {
-  id: string;
-  title: string;
-  icon: string;
-  route: string;
-};
-
 const COLORS = {
   primary: "#9B1C31",
-  darkRed: "#8F1428",
-  background: "#FFF7F6",
+  background: "#FFFFFF",
   cardWhite: "#FFFFFF",
   textDark: "#2B2525",
   mutedText: "#8C8585",
-  border: "#EFE1E1",
-  inactiveGray: "#A5AAB3",
+  border: "#ECE3E3",
   softPink: "#FBECEC",
-  lightGrayCard: "#F8F8F8",
+  track: "#F0E7E8",
 };
-
-const quickActions: QuickAction[] = [
-  {
-    id: "find-classmates",
-    title: "Find Classmates",
-    icon: "users",
-    route: "/courses/classmates",
-  },
-  {
-    id: "add-course",
-    title: "Add Course",
-    icon: "plus-circle",
-    route: "/courses/add",
-  },
-  {
-    id: "post-request",
-    title: "Post Request",
-    icon: "truck",
-    route: "/requests/create",
-  },
-  {
-    id: "messages",
-    title: "Messages",
-    icon: "comment-alt",
-    route: "/messages",
-  },
-];
 
 const currentCourses: Course[] = [
   {
@@ -97,196 +54,118 @@ export default function HomeDashboardScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <View style={styles.screen}>
-        <View style={styles.appHeader}>
-          <View style={styles.brandRow}>
-            <Image
-              source={{
-                uri: "https://api.dicebear.com/7.x/personas/png?seed=Kazi",
-              }}
-              style={styles.logoAvatar}
-            />
+    <View style={styles.screen}>
+      <ScreenHeader>
+        <Text style={styles.brandText}>CampusClutch</Text>
 
-            <Text style={styles.brandText}>CampusLoop</Text>
+        <Pressable
+          hitSlop={10}
+          onPress={() => router.push("/notifications" as any)}
+        >
+          <Ionicons name="notifications-outline" size={23} color="#FFFFFF" />
+        </Pressable>
+      </ScreenHeader>
+
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Combined greeting + balance hero */}
+        <View style={styles.heroCard}>
+          <View style={styles.heroTopRow}>
+            <View style={styles.heroTextBlock}>
+              <Text style={styles.heroHello}>Welcome back,</Text>
+              <Text style={styles.heroName}>Hi, Kazi</Text>
+            </View>
+
+            <View style={styles.pointsPill}>
+              <FontAwesome5 name="star" size={11} color="#FFFFFF" solid />
+              <Text style={styles.pointsPillText}>120 pts</Text>
+            </View>
           </View>
 
-          <Pressable
-            style={styles.headerIconButton}
-            onPress={() => router.push("/notifications" as any)}
-          >
-            <Ionicons name="notifications" size={22} color={COLORS.textDark} />
+          <View style={styles.progressTrack}>
+            <View style={styles.progressFill} />
+          </View>
+
+          <Text style={styles.heroSub}>80 points to your next reward</Text>
+        </View>
+
+        {/* Current courses */}
+        <View style={styles.sectionHeaderRow}>
+          <Text style={styles.sectionTitle}>Current Courses</Text>
+
+          <Pressable onPress={() => router.push("/courses" as any)}>
+            <Text style={styles.viewAllText}>View All</Text>
           </Pressable>
         </View>
 
-        <ScrollView
-          style={styles.scrollView}
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-        >
-          <Text style={styles.welcomeText}>Welcome back,</Text>
-          <Text style={styles.greetingText}>Hi, Kazi</Text>
-
-          <View style={styles.balanceCard}>
-            <View style={styles.balanceTopRow}>
-              <View>
-                <Text style={styles.balanceLabel}>Current Balance</Text>
-
-                <View style={styles.pointsRow}>
-                  <Text style={styles.pointsNumber}>120</Text>
-                  <Text style={styles.pointsText}>points</Text>
-                </View>
+        <View style={styles.courseList}>
+          {currentCourses.map((course) => (
+            <Pressable
+              key={course.id}
+              style={styles.courseCard}
+              onPress={() => handleOpenCourse(course.id)}
+            >
+              <View style={styles.courseBadge}>
+                <Text style={styles.courseBadgeText}>{course.number}</Text>
               </View>
 
-              <View style={styles.starBox}>
-                <FontAwesome5 name="star" size={21} color={COLORS.cardWhite} solid />
+              <View style={styles.courseInfo}>
+                <Text style={styles.courseCode}>{course.code}</Text>
+                <Text style={styles.courseTitle} numberOfLines={1}>
+                  {course.title}
+                </Text>
               </View>
-            </View>
 
-            <View style={styles.balanceDivider} />
-
-            <Text style={styles.rewardText}>Next reward at 200 points</Text>
-
-            <View style={styles.progressTrack}>
-              <View style={styles.progressFill} />
-            </View>
-          </View>
-
-          <Text style={styles.sectionTitle}>Quick Actions</Text>
-
-          <View style={styles.quickGrid}>
-            {quickActions.map((action) => (
-              <Pressable
-                key={action.id}
-                style={styles.quickCard}
-                onPress={() => router.push(action.route as any)}
-              >
-                <View style={styles.quickIconCircle}>
-                  <FontAwesome5
-                    name={action.icon}
-                    size={18}
-                    color={COLORS.primary}
-                    solid
-                  />
-                </View>
-
-                <Text style={styles.quickTitle}>{action.title}</Text>
-              </Pressable>
-            ))}
-          </View>
-
-          <View style={styles.sectionHeaderRow}>
-            <Text style={styles.sectionTitle}>Current Courses</Text>
-
-            <Pressable onPress={() => router.push("/courses" as any)}>
-              <Text style={styles.viewAllText}>View All</Text>
+              <Ionicons
+                name="chevron-forward"
+                size={20}
+                color={COLORS.mutedText}
+              />
             </Pressable>
+          ))}
+        </View>
+
+        {/* Active requests - compact banner */}
+        <Text style={styles.sectionTitle}>Active Requests</Text>
+
+        <Pressable
+          style={styles.requestBanner}
+          onPress={() => router.push("/requests" as any)}
+        >
+          <View style={styles.requestIcon}>
+            <FontAwesome5 name="route" size={15} color="#FFFFFF" solid />
           </View>
 
-          <View style={styles.courseList}>
-            {currentCourses.map((course) => (
-              <Pressable
-                key={course.id}
-                style={styles.courseCard}
-                onPress={() => handleOpenCourse(course.id)}
-              >
-                <View style={styles.courseAccent} />
-
-                <View style={styles.courseCodeBox}>
-                  <Text style={styles.courseNumber}>{course.number}</Text>
-                </View>
-
-                <View style={styles.courseInfo}>
-                  <Text style={styles.courseCode}>{course.code}</Text>
-                  <Text style={styles.courseTitle} numberOfLines={2}>
-                    {course.title}
-                  </Text>
-                </View>
-
-                <Ionicons
-                  name="chevron-forward"
-                  size={22}
-                  color="#D9BFC2"
-                />
-              </Pressable>
-            ))}
+          <View style={styles.requestText}>
+            <Text style={styles.requestTitle} numberOfLines={1}>
+              2 deliveries to Burnaby today
+            </Text>
+            <Text style={styles.requestSub} numberOfLines={1}>
+              Join a route · earn up to 40 pts
+            </Text>
           </View>
 
-          <Text style={styles.sectionTitle}>Active Requests</Text>
-
-          <View style={styles.activeRequestCard}>
-            <View style={styles.routeIconCircle}>
-              <FontAwesome5 name="map" size={20} color={COLORS.primary} solid />
-            </View>
-
-            <View style={styles.activeRequestContent}>
-              <Text style={styles.activeRequestTitle}>
-                2 requests going to Burnaby today
-              </Text>
-
-              <Text style={styles.activeRequestDescription}>
-                Join a delivery route and earn up to 40 bonus points.
-              </Text>
-
-              <Pressable
-                style={styles.viewRoutesButton}
-                onPress={() => router.push("/requests" as any)}
-              >
-                <Text style={styles.viewRoutesText}>View Routes</Text>
-              </Pressable>
-            </View>
-          </View>
-        </ScrollView>
-      </View>
-    </SafeAreaView>
+          <Ionicons name="chevron-forward" size={20} color={COLORS.primary} />
+        </Pressable>
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
-
   screen: {
     flex: 1,
     backgroundColor: COLORS.background,
   },
 
-  appHeader: {
-    height: 58,
-    backgroundColor: COLORS.cardWhite,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-    paddingHorizontal: 20,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-
-  brandRow: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-
-  logoAvatar: {
-    width: 31,
-    height: 31,
-    borderRadius: 16,
-    marginRight: 10,
-  },
-
   brandText: {
-    fontSize: 18,
+    fontSize: 19,
     fontWeight: "900",
-    color: COLORS.primary,
-  },
-
-  headerIconButton: {
-    width: 36,
-    height: 36,
-    alignItems: "center",
-    justifyContent: "center",
+    color: "#FFFFFF",
+    letterSpacing: 0.2,
   },
 
   scrollView: {
@@ -295,109 +174,91 @@ const styles = StyleSheet.create({
 
   scrollContent: {
     paddingHorizontal: 20,
-    paddingTop: 24,
+    paddingTop: 22,
     paddingBottom: 32,
   },
 
-  welcomeText: {
-    fontSize: 15,
+  heroCard: {
+    borderRadius: 16,
+    backgroundColor: COLORS.cardWhite,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    paddingHorizontal: 18,
+    paddingTop: 16,
+    paddingBottom: 16,
+    marginBottom: 28,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.05,
+    shadowRadius: 9,
+    elevation: 2,
+  },
+
+  heroTopRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+
+  heroTextBlock: {
+    flex: 1,
+  },
+
+  heroHello: {
+    fontSize: 13,
     fontWeight: "600",
     color: COLORS.mutedText,
-    marginBottom: 5,
-  },
-
-  greetingText: {
-    fontSize: 31,
-    fontWeight: "900",
-    color: COLORS.textDark,
-    marginBottom: 20,
-  },
-
-  balanceCard: {
-    borderRadius: 13,
-    backgroundColor: COLORS.primary,
-    paddingHorizontal: 21,
-    paddingTop: 22,
-    paddingBottom: 20,
-    marginBottom: 23,
-    shadowColor: COLORS.primary,
-    shadowOffset: {
-      width: 0,
-      height: 5,
-    },
-    shadowOpacity: 0.22,
-    shadowRadius: 9,
-    elevation: 5,
-  },
-
-  balanceTopRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-
-  balanceLabel: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#E4B9C0",
-    marginBottom: 4,
-  },
-
-  pointsRow: {
-    flexDirection: "row",
-    alignItems: "flex-end",
-  },
-
-  pointsNumber: {
-    fontSize: 30,
-    lineHeight: 34,
-    fontWeight: "900",
-    color: COLORS.cardWhite,
-  },
-
-  pointsText: {
-    marginLeft: 7,
     marginBottom: 3,
+  },
+
+  heroName: {
     fontSize: 24,
     fontWeight: "900",
-    color: COLORS.cardWhite,
+    color: COLORS.textDark,
   },
 
-  starBox: {
-    width: 51,
-    height: 51,
-    borderRadius: 12,
-    backgroundColor: "#C35F70",
+  pointsPill: {
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
+    gap: 6,
+    height: 34,
+    paddingHorizontal: 14,
+    borderRadius: 17,
+    backgroundColor: COLORS.primary,
   },
 
-  balanceDivider: {
-    height: 1,
-    backgroundColor: "rgba(255,255,255,0.16)",
-    marginTop: 18,
-    marginBottom: 13,
-  },
-
-  rewardText: {
-    fontSize: 11,
-    fontWeight: "700",
-    color: "#E8BDC3",
-    marginBottom: 8,
+  pointsPillText: {
+    fontSize: 14,
+    fontWeight: "900",
+    color: "#FFFFFF",
   },
 
   progressTrack: {
-    height: 5,
+    height: 6,
     borderRadius: 3,
-    backgroundColor: "#C66775",
+    backgroundColor: COLORS.track,
     overflow: "hidden",
+    marginBottom: 8,
   },
 
   progressFill: {
     width: "60%",
     height: "100%",
     borderRadius: 3,
-    backgroundColor: COLORS.cardWhite,
+    backgroundColor: COLORS.primary,
+  },
+
+  heroSub: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: COLORS.mutedText,
+  },
+
+  sectionHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 14,
   },
 
   sectionTitle: {
@@ -407,92 +268,46 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
 
-  quickGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 11,
-    marginBottom: 24,
-  },
-
-  quickCard: {
-    width: "48%",
-    height: 90,
-    borderRadius: 12,
-    backgroundColor: COLORS.cardWhite,
-    borderWidth: 1,
-    borderColor: "#E8CFCF",
-    paddingHorizontal: 15,
-    paddingVertical: 13,
-    justifyContent: "space-between",
-  },
-
-  quickIconCircle: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: COLORS.softPink,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  quickTitle: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#5F5757",
-  },
-
-  sectionHeaderRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-
   viewAllText: {
     fontSize: 13,
     fontWeight: "900",
-    color: "#B45B67",
+    color: COLORS.primary,
     marginBottom: 14,
   },
 
   courseList: {
     gap: 11,
-    marginBottom: 24,
+    marginBottom: 28,
   },
 
   courseCard: {
-    position: "relative",
-    minHeight: 76,
-    borderRadius: 12,
+    minHeight: 72,
+    borderRadius: 14,
     backgroundColor: COLORS.cardWhite,
     borderWidth: 1,
-    borderColor: "#E8CFCF",
-    overflow: "hidden",
-    paddingHorizontal: 16,
+    borderColor: COLORS.border,
+    paddingHorizontal: 14,
     flexDirection: "row",
     alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 7,
+    elevation: 1,
   },
 
-  courseAccent: {
-    position: "absolute",
-    left: 0,
-    top: 0,
-    bottom: 0,
-    width: 4,
-    backgroundColor: COLORS.primary,
-  },
-
-  courseCodeBox: {
-    width: 48,
-    height: 48,
-    borderRadius: 8,
+  courseBadge: {
+    width: 46,
+    height: 46,
+    borderRadius: 12,
     backgroundColor: COLORS.softPink,
     alignItems: "center",
     justifyContent: "center",
     marginRight: 14,
   },
 
-  courseNumber: {
-    fontSize: 16,
+  courseBadgeText: {
+    fontSize: 15,
     fontWeight: "900",
     color: COLORS.primary,
   },
@@ -502,7 +317,7 @@ const styles = StyleSheet.create({
   },
 
   courseCode: {
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: "900",
     color: COLORS.textDark,
   },
@@ -510,66 +325,43 @@ const styles = StyleSheet.create({
   courseTitle: {
     marginTop: 2,
     fontSize: 12,
-    lineHeight: 16,
     fontWeight: "600",
     color: COLORS.mutedText,
   },
 
-  activeRequestCard: {
-    minHeight: 137,
-    borderRadius: 13,
-    backgroundColor: COLORS.lightGrayCard,
-    borderWidth: 1,
-    borderColor: "#E8CFCF",
-    paddingHorizontal: 19,
-    paddingVertical: 18,
+  requestBanner: {
     flexDirection: "row",
-    marginBottom: 10,
+    alignItems: "center",
+    borderRadius: 14,
+    backgroundColor: COLORS.softPink,
+    paddingHorizontal: 14,
+    paddingVertical: 13,
   },
 
-  routeIconCircle: {
-    width: 43,
-    height: 43,
-    borderRadius: 22,
-    backgroundColor: COLORS.cardWhite,
+  requestIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: COLORS.primary,
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 15,
+    marginRight: 13,
   },
 
-  activeRequestContent: {
+  requestText: {
     flex: 1,
   },
 
-  activeRequestTitle: {
-    fontSize: 15,
-    lineHeight: 20,
-    fontWeight: "900",
+  requestTitle: {
+    fontSize: 14,
+    fontWeight: "800",
     color: COLORS.textDark,
-    marginBottom: 6,
   },
 
-  activeRequestDescription: {
-    fontSize: 13,
-    lineHeight: 18,
+  requestSub: {
+    marginTop: 2,
+    fontSize: 12,
     fontWeight: "600",
     color: COLORS.mutedText,
-    marginBottom: 14,
-  },
-
-  viewRoutesButton: {
-    alignSelf: "flex-start",
-    height: 36,
-    paddingHorizontal: 18,
-    borderRadius: 18,
-    backgroundColor: COLORS.darkRed,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  viewRoutesText: {
-    fontSize: 13,
-    fontWeight: "800",
-    color: COLORS.cardWhite,
   },
 });
