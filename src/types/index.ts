@@ -24,3 +24,22 @@ export type Student = {
   activityNote?: string;
   isRecentlyActive?: boolean;
 };
+
+export type RequestCategory =
+  | "ALL"
+  | "DELIVERY"
+  | "EVENT HELP"
+  | "PICKUP"
+  | "STUDY HELP";
+
+export type CampusRequest = {
+  id: string;
+  category: Exclude<RequestCategory, "ALL">;
+  secondaryCategory?: string;
+  title: string;
+  description: string;
+  location: string;
+  timeLabel: string;
+  points: number;
+  isUrgent?: boolean;
+};

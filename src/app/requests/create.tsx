@@ -1,15 +1,21 @@
 import { FontAwesome5, Ionicons } from "@expo/vector-icons";
+import DateTimePicker, {
+  DateTimePickerEvent,
+} from "@react-native-community/datetimepicker";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    View,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from "react-native";
 import ScreenHeader from "../../components/ScreenHeader";
+import { useRequests } from "../../context/RequestsContext";
+import type { CampusRequest } from "../../types";
 
 type RequestType = "Delivery" | "Event Help" | "Study Help" | "Pickup";
 type ItemSize = "Small" | "Medium" | "Large";
@@ -50,9 +56,11 @@ const requestTypes: {
 ];
 
 const itemSizes: ItemSize[] = ["Small", "Medium", "Large"];
+const weekDayLabels = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 export default function CreateRequestScreen() {
   const router = useRouter();
+  const { addRequest } = useRequests();
 
   const [selectedRequestType, setSelectedRequestType] =
     useState<RequestType>("Delivery");
@@ -64,7 +72,12 @@ export default function CreateRequestScreen() {
   const [itemSize, setItemSize] = useState<ItemSize>("Medium");
   const [description, setDescription] = useState("");
   const [deadline, setDeadline] = useState("");
-  const [pointsOffered, setPointsOffered] = useState("50");
+  const [deadlineDate, setDeadlineDate] = useState<Date | null>(null);
+  const [showDeadlinePicker, setShowDeadlinePicker] = useState(false);
+  const [showWebCalendar, setShowWebCalendar] = useState(false);
+  const [calendarMonth, setCalendarMonth] = useState(new Date());
+  const [pointsOffered, setPointsOffered] = useState("");
+  const [validationError, setValidationError] = useState("");
 
   const handleBack = () => {
     router.back();
@@ -78,26 +91,239 @@ export default function CreateRequestScreen() {
     setItemSize(size);
   };
 
-  const handleSubmit = () => {
-    // Lightweight validation placeholder:
-    // Later, check required fields before sending to backend.
-    const formData = {
-      selectedRequestType,
-      requestTitle,
-      campus,
-      roomLocation,
-      pickupLocation,
-      dropoffLocation,
-      itemSize,
-      description,
-      deadline,
-      pointsOffered,
+
+
+  const handlePointsOfferedChange = (value: string) => {
+    const numbersOnly = value.replace(/[^0-9]/g, "");
+
+    setPointsOffered(numbersOnly);
+
+    if (validationError) {
+      setValidationError("");
+    }
+  };
+
+
+
+  const formatDeadlineDate = (date: Date) => {
+    return date.toLocaleDateString("en-CA", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+  };
+
+
+
+
+
+
+
+
+
+const isDateBeforeToday = (date: Date) => {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const targetDate = new Date(date);
+  targetDate.setHours(0, 0, 0, 0);
+
+  return targetDate < today;
+};
+
+const isSameCalendarDate = (firstDate: Date, secondDate: Date) => {
+  return (
+    firstDate.getFullYear() === secondDate.getFullYear() &&
+    firstDate.getMonth() === secondDate.getMonth() &&
+    firstDate.getDate() === secondDate.getDate()
+  );
+};
+
+const getCalendarDays = () => {
+  const year = calendarMonth.getFullYear();
+  const month = calendarMonth.getMonth();
+
+  const firstDayOfMonth = new Date(year, month, 1);
+  const lastDayOfMonth = new Date(year, month + 1, 0);
+
+  const days: (Date | null)[] = [];
+
+  for (let i = 0; i < firstDayOfMonth.getDay(); i += 1) {
+    days.push(null);
+  }
+
+  for (let day = 1; day <= lastDayOfMonth.getDate(); day += 1) {
+    days.push(new Date(year, month, day));
+  }
+
+  return days;
+};
+
+const formatCalendarMonthLabel = (date: Date) => {
+  return date.toLocaleDateString("en-CA", {
+    month: "long",
+    year: "numeric",
+  });
+};
+
+    const handleOpenDeadlinePicker = () => {
+      setValidationError("");
+
+      if (Platform.OS === "web") {
+        setCalendarMonth(deadlineDate ?? new Date());
+        setShowWebCalendar((currentValue) => !currentValue);
+        return;
+      }
+
+      setShowDeadlinePicker(true);
     };
 
-    console.log("New request submitted:", formData);
+    const handleSelectDeadlineDate = (date: Date) => {
+      setDeadlineDate(date);
+      setDeadline(formatDeadlineDate(date));
+      setShowWebCalendar(false);
+      setValidationError("");
+    };
+
+    const handlePreviousCalendarMonth = () => {
+      setCalendarMonth((currentMonth) => {
+        return new Date(
+          currentMonth.getFullYear(),
+          currentMonth.getMonth() - 1,
+          1
+        );
+      });
+    };
+
+    const handleNextCalendarMonth = () => {
+      setCalendarMonth((currentMonth) => {
+        return new Date(
+          currentMonth.getFullYear(),
+          currentMonth.getMonth() + 1,
+          1
+        );
+      });
+    };
+
+    const handleDeadlineChange = (
+      event: DateTimePickerEvent,
+      selectedDate?: Date
+    ) => {
+    if (Platform.OS === "android") {
+      setShowDeadlinePicker(false);
+    }
+
+    if (event.type === "dismissed") {
+      return;
+    }
+
+    if (selectedDate) {
+      setDeadlineDate(selectedDate);
+      setDeadline(formatDeadlineDate(selectedDate));
+    }
+  };
+
+  const handleCloseDeadlinePicker = () => {
+    setShowDeadlinePicker(false);
+  };
+
+
+  const validateForm = () => {
+    const pointsNumber = Number(pointsOffered.trim());
+
+    if (!requestTitle.trim()) {
+      return "Please enter a request title.";
+    }
+
+    if (!campus.trim()) {
+      return "Please select a campus.";
+    }
+
+    if (!roomLocation.trim()) {
+      return "Please enter a room or specific location.";
+    }
+
+    if (!description.trim()) {
+      return "Please enter a description.";
+    }
+
+    if (!deadline.trim()) {
+      return "Please enter a deadline.";
+    }
+
+    if (!pointsOffered.trim()) {
+      return "Please enter points offered.";
+    }
+
+    if (!Number.isInteger(pointsNumber) || pointsNumber <= 0) {
+      return "Points offered must be a whole number greater than 0.";
+    }
+
+    return "";
+  };
+
+
+  const mapRequestTypeToCategory = (
+    requestType: RequestType
+  ): CampusRequest["category"] => {
+    switch (requestType) {
+      case "Delivery":
+        return "DELIVERY";
+      case "Event Help":
+        return "EVENT HELP";
+      case "Pickup":
+        return "PICKUP";
+      case "Study Help":
+        return "STUDY HELP";
+      default:
+        return "DELIVERY";
+    }
+  };
+
+
+  const handleSubmit = () => {
+    const errorMessage = validateForm();
+
+    if (errorMessage) {
+      setValidationError(errorMessage);
+      return;
+    }
+
+    setValidationError("");
+
+    const formData = {
+      selectedRequestType,
+      requestTitle: requestTitle.trim(),
+      campus: campus.trim(),
+      roomLocation: roomLocation.trim(),
+      pickupLocation: pickupLocation.trim(),
+      dropoffLocation: dropoffLocation.trim(),
+      itemSize,
+      description: description.trim(),
+      deadline: deadline.trim(),
+      pointsOffered: Number(pointsOffered.trim()),
+    };
+
+    const newRequest = addRequest({
+      category: mapRequestTypeToCategory(selectedRequestType),
+      title: requestTitle.trim(),
+      description: description.trim(),
+      location: `${campus.trim()} • ${roomLocation.trim()}`,
+      timeLabel: deadline.trim(),
+      points: Number(pointsOffered.trim()),
+      isUrgent: false,
+    });
+
+    console.log("New request submitted:", {
+      ...formData,
+      createdRequestId: newRequest.id,
+    });
 
     router.back();
   };
+
+
+  
 
   return (
     <View style={styles.safeArea}>
@@ -290,17 +516,25 @@ export default function CreateRequestScreen() {
           </View>
 
           <View style={styles.twoColumnRow}>
+
+
+            
             <View style={styles.columnField}>
               <Text style={styles.inputLabel}>Deadline</Text>
 
-              <View style={styles.iconInputWrapSmall}>
-                <TextInput
-                  value={deadline}
-                  onChangeText={setDeadline}
-                  placeholder="ASAP or Time"
-                  placeholderTextColor={COLORS.inactiveGray}
-                  style={styles.smallIconInput}
-                />
+              <Pressable
+                style={styles.iconInputWrapSmall}
+                onPress={handleOpenDeadlinePicker}
+              >
+                <Text
+                  style={[
+                    styles.deadlineText,
+                    !deadline && styles.deadlinePlaceholderText,
+                  ]}
+                  numberOfLines={1}
+                >
+                  {deadline || "Pick date"}
+                </Text>
 
                 <Ionicons
                   name="calendar"
@@ -308,8 +542,102 @@ export default function CreateRequestScreen() {
                   color={COLORS.mutedText}
                   style={styles.inputRightIcon}
                 />
-              </View>
+              </Pressable>
+
+              {Platform.OS === "web" && showWebCalendar && (
+                <View style={styles.webCalendarCard}>
+                  <View style={styles.webCalendarHeader}>
+                    <Pressable
+                      style={styles.calendarNavButton}
+                      onPress={handlePreviousCalendarMonth}
+                    >
+                      <Ionicons name="chevron-back" size={18} color={COLORS.primary} />
+                    </Pressable>
+
+                    <Text style={styles.webCalendarMonthText}>
+                      {formatCalendarMonthLabel(calendarMonth)}
+                    </Text>
+
+                    <Pressable
+                      style={styles.calendarNavButton}
+                      onPress={handleNextCalendarMonth}
+                    >
+                      <Ionicons name="chevron-forward" size={18} color={COLORS.primary} />
+                    </Pressable>
+                  </View>
+
+                  <View style={styles.webCalendarWeekRow}>
+                    {weekDayLabels.map((dayLabel) => (
+                      <Text key={dayLabel} style={styles.webCalendarWeekText}>
+                        {dayLabel}
+                      </Text>
+                    ))}
+                  </View>
+
+                  <View style={styles.webCalendarGrid}>
+                    {getCalendarDays().map((date, index) => {
+                      if (!date) {
+                        return <View key={`empty-${index}`} style={styles.calendarDayCell} />;
+                      }
+
+                      const isSelected = deadlineDate
+                        ? isSameCalendarDate(date, deadlineDate)
+                        : false;
+
+                      const isDisabled = isDateBeforeToday(date);
+
+                      return (
+                        <Pressable
+                          key={date.toISOString()}
+                          style={[
+                            styles.calendarDayCell,
+                            styles.calendarDayButton,
+                            isSelected && styles.calendarDaySelected,
+                            isDisabled && styles.calendarDayDisabled,
+                          ]}
+                          onPress={() => handleSelectDeadlineDate(date)}
+                          disabled={isDisabled}
+                        >
+                          <Text
+                            style={[
+                              styles.calendarDayText,
+                              isSelected && styles.calendarDaySelectedText,
+                              isDisabled && styles.calendarDayDisabledText,
+                            ]}
+                          >
+                            {date.getDate()}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                </View>
+              )}
+
+              {Platform.OS !== "web" && showDeadlinePicker && (
+                <DateTimePicker
+                  value={deadlineDate ?? new Date()}
+                  mode="date"
+                  display={Platform.OS === "ios" ? "spinner" : "default"}
+                  minimumDate={new Date()}
+                  onChange={handleDeadlineChange}
+                />
+              )}
+
+              {showDeadlinePicker && Platform.OS === "ios" && (
+                <Pressable
+                  style={styles.doneDateButton}
+                  onPress={handleCloseDeadlinePicker}
+                >
+                  <Text style={styles.doneDateButtonText}>Done</Text>
+                </Pressable>
+              )}
             </View>
+
+
+
+
+
 
             <View style={styles.columnField}>
               <Text style={styles.inputLabel}>Points Offered</Text>
@@ -324,10 +652,11 @@ export default function CreateRequestScreen() {
 
                 <TextInput
                   value={pointsOffered}
-                  onChangeText={setPointsOffered}
+                  onChangeText={handlePointsOfferedChange}
                   keyboardType="number-pad"
+                  inputMode="numeric"
                   placeholder="50"
-                  placeholderTextColor={COLORS.textDark}
+                  placeholderTextColor={COLORS.inactiveGray}
                   style={styles.pointsInput}
                 />
               </View>
@@ -348,6 +677,9 @@ export default function CreateRequestScreen() {
               information.
             </Text>
           </View>
+          {validationError ? (
+            <Text style={styles.validationText}>{validationError}</Text>
+          ) : null}          
 
           <Pressable style={styles.submitButton} onPress={handleSubmit}>
             <Text style={styles.submitButtonText}>Post Request</Text>
@@ -597,6 +929,117 @@ const styles = StyleSheet.create({
     color: COLORS.textDark,
   },
 
+  deadlineText: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: "700",
+    color: COLORS.textDark,
+  },
+
+  deadlinePlaceholderText: {
+    color: COLORS.inactiveGray,
+  },
+
+  doneDateButton: {
+    marginTop: 8,
+    height: 34,
+    borderRadius: 8,
+    backgroundColor: COLORS.primary,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  doneDateButtonText: {
+    color: COLORS.cardWhite,
+    fontSize: 13,
+    fontWeight: "800",
+  },
+
+
+  webCalendarCard: {
+    marginTop: 8,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: "#E8CFCF",
+    backgroundColor: COLORS.cardWhite,
+    padding: 10,
+  },
+
+  webCalendarHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 10,
+  },
+
+  calendarNavButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#FFF0F0",
+  },
+
+  webCalendarMonthText: {
+    fontSize: 14,
+    fontWeight: "900",
+    color: COLORS.textDark,
+  },
+
+  webCalendarWeekRow: {
+    flexDirection: "row",
+    marginBottom: 6,
+  },
+
+  webCalendarWeekText: {
+    width: "14.28%",
+    textAlign: "center",
+    fontSize: 11,
+    fontWeight: "800",
+    color: COLORS.mutedText,
+  },
+
+  webCalendarGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+  },
+
+  calendarDayCell: {
+    width: "14.28%",
+    height: 34,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  calendarDayButton: {
+    borderRadius: 17,
+  },
+
+  calendarDaySelected: {
+    backgroundColor: COLORS.primary,
+  },
+
+  calendarDayDisabled: {
+    opacity: 0.35,
+  },
+
+  calendarDayText: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: COLORS.textDark,
+  },
+
+  calendarDaySelectedText: {
+    color: COLORS.cardWhite,
+  },
+
+  calendarDayDisabledText: {
+    color: COLORS.inactiveGray,
+  },
+
+
+
   inputRightIcon: {
     marginLeft: 7,
   },
@@ -634,6 +1077,14 @@ const styles = StyleSheet.create({
     lineHeight: 15,
     fontWeight: "700",
     color: "#8D6F6F",
+  },
+  
+  validationText: {
+    color: COLORS.primary,
+    fontSize: 13,
+    fontWeight: "800",
+    textAlign: "center",
+    marginBottom: 14,
   },
 
   submitButton: {

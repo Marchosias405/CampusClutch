@@ -2,27 +2,19 @@ import { FontAwesome5, Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useMemo, useState } from "react";
 import {
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    View,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
 } from "react-native";
 import ScreenHeader from "../../components/ScreenHeader";
+import { useRequests } from "../../context/RequestsContext";
+import type { RequestCategory } from "../../types";
 
-type RequestCategory = "ALL" | "DELIVERY" | "EVENT HELP" | "PICKUP" | "STUDY HELP";
 
-type CampusRequest = {
-  id: string;
-  category: Exclude<RequestCategory, "ALL">;
-  secondaryCategory?: string;
-  title: string;
-  description: string;
-  location: string;
-  timeLabel: string;
-  points: number;
-  isUrgent?: boolean;
-};
+
+
 
 const COLORS = {
   primary: "#9B1C31",
@@ -45,62 +37,20 @@ const filters: RequestCategory[] = [
   "STUDY HELP",
 ];
 
-const mockRequests: CampusRequest[] = [
-  {
-    id: "surrey-burnaby",
-    category: "DELIVERY",
-    title: "Surrey -> Burnaby",
-    description:
-      "Need a package picked up from the Surrey campus registrar and brought to...",
-    location: "Surrey Campus",
-    timeLabel: "By 8:00 PM",
-    points: 30,
-  },
-  {
-    id: "help-set-up-chairs",
-    category: "EVENT HELP",
-    title: "Help set up chairs",
-    description:
-      "Setting up for the Student Union gala in the Convocation Mall. Need 4 people fo...",
-    location: "Burnaby",
-    timeLabel: "Tomorrow, 10:00 AM",
-    points: 45,
-  },
-  {
-    id: "calculus-review",
-    category: "STUDY HELP",
-    secondaryCategory: "URGENT",
-    title: "Calculus Review",
-    description:
-      "Midterm is Monday! Looking for someone to go over derivative rules and integrali...",
-    location: "Surrey",
-    timeLabel: "Starts in 2h",
-    points: 25,
-    isUrgent: true,
-  },
-  {
-    id: "library-printouts",
-    category: "PICKUP",
-    title: "Library printouts",
-    description:
-      "Printed my thesis draft at the Belzberg Library. Need someone to grab them an...",
-    location: "Vancouver",
-    timeLabel: "ASAP",
-    points: 15,
-  },
-];
 
-export default function RequestsFeedScreen() {
-  const router = useRouter();
-  const [selectedFilter, setSelectedFilter] = useState<RequestCategory>("ALL");
+  export default function RequestsFeedScreen() {
+    const router = useRouter();
+    const { requests } = useRequests();
 
-  const visibleRequests = useMemo(() => {
-    if (selectedFilter === "ALL") {
-      return mockRequests;
-    }
+    const [selectedFilter, setSelectedFilter] = useState<RequestCategory>("ALL");
 
-    return mockRequests.filter((request) => request.category === selectedFilter);
-  }, [selectedFilter]);
+    const visibleRequests = useMemo(() => {
+      if (selectedFilter === "ALL") {
+        return requests;
+      }
+
+      return requests.filter((request) => request.category === selectedFilter);
+    }, [selectedFilter, requests]);
 
   const handleFilterChange = (filter: RequestCategory) => {
     setSelectedFilter(filter);
