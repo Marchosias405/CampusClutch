@@ -44,6 +44,11 @@ const requestTypes: {
     icon: "truck",
   },
   {
+    id: "Pickup",
+    label: "Pickup",
+    icon: "shopping-bag",
+  },
+  {
     id: "Event Help",
     label: "Event Help",
     icon: "hands-helping",
@@ -69,6 +74,12 @@ export default function CreateRequestScreen() {
   const [roomLocation, setRoomLocation] = useState("");
   const [pickupLocation, setPickupLocation] = useState("");
   const [dropoffLocation, setDropoffLocation] = useState("");
+
+  const [eventName, setEventName] = useState("");
+  const [eventTask, setEventTask] = useState("");
+  const [courseOrSubject, setCourseOrSubject] = useState("");
+  const [studyTopic, setStudyTopic] = useState("");
+
   const [itemSize, setItemSize] = useState<ItemSize>("Medium");
   const [description, setDescription] = useState("");
   const [deadline, setDeadline] = useState("");
@@ -243,12 +254,52 @@ const formatCalendarMonthLabel = (date: Date) => {
       return "Please enter a room or specific location.";
     }
 
+    if (selectedRequestType === "Delivery") {
+      if (!pickupLocation.trim()) {
+        return "Please enter the delivery pickup location.";
+      }
+
+      if (!dropoffLocation.trim()) {
+        return "Please enter the delivery drop-off location.";
+      }
+    }
+
+    if (selectedRequestType === "Pickup") {
+      if (!pickupLocation.trim()) {
+        return "Please enter the pickup location.";
+      }
+
+      if (!dropoffLocation.trim()) {
+        return "Please enter the pickup destination.";
+      }
+    }
+
+    if (selectedRequestType === "Event Help") {
+      if (!eventName.trim()) {
+        return "Please enter the event name.";
+      }
+
+      if (!eventTask.trim()) {
+        return "Please describe the help needed for the event.";
+      }
+    }
+
+    if (selectedRequestType === "Study Help") {
+      if (!courseOrSubject.trim()) {
+        return "Please enter the course or subject.";
+      }
+
+      if (!studyTopic.trim()) {
+        return "Please enter the study topic.";
+      }
+    }
+
     if (!description.trim()) {
       return "Please enter a description.";
     }
 
     if (!deadline.trim()) {
-      return "Please enter a deadline.";
+      return "Please select a deadline.";
     }
 
     if (!pointsOffered.trim()) {
@@ -296,12 +347,17 @@ const formatCalendarMonthLabel = (date: Date) => {
       requestTitle: requestTitle.trim(),
       campus: campus.trim(),
       roomLocation: roomLocation.trim(),
+
       pickupLocation: pickupLocation.trim(),
       dropoffLocation: dropoffLocation.trim(),
+
+      eventName: eventName.trim(),
+      eventTask: eventTask.trim(),
+
+      courseOrSubject: courseOrSubject.trim(),
+      studyTopic: studyTopic.trim(),
+
       itemSize,
-      description: description.trim(),
-      deadline: deadline.trim(),
-      pointsOffered: Number(pointsOffered.trim()),
     };
 
     const newRequest = addRequest({
@@ -419,7 +475,12 @@ const formatCalendarMonthLabel = (date: Date) => {
             </View>
           </View>
 
-          {selectedRequestType === "Delivery" && (
+
+
+
+
+          {(selectedRequestType === "Delivery" ||
+            selectedRequestType === "Pickup") && (
             <View style={styles.detailsCard}>
               <View style={styles.detailsHeader}>
                 <Ionicons
@@ -427,7 +488,12 @@ const formatCalendarMonthLabel = (date: Date) => {
                   size={18}
                   color={COLORS.primary}
                 />
-                <Text style={styles.detailsTitle}>Delivery Details</Text>
+
+                <Text style={styles.detailsTitle}>
+                  {selectedRequestType === "Delivery"
+                    ? "Delivery Details"
+                    : "Pickup Details"}
+                </Text>
               </View>
 
               <View style={styles.formGroup}>
@@ -444,7 +510,11 @@ const formatCalendarMonthLabel = (date: Date) => {
                   <TextInput
                     value={pickupLocation}
                     onChangeText={setPickupLocation}
-                    placeholder="e.g., AQ Tim Hortons"
+                    placeholder={
+                      selectedRequestType === "Delivery"
+                        ? "e.g., AQ Tim Hortons"
+                        : "e.g., Belzberg Library"
+                    }
                     placeholderTextColor={COLORS.inactiveGray}
                     style={styles.iconTextInput}
                   />
@@ -452,7 +522,11 @@ const formatCalendarMonthLabel = (date: Date) => {
               </View>
 
               <View style={styles.formGroupLast}>
-                <Text style={styles.inputLabel}>Drop-off Location</Text>
+                <Text style={styles.inputLabel}>
+                  {selectedRequestType === "Delivery"
+                    ? "Drop-off Location"
+                    : "Destination"}
+                </Text>
 
                 <View style={styles.iconInputWrap}>
                   <Ionicons
@@ -465,7 +539,11 @@ const formatCalendarMonthLabel = (date: Date) => {
                   <TextInput
                     value={dropoffLocation}
                     onChangeText={setDropoffLocation}
-                    placeholder="e.g., WMC Study Area"
+                    placeholder={
+                      selectedRequestType === "Delivery"
+                        ? "e.g., WMC Study Area"
+                        : "e.g., Burnaby Campus"
+                    }
                     placeholderTextColor={COLORS.inactiveGray}
                     style={styles.iconTextInput}
                   />
@@ -473,6 +551,124 @@ const formatCalendarMonthLabel = (date: Date) => {
               </View>
             </View>
           )}
+
+          {selectedRequestType === "Event Help" && (
+            <View style={styles.detailsCard}>
+              <View style={styles.detailsHeader}>
+                <FontAwesome5
+                  name="hands-helping"
+                  size={17}
+                  color={COLORS.primary}
+                />
+
+                <Text style={styles.detailsTitle}>Event Details</Text>
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text style={styles.inputLabel}>Event Name</Text>
+
+                <View style={styles.iconInputWrap}>
+                  <Ionicons
+                    name="calendar"
+                    size={19}
+                    color={COLORS.mutedText}
+                    style={styles.inputLeftIcon}
+                  />
+
+                  <TextInput
+                    value={eventName}
+                    onChangeText={setEventName}
+                    placeholder="e.g., Student Union Gala"
+                    placeholderTextColor={COLORS.inactiveGray}
+                    style={styles.iconTextInput}
+                  />
+                </View>
+              </View>
+
+              <View style={styles.formGroupLast}>
+                <Text style={styles.inputLabel}>Help Needed</Text>
+
+                <View style={styles.iconInputWrap}>
+                  <Ionicons
+                    name="people"
+                    size={20}
+                    color={COLORS.primary}
+                    style={styles.inputLeftIcon}
+                  />
+
+                  <TextInput
+                    value={eventTask}
+                    onChangeText={setEventTask}
+                    placeholder="e.g., Set up chairs and tables"
+                    placeholderTextColor={COLORS.inactiveGray}
+                    style={styles.iconTextInput}
+                  />
+                </View>
+              </View>
+            </View>
+          )}
+
+          {selectedRequestType === "Study Help" && (
+            <View style={styles.detailsCard}>
+              <View style={styles.detailsHeader}>
+                <FontAwesome5
+                  name="graduation-cap"
+                  size={17}
+                  color={COLORS.primary}
+                />
+
+                <Text style={styles.detailsTitle}>Study Details</Text>
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text style={styles.inputLabel}>Course or Subject</Text>
+
+                <View style={styles.iconInputWrap}>
+                  <Ionicons
+                    name="book"
+                    size={19}
+                    color={COLORS.mutedText}
+                    style={styles.inputLeftIcon}
+                  />
+
+                  <TextInput
+                    value={courseOrSubject}
+                    onChangeText={setCourseOrSubject}
+                    placeholder="e.g., MATH 151"
+                    placeholderTextColor={COLORS.inactiveGray}
+                    style={styles.iconTextInput}
+                  />
+                </View>
+              </View>
+
+              <View style={styles.formGroupLast}>
+                <Text style={styles.inputLabel}>Topic</Text>
+
+                <View style={styles.iconInputWrap}>
+                  <Ionicons
+                    name="school"
+                    size={20}
+                    color={COLORS.primary}
+                    style={styles.inputLeftIcon}
+                  />
+
+                  <TextInput
+                    value={studyTopic}
+                    onChangeText={setStudyTopic}
+                    placeholder="e.g., Derivative rules"
+                    placeholderTextColor={COLORS.inactiveGray}
+                    style={styles.iconTextInput}
+                  />
+                </View>
+              </View>
+            </View>
+          )}
+
+
+
+
+
+
 
           <View style={styles.formGroup}>
             <Text style={styles.inputLabel}>Item/Task Size</Text>
