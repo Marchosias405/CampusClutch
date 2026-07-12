@@ -3,7 +3,7 @@ import DateTimePicker, {
   DateTimePickerEvent,
 } from "@react-native-community/datetimepicker";
 import { useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Platform,
   Pressable,
@@ -21,6 +21,8 @@ type RequestType = "Delivery" | "Event Help" | "Study Help" | "Pickup";
 type ItemSize = "Small" | "Medium" | "Large";
 
 type CampusName = "Burnaby" | "Surrey" | "Vancouver";
+
+type SubmissionState = "idle" | "submitting" | "success";
 
 const campusOptions: CampusName[] = [
   "Burnaby",
@@ -100,6 +102,21 @@ export default function CreateRequestScreen() {
   const [pointsOffered, setPointsOffered] = useState("");
   const [validationError, setValidationError] = useState("");
 
+
+
+  const [submissionState, setSubmissionState] =
+    useState<SubmissionState>("idle");
+
+  const submitLockRef = useRef(false);
+
+  const navigationTimeoutRef =
+    useRef<ReturnType<typeof setTimeout> | null>(null);
+
+
+
+
+
+
   const handleBack = () => {
     router.back();
   };
@@ -135,7 +152,13 @@ export default function CreateRequestScreen() {
   };
 
 
-
+  useEffect(() => {
+    return () => {
+      if (navigationTimeoutRef.current) {
+        clearTimeout(navigationTimeoutRef.current);
+      }
+    };
+  }, []);
 
 
   const handleToggleCampusOptions = () => {
@@ -353,7 +376,22 @@ const formatCalendarMonthLabel = (date: Date) => {
   };
 
 
+
+
+
+
+
+
+
   const handleSubmit = () => {
+    if (submitLockRef.current) {
+      return;
+    }
+
+
+
+
+
     const errorMessage = validateForm();
 
     if (errorMessage) {
@@ -361,43 +399,67 @@ const formatCalendarMonthLabel = (date: Date) => {
       return;
     }
 
+    submitLockRef.current = true;
     setValidationError("");
+    setSubmissionState("submitting");
 
-    const formData = {
-      selectedRequestType,
-      requestTitle: requestTitle.trim(),
-      campus: campus.trim(),
-      roomLocation: roomLocation.trim(),
+    try {
+      const formData = {
+        selectedRequestType,
+        requestTitle: requestTitle.trim(),
+        campus: campus.trim(),
+        roomLocation: roomLocation.trim(),
 
-      pickupLocation: pickupLocation.trim(),
-      dropoffLocation: dropoffLocation.trim(),
+        pickupLocation: pickupLocation.trim(),
+        dropoffLocation: dropoffLocation.trim(),
 
-      eventName: eventName.trim(),
-      eventTask: eventTask.trim(),
+        eventName: eventName.trim(),
+        eventTask: eventTask.trim(),
 
-      courseOrSubject: courseOrSubject.trim(),
-      studyTopic: studyTopic.trim(),
+        courseOrSubject: courseOrSubject.trim(),
+        studyTopic: studyTopic.trim(),
 
-      itemSize,
-    };
+        itemSize,
+        description: description.trim(),
+        deadline: deadline.trim(),
+        pointsOffered: Number(pointsOffered.trim()),
+      };
 
-    const newRequest = addRequest({
-      category: mapRequestTypeToCategory(selectedRequestType),
-      title: requestTitle.trim(),
-      description: description.trim(),
-      location: `${campus.trim()} • ${roomLocation.trim()}`,
-      timeLabel: deadline.trim(),
-      points: Number(pointsOffered.trim()),
-      isUrgent: false,
-    });
+      const newRequest = addRequest({
+        category: mapRequestTypeToCategory(selectedRequestType),
+        title: requestTitle.trim(),
+        description: description.trim(),
+        location: `${campus.trim()} • ${roomLocation.trim()}`,
+        timeLabel: deadline.trim(),
+        points: Number(pointsOffered.trim()),
+        isUrgent: false,
+      });
 
-    console.log("New request submitted:", {
-      ...formData,
-      createdRequestId: newRequest.id,
-    });
+      console.log("New request submitted:", {
+        ...formData,
+        createdRequestId: newRequest.id,
+      });
 
-    router.back();
+      setSubmissionState("success");
+
+      navigationTimeoutRef.current = setTimeout(() => {
+        router.back();
+      }, 1000);
+    } catch (error) {
+      console.error("Unable to submit request:", error);
+
+      submitLockRef.current = false;
+      setSubmissionState("idle");
+      setValidationError(
+        "Unable to post your request. Please try again."
+      );
+    }
   };
+
+
+  const isSubmitting = submissionState === "submitting";
+  const isSubmissionSuccessful = submissionState === "success";
+  const isSubmitDisabled = submissionState !== "idle";
 
 
   
@@ -951,19 +1013,66 @@ const formatCalendarMonthLabel = (date: Date) => {
               information.
             </Text>
           </View>
+
+
+
+
+
+
+
+
+
+
+
+
           {validationError ? (
             <Text style={styles.validationText}>{validationError}</Text>
-          ) : null}          
+          ) : null}
 
-          <Pressable style={styles.submitButton} onPress={handleSubmit}>
-            <Text style={styles.submitButtonText}>Post Request</Text>
+          {isSubmissionSuccessful ? (
+            <Text style={styles.successText}>
+              Request posted successfully.
+            </Text>
+          ) : null}
+
+          <Pressable
+            style={({ pressed }) => [
+              styles.submitButton,
+              isSubmitDisabled && styles.submitButtonDisabled,
+              pressed && !isSubmitDisabled && styles.submitButtonPressed,
+            ]}
+            onPress={handleSubmit}
+            disabled={isSubmitDisabled}
+            accessibilityRole="button"
+            accessibilityState={{
+              disabled: isSubmitDisabled,
+              busy: isSubmitting,
+            }}
+          >
+            <Text style={styles.submitButtonText}>
+              {isSubmitting
+                ? "Posting..."
+                : isSubmissionSuccessful
+                  ? "Request Posted"
+                  : "Post Request"}
+            </Text>
+
             <Ionicons
-              name="arrow-forward"
+              name={isSubmissionSuccessful ? "checkmark" : "arrow-forward"}
               size={22}
               color={COLORS.cardWhite}
               style={styles.submitIcon}
             />
           </Pressable>
+
+
+
+
+
+
+
+
+
         </ScrollView>
       </View>
     </View>
@@ -1397,6 +1506,32 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginBottom: 14,
   },
+
+
+
+
+
+
+
+  successText: {
+    color: COLORS.primary,
+    fontSize: 13,
+    fontWeight: "900",
+    textAlign: "center",
+    marginBottom: 14,
+  },
+
+  submitButtonDisabled: {
+    opacity: 0.72,
+  },
+
+  submitButtonPressed: {
+    opacity: 0.88,
+  },
+
+
+
+
 
   submitButton: {
     height: 55,
