@@ -20,6 +20,14 @@ import type { CampusRequest } from "../../types";
 type RequestType = "Delivery" | "Event Help" | "Study Help" | "Pickup";
 type ItemSize = "Small" | "Medium" | "Large";
 
+type CampusName = "Burnaby" | "Surrey" | "Vancouver";
+
+const campusOptions: CampusName[] = [
+  "Burnaby",
+  "Surrey",
+  "Vancouver",
+];
+
 const COLORS = {
   primary: "#9B1C31",
   darkRed: "#8F1428",
@@ -31,6 +39,7 @@ const COLORS = {
   inactiveGray: "#A5AAB3",
   safetyBox: "#FFF0F0",
   coinGold: "#F4A62A",
+  softPink: "#FBECEC",
 };
 
 const requestTypes: {
@@ -70,7 +79,8 @@ export default function CreateRequestScreen() {
   const [selectedRequestType, setSelectedRequestType] =
     useState<RequestType>("Delivery");
   const [requestTitle, setRequestTitle] = useState("");
-  const [campus, setCampus] = useState("Burnaby");
+  const [campus, setCampus] = useState<CampusName>("Burnaby");
+  const [showCampusOptions, setShowCampusOptions] = useState(false);  
   const [roomLocation, setRoomLocation] = useState("");
   const [pickupLocation, setPickupLocation] = useState("");
   const [dropoffLocation, setDropoffLocation] = useState("");
@@ -128,7 +138,18 @@ export default function CreateRequestScreen() {
 
 
 
+  const handleToggleCampusOptions = () => {
+    setShowCampusOptions((currentValue) => !currentValue);
+  };
 
+  const handleCampusSelect = (selectedCampus: CampusName) => {
+    setCampus(selectedCampus);
+    setShowCampusOptions(false);
+
+    if (validationError) {
+      setValidationError("");
+    }
+  };
 
 
 
@@ -449,18 +470,75 @@ const formatCalendarMonthLabel = (date: Date) => {
           </View>
 
           <View style={styles.twoColumnRow}>
+
+
+
+
+
+
+
             <View style={styles.columnField}>
               <Text style={styles.inputLabel}>Campus</Text>
 
-              <Pressable style={styles.selectorInput}>
+              <Pressable
+                style={styles.selectorInput}
+                onPress={handleToggleCampusOptions}
+              >
                 <Text style={styles.selectorText}>{campus}</Text>
+
                 <Ionicons
-                  name="chevron-down"
+                  name={showCampusOptions ? "chevron-up" : "chevron-down"}
                   size={18}
                   color={COLORS.inactiveGray}
                 />
               </Pressable>
+
+              {showCampusOptions && (
+                <View style={styles.campusOptionsCard}>
+                  {campusOptions.map((campusOption) => {
+                    const isSelected = campus === campusOption;
+
+                    return (
+                      <Pressable
+                        key={campusOption}
+                        style={[
+                          styles.campusOption,
+                          isSelected && styles.selectedCampusOption,
+                        ]}
+                        onPress={() => handleCampusSelect(campusOption)}
+                      >
+                        <Text
+                          style={[
+                            styles.campusOptionText,
+                            isSelected && styles.selectedCampusOptionText,
+                          ]}
+                        >
+                          {campusOption}
+                        </Text>
+
+                        {isSelected && (
+                          <Ionicons
+                            name="checkmark"
+                            size={18}
+                            color={COLORS.primary}
+                          />
+                        )}
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              )}
             </View>
+
+
+
+
+
+
+
+
+
+
 
             <View style={styles.columnField}>
               <Text style={styles.inputLabel}>Room/Specific Location</Text>
@@ -1000,6 +1078,43 @@ const styles = StyleSheet.create({
   columnField: {
     flex: 1,
   },
+
+
+
+  campusOptionsCard: {
+    marginTop: 7,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: "#E8CFCF",
+    backgroundColor: COLORS.cardWhite,
+    overflow: "hidden",
+  },
+
+  campusOption: {
+    minHeight: 43,
+    paddingHorizontal: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+
+  selectedCampusOption: {
+    backgroundColor: COLORS.softPink,
+  },
+
+  campusOptionText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: COLORS.textDark,
+  },
+
+  selectedCampusOptionText: {
+    color: COLORS.primary,
+    fontWeight: "900",
+  },
+
 
   selectorInput: {
     height: 47,
