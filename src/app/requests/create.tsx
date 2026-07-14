@@ -15,10 +15,13 @@ import {
 } from "react-native";
 import ScreenHeader from "../../components/ScreenHeader";
 import { useRequests } from "../../context/RequestsContext";
-import type { CampusRequest } from "../../types";
+import type {
+  CampusRequest,
+  RequestItemSize,
+} from "../../types";
 
 type RequestType = "Delivery" | "Event Help" | "Study Help" | "Pickup";
-type ItemSize = "Small" | "Medium" | "Large";
+
 
 type CampusName = "Burnaby" | "Surrey" | "Vancouver";
 
@@ -97,7 +100,11 @@ const requestTypes: {
   },
 ];
 
-const itemSizes: ItemSize[] = ["Small", "Medium", "Large"];
+const itemSizes: RequestItemSize[] = [
+  "Small",
+  "Medium",
+  "Large",
+];
 const weekDayLabels = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 export default function CreateRequestScreen() {
@@ -118,7 +125,8 @@ export default function CreateRequestScreen() {
   const [courseOrSubject, setCourseOrSubject] = useState("");
   const [studyTopic, setStudyTopic] = useState("");
 
-  const [itemSize, setItemSize] = useState<ItemSize>("Medium");
+  const [itemSize, setItemSize] =
+    useState<RequestItemSize>("Medium");
   const [description, setDescription] = useState("");
   const [deadline, setDeadline] = useState("");
   const [deadlineDate, setDeadlineDate] = useState<Date | null>(null);
@@ -183,7 +191,7 @@ export default function CreateRequestScreen() {
     clearValidationError();
   };
 
-  const handleSizeChange = (size: ItemSize) => {
+  const handleSizeChange = (size: RequestItemSize) => {
     setItemSize(size);
   };
 
@@ -541,19 +549,58 @@ const formatCalendarMonthLabel = (date: Date) => {
         pointsOffered: Number(pointsOffered.trim()),
       };
 
+
+
+
+        const requestDetails: Partial<CampusRequest> = {};
+
+        if (
+          selectedRequestType === "Delivery" ||
+          selectedRequestType === "Pickup"
+        ) {
+          requestDetails.pickupLocation = pickupLocation.trim();
+          requestDetails.dropoffLocation = dropoffLocation.trim();
+        }
+
+        if (selectedRequestType === "Event Help") {
+          requestDetails.eventName = eventName.trim();
+          requestDetails.eventTask = eventTask.trim();
+        }
+
+        if (selectedRequestType === "Study Help") {
+          requestDetails.courseOrSubject = courseOrSubject.trim();
+          requestDetails.studyTopic = studyTopic.trim();
+        }
+
+
+
+
+
+
+
       const newRequest = addRequest({
         category: mapRequestTypeToCategory(selectedRequestType),
         title: requestTitle.trim(),
         description: description.trim(),
+
         location: `${campus.trim()} • ${roomLocation.trim()}`,
+        campus: campus.trim(),
+        roomLocation: roomLocation.trim(),
+
         timeLabel: deadline.trim(),
         points: Number(pointsOffered.trim()),
+        itemSize,
+
+        status: "open",
+        createdAt: new Date().toISOString(),
         isUrgent: false,
+
+        ...requestDetails,
       });
 
       console.log("New request submitted:", {
-        ...formData,
-        createdRequestId: newRequest.id,
+        formData,
+        createdRequest: newRequest,
       });
 
       setSubmissionState("success");

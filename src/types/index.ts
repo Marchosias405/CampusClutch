@@ -32,14 +32,41 @@ export type RequestCategory =
   | "PICKUP"
   | "STUDY HELP";
 
+export type RequestItemSize = "Small" | "Medium" | "Large";
+
+export type RequestStatus =
+  | "open"
+  | "offered"
+  | "accepted"
+  | "completed";
+
 export type CampusRequest = {
   id: string;
   category: Exclude<RequestCategory, "ALL">;
   secondaryCategory?: string;
+
   title: string;
   description: string;
+
   location: string;
   timeLabel: string;
   points: number;
+
+  campus?: string;
+  roomLocation?: string;
+
+  pickupLocation?: string;
+  dropoffLocation?: string;
+
+  eventName?: string;
+  eventTask?: string;
+
+  courseOrSubject?: string;
+  studyTopic?: string;
+
+  itemSize?: RequestItemSize;
+  status?: RequestStatus;
+  createdAt?: string;
+
   isUrgent?: boolean;
 };
