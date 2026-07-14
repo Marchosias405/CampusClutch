@@ -24,11 +24,37 @@ type CampusName = "Burnaby" | "Surrey" | "Vancouver";
 
 type SubmissionState = "idle" | "submitting" | "success";
 
+
+type ValidationField =
+  | "requestTitle"
+  | "campus"
+  | "roomLocation"
+  | "pickupLocation"
+  | "dropoffLocation"
+  | "eventName"
+  | "eventTask"
+  | "courseOrSubject"
+  | "studyTopic"
+  | "description"
+  | "deadline"
+  | "pointsOffered";
+
+type ValidationResult = {
+  field: ValidationField;
+  message: string;
+} | null;
+
+
+
+
+
+
 const campusOptions: CampusName[] = [
   "Burnaby",
   "Surrey",
   "Vancouver",
 ];
+
 
 const COLORS = {
   primary: "#9B1C31",
@@ -101,6 +127,7 @@ export default function CreateRequestScreen() {
   const [calendarMonth, setCalendarMonth] = useState(new Date());
   const [pointsOffered, setPointsOffered] = useState("");
   const [validationError, setValidationError] = useState("");
+  const [invalidField, setInvalidField] = useState<ValidationField | null>(null);
 
 
 
@@ -121,8 +148,39 @@ export default function CreateRequestScreen() {
     router.back();
   };
 
+
+
+  const clearValidationError = () => {
+    if (validationError) {
+      setValidationError("");
+    }
+
+    if (invalidField) {
+      setInvalidField(null);
+    }
+  };
+
+
+
+
+  const handleTextFieldChange = (
+    setter: React.Dispatch<React.SetStateAction<string>>,
+    value: string
+  ) => {
+    setter(value);
+    clearValidationError();
+  };
+
+
+
+
+
+
+
+
   const handleRequestTypeChange = (type: RequestType) => {
     setSelectedRequestType(type);
+    clearValidationError();
   };
 
   const handleSizeChange = (size: ItemSize) => {
@@ -135,10 +193,7 @@ export default function CreateRequestScreen() {
     const numbersOnly = value.replace(/[^0-9]/g, "");
 
     setPointsOffered(numbersOnly);
-
-    if (validationError) {
-      setValidationError("");
-    }
+    clearValidationError();
   };
 
 
@@ -165,14 +220,12 @@ export default function CreateRequestScreen() {
     setShowCampusOptions((currentValue) => !currentValue);
   };
 
+  
   const handleCampusSelect = (selectedCampus: CampusName) => {
     setCampus(selectedCampus);
     setShowCampusOptions(false);
-
-    if (validationError) {
-      setValidationError("");
-    }
-  };
+    clearValidationError();
+  };  
 
 
 
@@ -238,6 +291,7 @@ const formatCalendarMonthLabel = (date: Date) => {
       setDeadline(formatDeadlineDate(date));
       setShowWebCalendar(false);
       setValidationError("");
+      setInvalidField(null);
     };
 
     const handlePreviousCalendarMonth = () => {
@@ -264,18 +318,21 @@ const formatCalendarMonthLabel = (date: Date) => {
       event: DateTimePickerEvent,
       selectedDate?: Date
     ) => {
-    if (Platform.OS === "android") {
-      setShowDeadlinePicker(false);
-    }
+      if (Platform.OS === "android") {
+        setShowDeadlinePicker(false);
+      }
 
-    if (event.type === "dismissed") {
-      return;
-    }
+      if (event.type === "dismissed") {
+        return;
+      }
 
-    if (selectedDate) {
-      setDeadlineDate(selectedDate);
-      setDeadline(formatDeadlineDate(selectedDate));
-    }
+      if (selectedDate) {
+        setDeadlineDate(selectedDate);
+        setDeadline(formatDeadlineDate(selectedDate));
+        setValidationError("");
+        setInvalidField(null);
+      }
+    
   };
 
   const handleCloseDeadlinePicker = () => {
@@ -283,79 +340,7 @@ const formatCalendarMonthLabel = (date: Date) => {
   };
 
 
-  const validateForm = () => {
-    const pointsNumber = Number(pointsOffered.trim());
 
-    if (!requestTitle.trim()) {
-      return "Please enter a request title.";
-    }
-
-    if (!campus.trim()) {
-      return "Please select a campus.";
-    }
-
-    if (!roomLocation.trim()) {
-      return "Please enter a room or specific location.";
-    }
-
-    if (selectedRequestType === "Delivery") {
-      if (!pickupLocation.trim()) {
-        return "Please enter the delivery pickup location.";
-      }
-
-      if (!dropoffLocation.trim()) {
-        return "Please enter the delivery drop-off location.";
-      }
-    }
-
-    if (selectedRequestType === "Pickup") {
-      if (!pickupLocation.trim()) {
-        return "Please enter the pickup location.";
-      }
-
-      if (!dropoffLocation.trim()) {
-        return "Please enter the pickup destination.";
-      }
-    }
-
-    if (selectedRequestType === "Event Help") {
-      if (!eventName.trim()) {
-        return "Please enter the event name.";
-      }
-
-      if (!eventTask.trim()) {
-        return "Please describe the help needed for the event.";
-      }
-    }
-
-    if (selectedRequestType === "Study Help") {
-      if (!courseOrSubject.trim()) {
-        return "Please enter the course or subject.";
-      }
-
-      if (!studyTopic.trim()) {
-        return "Please enter the study topic.";
-      }
-    }
-
-    if (!description.trim()) {
-      return "Please enter a description.";
-    }
-
-    if (!deadline.trim()) {
-      return "Please select a deadline.";
-    }
-
-    if (!pointsOffered.trim()) {
-      return "Please enter points offered.";
-    }
-
-    if (!Number.isInteger(pointsNumber) || pointsNumber <= 0) {
-      return "Points offered must be a whole number greater than 0.";
-    }
-
-    return "";
-  };
 
 
   const mapRequestTypeToCategory = (
@@ -380,6 +365,135 @@ const formatCalendarMonthLabel = (date: Date) => {
 
 
 
+      const validateForm = (): ValidationResult => {
+        const pointsNumber = Number(pointsOffered.trim());
+
+        if (!requestTitle.trim()) {
+          return {
+            field: "requestTitle",
+            message: "Please enter a request title.",
+          };
+        }
+
+        if (!campus.trim()) {
+          return {
+            field: "campus",
+            message: "Please select a campus.",
+          };
+        }
+
+        if (!roomLocation.trim()) {
+          return {
+            field: "roomLocation",
+            message: "Please enter a room or specific location.",
+          };
+        }
+
+        if (selectedRequestType === "Delivery") {
+          if (!pickupLocation.trim()) {
+            return {
+              field: "pickupLocation",
+              message: "Please enter the delivery pickup location.",
+            };
+          }
+
+          if (!dropoffLocation.trim()) {
+            return {
+              field: "dropoffLocation",
+              message: "Please enter the delivery drop-off location.",
+            };
+          }
+        }
+
+        if (selectedRequestType === "Pickup") {
+          if (!pickupLocation.trim()) {
+            return {
+              field: "pickupLocation",
+              message: "Please enter the pickup location.",
+            };
+          }
+
+          if (!dropoffLocation.trim()) {
+            return {
+              field: "dropoffLocation",
+              message: "Please enter the pickup destination.",
+            };
+          }
+        }
+
+        if (selectedRequestType === "Event Help") {
+          if (!eventName.trim()) {
+            return {
+              field: "eventName",
+              message: "Please enter the event name.",
+            };
+          }
+
+          if (!eventTask.trim()) {
+            return {
+              field: "eventTask",
+              message: "Please describe the help needed for the event.",
+            };
+          }
+        }
+
+        if (selectedRequestType === "Study Help") {
+          if (!courseOrSubject.trim()) {
+            return {
+              field: "courseOrSubject",
+              message: "Please enter the course or subject.",
+            };
+          }
+
+          if (!studyTopic.trim()) {
+            return {
+              field: "studyTopic",
+              message: "Please enter the study topic.",
+            };
+          }
+        }
+
+        if (!description.trim()) {
+          return {
+            field: "description",
+            message: "Please enter a description.",
+          };
+        }
+
+        if (!deadline.trim()) {
+          return {
+            field: "deadline",
+            message: "Please select a deadline.",
+          };
+        }
+
+        if (!pointsOffered.trim()) {
+          return {
+            field: "pointsOffered",
+            message: "Please enter points offered.",
+          };
+        }
+
+        if (!Number.isInteger(pointsNumber) || pointsNumber <= 0) {
+          return {
+            field: "pointsOffered",
+            message: "Points offered must be a whole number greater than 0.",
+          };
+        }
+
+        return null;
+      };
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -392,15 +506,17 @@ const formatCalendarMonthLabel = (date: Date) => {
 
 
 
-    const errorMessage = validateForm();
+    const validationResult = validateForm();
 
-    if (errorMessage) {
-      setValidationError(errorMessage);
+    if (validationResult) {
+      setValidationError(validationResult.message);
+      setInvalidField(validationResult.field);
       return;
     }
 
     submitLockRef.current = true;
     setValidationError("");
+    setInvalidField(null);
     setSubmissionState("submitting");
 
     try {
@@ -524,10 +640,15 @@ const formatCalendarMonthLabel = (date: Date) => {
             <Text style={styles.inputLabel}>Request Title</Text>
             <TextInput
               value={requestTitle}
-              onChangeText={setRequestTitle}
+              onChangeText={(value) =>
+                handleTextFieldChange(setRequestTitle, value)
+              }              
               placeholder="e.g., Tim Hortons Coffee Delivery to Librar"
               placeholderTextColor={COLORS.inactiveGray}
-              style={styles.textInput}
+              style={[
+                styles.textInput,
+                invalidField === "requestTitle" && styles.invalidInput,
+              ]}
             />
           </View>
 
@@ -543,7 +664,10 @@ const formatCalendarMonthLabel = (date: Date) => {
               <Text style={styles.inputLabel}>Campus</Text>
 
               <Pressable
-                style={styles.selectorInput}
+                style={[
+                  styles.selectorInput,
+                  invalidField === "campus" && styles.invalidInput,
+                ]}
                 onPress={handleToggleCampusOptions}
               >
                 <Text style={styles.selectorText}>{campus}</Text>
@@ -607,10 +731,15 @@ const formatCalendarMonthLabel = (date: Date) => {
 
               <TextInput
                 value={roomLocation}
-                onChangeText={setRoomLocation}
+                onChangeText={(value) =>
+                  handleTextFieldChange(setRoomLocation, value)
+                }                
                 placeholder="e.g., Room 3002"
                 placeholderTextColor={COLORS.inactiveGray}
-                style={styles.textInput}
+                style={[
+                  styles.textInput,
+                  invalidField === "roomLocation" && styles.invalidInput,
+                ]}
               />
             </View>
           </View>
@@ -639,7 +768,12 @@ const formatCalendarMonthLabel = (date: Date) => {
               <View style={styles.formGroup}>
                 <Text style={styles.inputLabel}>Pickup Location</Text>
 
-                <View style={styles.iconInputWrap}>
+                <View
+                  style={[
+                    styles.iconInputWrap,
+                    invalidField === "pickupLocation" && styles.invalidInput,
+                  ]}
+                >
                   <Ionicons
                     name="location-sharp"
                     size={20}
@@ -649,7 +783,9 @@ const formatCalendarMonthLabel = (date: Date) => {
 
                   <TextInput
                     value={pickupLocation}
-                    onChangeText={setPickupLocation}
+                    onChangeText={(value) =>
+                      handleTextFieldChange(setPickupLocation, value)
+                    }
                     placeholder={
                       selectedRequestType === "Delivery"
                         ? "e.g., AQ Tim Hortons"
@@ -668,7 +804,12 @@ const formatCalendarMonthLabel = (date: Date) => {
                     : "Destination"}
                 </Text>
 
-                <View style={styles.iconInputWrap}>
+                  <View
+                    style={[
+                      styles.iconInputWrap,
+                      invalidField === "dropoffLocation" && styles.invalidInput,
+                    ]}
+                  >
                   <Ionicons
                     name="navigate"
                     size={20}
@@ -678,7 +819,9 @@ const formatCalendarMonthLabel = (date: Date) => {
 
                   <TextInput
                     value={dropoffLocation}
-                    onChangeText={setDropoffLocation}
+                    onChangeText={(value) =>
+                      handleTextFieldChange(setDropoffLocation, value)
+                    }
                     placeholder={
                       selectedRequestType === "Delivery"
                         ? "e.g., WMC Study Area"
@@ -707,7 +850,12 @@ const formatCalendarMonthLabel = (date: Date) => {
               <View style={styles.formGroup}>
                 <Text style={styles.inputLabel}>Event Name</Text>
 
-                <View style={styles.iconInputWrap}>
+                  <View
+                    style={[
+                      styles.iconInputWrap,
+                      invalidField === "eventName" && styles.invalidInput,
+                    ]}
+                  >
                   <Ionicons
                     name="calendar"
                     size={19}
@@ -717,7 +865,9 @@ const formatCalendarMonthLabel = (date: Date) => {
 
                   <TextInput
                     value={eventName}
-                    onChangeText={setEventName}
+                    onChangeText={(value) =>
+                      handleTextFieldChange(setEventName, value)
+                    }
                     placeholder="e.g., Student Union Gala"
                     placeholderTextColor={COLORS.inactiveGray}
                     style={styles.iconTextInput}
@@ -728,7 +878,12 @@ const formatCalendarMonthLabel = (date: Date) => {
               <View style={styles.formGroupLast}>
                 <Text style={styles.inputLabel}>Help Needed</Text>
 
-                <View style={styles.iconInputWrap}>
+                <View
+                  style={[
+                    styles.iconInputWrap,
+                    invalidField === "eventTask" && styles.invalidInput,
+                  ]}
+                >
                   <Ionicons
                     name="people"
                     size={20}
@@ -738,7 +893,9 @@ const formatCalendarMonthLabel = (date: Date) => {
 
                   <TextInput
                     value={eventTask}
-                    onChangeText={setEventTask}
+                    onChangeText={(value) =>
+                      handleTextFieldChange(setEventTask, value)
+                    }
                     placeholder="e.g., Set up chairs and tables"
                     placeholderTextColor={COLORS.inactiveGray}
                     style={styles.iconTextInput}
@@ -763,7 +920,12 @@ const formatCalendarMonthLabel = (date: Date) => {
               <View style={styles.formGroup}>
                 <Text style={styles.inputLabel}>Course or Subject</Text>
 
-                <View style={styles.iconInputWrap}>
+                <View
+                  style={[
+                    styles.iconInputWrap,
+                    invalidField === "courseOrSubject" && styles.invalidInput,
+                  ]}
+                >
                   <Ionicons
                     name="book"
                     size={19}
@@ -773,7 +935,9 @@ const formatCalendarMonthLabel = (date: Date) => {
 
                   <TextInput
                     value={courseOrSubject}
-                    onChangeText={setCourseOrSubject}
+                    onChangeText={(value) =>
+                      handleTextFieldChange(setCourseOrSubject, value)
+                    }
                     placeholder="e.g., MATH 151"
                     placeholderTextColor={COLORS.inactiveGray}
                     style={styles.iconTextInput}
@@ -784,7 +948,12 @@ const formatCalendarMonthLabel = (date: Date) => {
               <View style={styles.formGroupLast}>
                 <Text style={styles.inputLabel}>Topic</Text>
 
-                <View style={styles.iconInputWrap}>
+                <View
+                  style={[
+                    styles.iconInputWrap,
+                    invalidField === "studyTopic" && styles.invalidInput,
+                  ]}
+                >
                   <Ionicons
                     name="school"
                     size={20}
@@ -794,7 +963,9 @@ const formatCalendarMonthLabel = (date: Date) => {
 
                   <TextInput
                     value={studyTopic}
-                    onChangeText={setStudyTopic}
+                    onChangeText={(value) =>
+                      handleTextFieldChange(setStudyTopic, value)
+                    }
                     placeholder="e.g., Derivative rules"
                     placeholderTextColor={COLORS.inactiveGray}
                     style={styles.iconTextInput}
@@ -842,10 +1013,15 @@ const formatCalendarMonthLabel = (date: Date) => {
 
             <TextInput
               value={description}
-              onChangeText={setDescription}
+              onChangeText={(value) =>
+                handleTextFieldChange(setDescription, value)
+              }
               placeholder="Tell us more about what you need..."
               placeholderTextColor={COLORS.inactiveGray}
-              style={styles.descriptionInput}
+              style={[
+                styles.descriptionInput,
+                invalidField === "description" && styles.invalidInput,
+              ]}
               multiline
               textAlignVertical="top"
             />
@@ -859,7 +1035,10 @@ const formatCalendarMonthLabel = (date: Date) => {
               <Text style={styles.inputLabel}>Deadline</Text>
 
               <Pressable
-                style={styles.iconInputWrapSmall}
+                style={[
+                  styles.iconInputWrapSmall,
+                  invalidField === "deadline" && styles.invalidInput,
+                ]}
                 onPress={handleOpenDeadlinePicker}
               >
                 <Text
@@ -975,7 +1154,12 @@ const formatCalendarMonthLabel = (date: Date) => {
 
 
 
-            <View style={styles.columnField}>
+            <View
+              style={[
+                styles.iconInputWrapSmall,
+                invalidField === "pointsOffered" && styles.invalidInput,
+              ]}
+            >
               <Text style={styles.inputLabel}>Points Offered</Text>
 
               <View style={styles.iconInputWrapSmall}>
@@ -1080,6 +1264,10 @@ const formatCalendarMonthLabel = (date: Date) => {
 }
 
 const styles = StyleSheet.create({
+  invalidInput: {
+  borderColor: COLORS.primary,
+  borderWidth: 2,
+  },
   safeArea: {
     flex: 1,
     backgroundColor: COLORS.background,
