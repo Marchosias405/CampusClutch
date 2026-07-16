@@ -140,72 +140,139 @@ const filters: RequestCategory[] = [
             })}
           </ScrollView>
 
-          <View style={styles.requestList}>
-            {visibleRequests.map((item) => (
-              <Pressable
-                key={item.id}
-                style={styles.requestCard}
-                onPress={() => handleOpenRequest(item.id)}
-              >
-                <View style={styles.cardTopRow}>
-                  <View style={styles.badgesRow}>
-                    <View style={styles.categoryBadge}>
-                      <Text style={styles.categoryBadgeText}>
-                        {item.category}
-                      </Text>
-                    </View>
 
-                    {item.secondaryCategory && (
+
+
+          <View style={styles.requestList}>
+            {visibleRequests.length === 0 ? (
+              <View style={styles.emptyState}>
+                <View style={styles.emptyStateIcon}>
+                  <Ionicons
+                    name="document-text-outline"
+                    size={34}
+                    color={COLORS.primary}
+                  />
+                </View>
+
+                <Text style={styles.emptyStateTitle}>
+                  No requests found
+                </Text>
+
+                <Text style={styles.emptyStateText}>
+                  There are currently no requests in this category.
+                </Text>
+
+                <Pressable
+                  style={styles.emptyStateButton}
+                  onPress={handleCreateRequest}
+                >
+                  <Ionicons
+                    name="add"
+                    size={19}
+                    color={COLORS.cardWhite}
+                  />
+
+                  <Text style={styles.emptyStateButtonText}>
+                    Create Request
+                  </Text>
+                </Pressable>
+              </View>
+            ) : (
+              visibleRequests.map((item) => (
+                <Pressable
+                  key={item.id}
+                  style={styles.requestCard}
+                  onPress={() => handleOpenRequest(item.id)}
+                >
+                  <View style={styles.cardTopRow}>
+                    <View style={styles.badgesRow}>
                       <View style={styles.categoryBadge}>
                         <Text style={styles.categoryBadgeText}>
-                          ! {item.secondaryCategory}
+                          {item.category}
                         </Text>
                       </View>
-                    )}
-                  </View>
 
-                  <Text style={styles.pointsText}>{item.points} pts</Text>
-                </View>
-
-                <Text style={styles.requestTitle} numberOfLines={1}>
-                  {item.title}
-                </Text>
-
-                <Text style={styles.requestDescription} numberOfLines={2}>
-                  {item.description}
-                </Text>
-
-                <View style={styles.cardBottomRow}>
-                  <View style={styles.metaRow}>
-                    <View style={styles.metaItem}>
-                      <Ionicons
-                        name="location-sharp"
-                        size={14}
-                        color="#747474"
-                      />
-                      <Text style={styles.metaText} numberOfLines={1}>
-                        {item.location}
-                      </Text>
+                      {item.secondaryCategory && (
+                        <View style={styles.categoryBadge}>
+                          <Text style={styles.categoryBadgeText}>
+                            ! {item.secondaryCategory}
+                          </Text>
+                        </View>
+                      )}
                     </View>
 
-                    <View style={styles.metaItem}>
-                      <Ionicons name="time" size={14} color="#747474" />
-                      <Text style={styles.metaText} numberOfLines={1}>
-                        {item.timeLabel}
-                      </Text>
-                    </View>
+                    <Text style={styles.pointsText}>
+                      {item.points} pts
+                    </Text>
                   </View>
 
-                  <Pressable
-                    style={styles.offerButton}
-                    onPress={() => handleOfferHelp(item.id)}
+                  <Text style={styles.requestTitle} numberOfLines={1}>
+                    {item.title}
+                  </Text>
+
+                  <Text
+                    style={styles.requestDescription}
+                    numberOfLines={2}
                   >
-                    <Text style={styles.offerButtonText}>Offer Help</Text>
-                  </Pressable>
-                </View>
-              </Pressable>
-            ))}
+                    {item.description}
+                  </Text>
+
+                  <View style={styles.cardBottomRow}>
+                    <View style={styles.metaRow}>
+                      <View style={styles.metaItem}>
+                        <Ionicons
+                          name="location-sharp"
+                          size={14}
+                          color="#747474"
+                        />
+
+                        <Text style={styles.metaText} numberOfLines={1}>
+                          {item.location}
+                        </Text>
+                      </View>
+
+                      <View style={styles.metaItem}>
+                        <Ionicons
+                          name="time"
+                          size={14}
+                          color="#747474"
+                        />
+
+                        <Text style={styles.metaText} numberOfLines={1}>
+                          {item.timeLabel}
+                        </Text>
+                      </View>
+                    </View>
+
+                    <Pressable
+                      style={styles.offerButton}
+                      onPress={(event) => {
+                        event.stopPropagation();
+                        handleOfferHelp(item.id);
+                      }}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Offer help for ${item.title}`}
+                    >
+                      <Text style={styles.offerButtonText}>
+                        Offer Help
+                      </Text>
+                    </Pressable>
+                  </View>
+                </Pressable>
+              ))
+            )}
           </View>
+
+
+
+
+
+
+
+
+
+
+
         </ScrollView>
 
         <Pressable style={styles.fab} onPress={handleCreateRequest}>
@@ -462,4 +529,73 @@ const styles = StyleSheet.create({
     elevation: 6,
     zIndex: 10,
   },
+
+
+  emptyState: {
+    minHeight: 260,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.cardWhite,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 24,
+    paddingVertical: 32,
+  },
+
+  emptyStateIcon: {
+    width: 68,
+    height: 68,
+    borderRadius: 34,
+    backgroundColor: COLORS.softPink,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 16,
+  },
+
+  emptyStateTitle: {
+    fontSize: 19,
+    fontWeight: "900",
+    color: COLORS.textDark,
+    textAlign: "center",
+    marginBottom: 7,
+  },
+
+  emptyStateText: {
+    maxWidth: 280,
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: "500",
+    color: COLORS.mutedText,
+    textAlign: "center",
+    marginBottom: 20,
+  },
+
+  emptyStateButton: {
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: COLORS.primary,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 20,
+    gap: 7,
+  },
+
+  emptyStateButtonText: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: COLORS.cardWhite,
+  },
+
+
+
+
+
+
+
+
+
+
+
 });
