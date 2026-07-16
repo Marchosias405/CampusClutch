@@ -64,6 +64,43 @@ export default function RequestDetailsScreen() {
     console.log("Offer sent for request:", request.id);
   };
 
+
+  const formatCreatedAt = (createdAt?: string) => {
+    if (!createdAt) {
+      return "";
+    }
+
+    const createdDate = new Date(createdAt);
+
+    if (Number.isNaN(createdDate.getTime())) {
+      return createdAt;
+    }
+
+    return createdDate.toLocaleString("en-CA", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    });
+  };
+
+
+  const hasAdditionalDetails = Boolean(
+    request.campus ||
+      request.roomLocation ||
+      request.pickupLocation ||
+      request.dropoffLocation ||
+      request.eventName ||
+      request.eventTask ||
+      request.courseOrSubject ||
+      request.studyTopic ||
+      request.itemSize ||
+      request.status ||
+      request.createdAt
+  );
+
+
   return (
     <View style={styles.safeArea}>
       <ScreenHeader>
@@ -98,6 +135,8 @@ export default function RequestDetailsScreen() {
 
           <Text style={styles.description}>{request.description}</Text>
 
+
+
           <View style={styles.infoSection}>
             <View style={styles.infoRow}>
               <Ionicons
@@ -109,15 +148,146 @@ export default function RequestDetailsScreen() {
             </View>
 
             <View style={styles.infoRow}>
-              <Ionicons name="time-outline" size={18} color={COLORS.primary} />
+              <Ionicons
+                name="time-outline"
+                size={18}
+                color={COLORS.primary}
+              />
               <Text style={styles.infoText}>{request.timeLabel}</Text>
             </View>
 
             <View style={styles.infoRow}>
-              <Ionicons name="ellipse" size={18} color={COLORS.coinGold} />
+              <Ionicons
+                name="ellipse"
+                size={18}
+                color={COLORS.coinGold}
+              />
               <Text style={styles.infoText}>{request.points} points</Text>
             </View>
           </View>
+
+          {hasAdditionalDetails && (
+            <View style={styles.additionalDetailsSection}>
+              <Text style={styles.additionalDetailsTitle}>
+                Additional Details
+              </Text>
+
+              {request.campus && (
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>Campus</Text>
+                  <Text style={styles.detailValue}>{request.campus}</Text>
+                </View>
+              )}
+
+              {request.roomLocation && (
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>Room/Location</Text>
+                  <Text style={styles.detailValue}>
+                    {request.roomLocation}
+                  </Text>
+                </View>
+              )}
+
+              {request.pickupLocation && (
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>Pickup Location</Text>
+                  <Text style={styles.detailValue}>
+                    {request.pickupLocation}
+                  </Text>
+                </View>
+              )}
+
+              {request.dropoffLocation && (
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>
+                    {request.category === "PICKUP"
+                      ? "Destination"
+                      : "Drop-off Location"}
+                  </Text>
+
+                  <Text style={styles.detailValue}>
+                    {request.dropoffLocation}
+                  </Text>
+                </View>
+              )}
+
+              {request.eventName && (
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>Event Name</Text>
+                  <Text style={styles.detailValue}>
+                    {request.eventName}
+                  </Text>
+                </View>
+              )}
+
+              {request.eventTask && (
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>Help Needed</Text>
+                  <Text style={styles.detailValue}>
+                    {request.eventTask}
+                  </Text>
+                </View>
+              )}
+
+              {request.courseOrSubject && (
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>Course/Subject</Text>
+                  <Text style={styles.detailValue}>
+                    {request.courseOrSubject}
+                  </Text>
+                </View>
+              )}
+
+              {request.studyTopic && (
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>Study Topic</Text>
+                  <Text style={styles.detailValue}>
+                    {request.studyTopic}
+                  </Text>
+                </View>
+              )}
+
+              {request.itemSize && (
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>Item/Task Size</Text>
+                  <Text style={styles.detailValue}>
+                    {request.itemSize}
+                  </Text>
+                </View>
+              )}
+
+              {request.status && (
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>Status</Text>
+                  <Text style={styles.statusValue}>
+                    {request.status.charAt(0).toUpperCase() +
+                      request.status.slice(1)}
+                  </Text>
+                </View>
+              )}
+
+              {request.createdAt && (
+                <View style={[styles.detailRow, styles.lastDetailRow]}>
+                  <Text style={styles.detailLabel}>Posted</Text>
+                  <Text style={styles.detailValue}>
+                    {formatCreatedAt(request.createdAt)}
+                  </Text>
+                </View>
+              )}
+            </View>
+          )}
+
+
+
+
+
+
+
+
+
+
+
+
 
 
           <Pressable
@@ -275,6 +445,64 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontWeight: "800",
   },
+
+
+
+  additionalDetailsSection: {
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    marginBottom: 24,
+  },
+
+  additionalDetailsTitle: {
+    color: COLORS.textDark,
+    fontSize: 17,
+    fontWeight: "800",
+    marginBottom: 12,
+  },
+
+  detailRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    gap: 16,
+    paddingVertical: 11,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+
+  lastDetailRow: {
+    borderBottomWidth: 0,
+    paddingBottom: 0,
+  },
+
+  detailLabel: {
+    flex: 1,
+    color: COLORS.mutedText,
+    fontSize: 13,
+    fontWeight: "700",
+  },
+
+  detailValue: {
+    flex: 1.4,
+    color: COLORS.textDark,
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: "700",
+    textAlign: "right",
+  },
+
+  statusValue: {
+    color: COLORS.primary,
+    fontSize: 14,
+    fontWeight: "900",
+    textTransform: "capitalize",
+  },
+
 
   
 });
