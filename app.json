@@ -2,6 +2,7 @@
   "expo": {
     "name": "CampusClutch",
     "slug": "CampusClutch",
+    "owner": "marchosias405",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./src/assets/images/icon.png",
@@ -9,9 +10,11 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.marchosias405.campusclutch"
     },
     "android": {
+      "package": "com.marchosias405.campusclutch",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./src/assets/images/android-icon-foreground.png",
@@ -44,6 +47,12 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "a5524197-aec7-42b0-a8ea-37d5fe714c68"
+      }
     }
   }
 }
