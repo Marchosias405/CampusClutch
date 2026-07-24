@@ -14,6 +14,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import ScreenHeader from "../../components/ScreenHeader";
+import { mockStudents } from "../../constants/mockData";
 
 const COLORS = {
   primary: "#9B1C31",
@@ -69,9 +70,25 @@ export default function ChatScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const scrollRef = useRef<ScrollView>(null);
 
-  const meta = chatMeta[id ?? ""] ?? { name: "Chat", subtitle: "" };
+  const routeId = id ?? "";
+  const student = mockStudents.find((item) => item.id === routeId);
 
-  const [messages, setMessages] = useState<Message[]>(initialThread);
+  const meta =
+    chatMeta[routeId] ??
+    (student
+      ? {
+          name: student.name,
+          subtitle: student.major,
+          avatar: student.avatar,
+        }
+      : {
+          name: "Chat",
+          subtitle: "",
+        });
+
+  const [messages, setMessages] = useState<Message[]>(() =>
+    chatMeta[routeId] ? initialThread : []
+  );
   const [draft, setDraft] = useState("");
 
   const handleSend = () => {
