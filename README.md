@@ -1,10 +1,10 @@
-# CampusClutch — Team Next Steps
+# CampusClutch
 
-CampusClutch is an Expo React Native app for university students to connect through courses, classmates, campus requests, messages, notifications, and profiles.
+CampusClutch is an Expo React Native mobile app for university students to connect through courses, classmates, student profiles, campus help requests, direct messages, group conversations, notifications, and user profiles.
 
-This file is a project handoff and ordered roadmap for the team. It explains what is complete, what must happen next, and the exact workflow to follow.
+The app currently uses mock data and in-memory React context while the main user flows, build configuration, and release workflow are being developed.
 
-The team currently has three people, but only two are pushing code. No tasks are permanently assigned. Work should follow a waterfall-style sequence: finish, test, review, merge, and document one task before starting the next.
+> **Current status:** The app can be built as an installable Android preview APK through Expo EAS. Core flows have been tested on a physical Android device. CampusClutch is not yet production-ready because it does not have a backend, authentication, permanent storage, authorization, moderation, or production privacy infrastructure.
 
 ---
 
@@ -20,54 +20,109 @@ The team currently has three people, but only two are pushing code. No tasks are
 - React Native Safe Area Context
 - React Native Community DateTimePicker
 - Expo Vector Icons
-- Mock data and in-memory React context
+- Mock data
+- In-memory React context
+- Expo Application Services (EAS)
 - GitHub Actions CI
 - Apache License 2.0
+- Node 22
+- npm
+- Windows and PowerShell development environment
 
-The app currently uses mock data. It does not yet have a production backend, authentication system, or permanent database.
+---
+
+## Current Project Status
+
+Completed major milestones:
+
+- Courses and classmates navigation
+- Student profile screens
+- Local direct-message threads
+- Classmate-to-chat routing
+- Campus request feed and filters
+- Request creation for four request types
+- Request validation and submission feedback
+- Request details and Offer Help state
+- Android keyboard fixes for messages and request forms
+- Expo/EAS project configuration
+- Android and iOS application identifiers
+- EAS development, preview, and production profiles
+- Successful Android preview APK builds
+- Physical Android device testing
+- GitHub Actions lint/typecheck CI
+- Protected `main` branch workflow
+- Public repository review
+- Apache License 2.0
+
+Next major milestone:
+
+```text
+Task 3 — Define Backend Architecture
+```
+
+The backend must be planned before adding a backend SDK or replacing mock data.
+
+---
+
+## Important Current Limitations
+
+CampusClutch still uses mock and in-memory data.
+
+This means:
+
+- Newly created requests reset when the app reloads.
+- Locally sent messages reset when the conversation is reopened or the app reloads.
+- Offer Help state is local UI state and resets when the request details screen is reopened.
+- Course membership is not persisted.
+- Student profiles are loaded from shared mock data.
+- There are no real user accounts.
+- There is no authentication or authorization.
+- There is no permanent database.
+- There are no backend security rules.
+- There are no real push notifications.
+- There is no production reporting or moderation workflow.
+
+An installable EAS build does not make the app a complete production service.
 
 ---
 
 ## Team Working Method
 
-CampusClutch will use a waterfall-style development process.
+CampusClutch uses a waterfall-style development process.
 
-Each task must be completed before the next one begins.
-
-Required order:
+Each task should be finished before the next dependent task begins.
 
 ```text
-Choose one task
+Choose one focused task
 → create a branch
 → inspect the current code
 → implement only that task
 → test locally
 → run quality checks
+→ commit
+→ push
 → open a pull request
 → wait for CI
 → review
 → merge
 → update local main
+→ delete the feature branch
 → document completion
 → start the next task
 ```
 
-Do not work on later roadmap items while an earlier item is still incomplete unless the team explicitly decides to change the order.
+Current team expectations:
 
-Because only two people currently push code:
-
-- Either developer may take the next task.
-- The third teammate can review, test, document, or prepare plans.
-- No permanent task ownership is assumed.
-- The team should decide who handles each task immediately before starting it.
-- Avoid two people editing the same files at the same time.
-- Do not create parallel branches for roadmap items that depend on unfinished earlier work.
+- Either active developer may take the next task.
+- No task is permanently assigned.
+- The third teammate can test, review, document, or help prepare plans.
+- Avoid having two people edit the same files at the same time.
+- Do not start dependent roadmap items before earlier work is merged.
+- Keep pull requests focused and reviewable.
 
 ---
 
 ## Important Development Rules
-
-Follow these rules before changing the project:
 
 1. Use Expo Router for navigation.
 2. Use `useRouter` for navigation actions.
@@ -77,24 +132,26 @@ Follow these rules before changing the project:
 6. Do not use React Navigation directly for screen routing.
 7. Keep shared types in `src/types/index.ts`.
 8. Keep shared mock data in `src/constants/mockData.ts`.
-9. Do not rewrite unrelated screens.
-10. Keep the existing red and white CampusClutch design.
-11. Work on one focused task at a time.
-12. Test the task before starting another one.
-13. Do not push feature work directly to `main`.
-14. Use a branch, pull request, passing CI, and merge workflow.
-15. Ask for the latest file contents before making a large edit if the current implementation is uncertain.
-16. Use PowerShell-compatible commands.
-17. Keep pull requests small and focused.
-18. Document any intentional limitation before merging.
-19. Do not combine EAS setup, backend work, UI redesign, and feature work in one pull request.
-20. Update this roadmap whenever a major task is completed.
+9. Structure mock-data code so a backend can replace it later.
+10. Do not rewrite unrelated screens.
+11. Keep the existing CampusClutch red and white design.
+12. Work on one focused task at a time.
+13. Test each task before starting another.
+14. Do not push feature work directly to `main`.
+15. Use branches, pull requests, passing CI, and merge workflow.
+16. Ask for the latest file contents before making a large edit when the current implementation is uncertain.
+17. Use PowerShell-compatible commands.
+18. Keep pull requests small and focused.
+19. Document intentional limitations before merging.
+20. Do not combine EAS setup, backend work, UI redesign, and unrelated feature work in one pull request.
+21. Update this README when a major task is completed.
+22. Do not assume `src/app/messages/new.tsx` exists.
 
 ---
 
 ## Required Git Workflow
 
-Use this workflow for every task:
+Start every task from an updated `main` branch:
 
 ```powershell
 git switch main
@@ -102,7 +159,7 @@ git pull origin main
 git switch -c <branch-name>
 ```
 
-After making changes:
+Before committing:
 
 ```powershell
 npm run check
@@ -110,10 +167,17 @@ git diff --check
 git status
 ```
 
-Then:
+Stage only the files related to the task:
 
 ```powershell
-git add .
+git add -- <file-paths>
+git diff --cached --check
+git --no-pager diff --cached
+```
+
+Commit and push:
+
+```powershell
 git commit -m "<type>: describe the change"
 git push -u origin <branch-name>
 ```
@@ -124,9 +188,18 @@ After the pull request is merged:
 git switch main
 git pull origin main
 git branch -d <branch-name>
+git fetch --prune
 git status
 ```
 
+Expected final state:
+
+```text
+On branch main
+Your branch is up to date with 'origin/main'.
+
+nothing to commit, working tree clean
+```
 
 ---
 
@@ -142,7 +215,7 @@ npm run check
 
 `npm run check` runs linting and TypeScript checking together.
 
-The expected current result is:
+Current expected result:
 
 ```text
 0 errors
@@ -155,9 +228,9 @@ The two existing warnings are in:
 src/app/(tabs)/courses.tsx
 ```
 
-They are `useMemo` dependency warnings involving `matchesQuery`.
+They are React Hook `useMemo` dependency warnings involving `matchesQuery`.
 
-Do not modify the Courses screen only to remove these warnings while working on unrelated tasks.
+Do not modify the Courses screen only to remove these warnings while working on unrelated tasks. They should be resolved when the Courses flow is migrated to persistent backend data.
 
 ---
 
@@ -176,7 +249,7 @@ npm ci
 npm run check
 ```
 
-The required GitHub check is:
+The required GitHub check is displayed as:
 
 ```text
 CI / Lint and typecheck
@@ -184,53 +257,78 @@ CI / Lint and typecheck
 
 The `main` branch is protected.
 
-Current rules include:
+Current protection includes:
 
 - Pull requests are required.
-- CI must pass.
+- Required CI checks must pass.
 - Branches must be up to date before merging.
-- Force pushes are blocked.
-- Branch deletion is restricted.
 - Open review conversations must be resolved.
-- Direct feature pushes to `main` should not be used.
+- Force pushes are blocked.
+- Branch deletion is restricted by the repository ruleset.
+- Feature work should not be pushed directly to `main`.
 
 ---
 
 ## Current Relevant Project Structure
 
 ```text
-src/
-├── app/
-│   ├── (tabs)/
+CampusClutch/
+├── .github/
+│   └── workflows/
+│       └── ci.yml
+├── .vscode/
+│   ├── extensions.json
+│   └── settings.json
+├── src/
+│   ├── app/
+│   │   ├── (tabs)/
+│   │   │   ├── _layout.tsx
+│   │   │   ├── courses.tsx
+│   │   │   ├── index.tsx
+│   │   │   ├── messages.tsx
+│   │   │   ├── profile.tsx
+│   │   │   └── requests.tsx
+│   │   ├── courses/
+│   │   │   ├── add.tsx
+│   │   │   └── classmates.tsx
+│   │   ├── messages/
+│   │   │   └── [id].tsx
+│   │   ├── requests/
+│   │   │   ├── [id].tsx
+│   │   │   └── create.tsx
+│   │   ├── students/
+│   │   │   └── [id].tsx
 │   │   ├── _layout.tsx
-│   │   ├── courses.tsx
-│   │   ├── index.tsx
-│   │   ├── messages.tsx
-│   │   ├── profile.tsx
-│   │   └── requests.tsx
-│   ├── courses/
-│   │   ├── add.tsx
-│   │   └── classmates.tsx
-│   ├── messages/
-│   │   └── [id].tsx
-│   ├── requests/
-│   │   ├── [id].tsx
-│   │   └── create.tsx
-│   ├── students/
-│   │   └── [id].tsx
-│   ├── _layout.tsx
-│   └── notifications.tsx
-├── assets/
-├── components/
-├── constants/
-│   └── mockData.ts
-├── context/
-│   └── RequestsContext.tsx
-└── types/
-    └── index.ts
+│   │   └── notifications.tsx
+│   ├── assets/
+│   │   └── images/
+│   ├── components/
+│   ├── constants/
+│   │   └── mockData.ts
+│   ├── context/
+│   │   └── RequestsContext.tsx
+│   └── types/
+│       └── index.ts
+├── .gitignore
+├── app.json
+├── babel.config.js
+├── eas.json
+├── eslint.config.js
+├── expo-env.d.ts
+├── LICENSE
+├── package-lock.json
+├── package.json
+├── README.md
+└── tsconfig.json
 ```
 
-Do not assume `src/app/messages/new.tsx` exists. Verify the current folder structure before adding or routing to that screen.
+Verify the current folder structure before adding a new route.
+
+In particular, do not assume this file exists:
+
+```text
+src/app/messages/new.tsx
+```
 
 ---
 
@@ -241,25 +339,26 @@ Do not assume `src/app/messages/new.tsx` exists. Verify the current folder struc
 Completed behavior:
 
 - `+ Add Course` opens `/courses/add`.
-- Course cards open `/courses/classmates`.
+- Current course cards open `/courses/classmates`.
 - The selected course is passed through `courseId`.
-- Course search works.
+- Find Classmates opens `/courses/classmates`.
+- Course search works by code and title.
 - Course cards are selectable.
 - Selected cards use red/pink styling.
-- Classmates are loaded from mock data.
+- A checkmark appears on the selected course.
+- Add Course returns to the Courses screen.
+- Classmates are loaded from shared mock data.
 - Student cards open `/students/[id]`.
-- Student profile Message buttons open `/messages/[id]`.
+- Message buttons open `/messages/[id]`.
 
-Known working flow:
+Known working flows:
 
 ```text
 Courses
 → Add Course
-→ select/search course
+→ search/select course
 → back to Courses
 ```
-
-and:
 
 ```text
 Courses
@@ -268,6 +367,42 @@ Courses
 → Student Profile
 → Message Thread
 ```
+
+Known limitation:
+
+- Added courses are not persisted after reload.
+
+---
+
+## Student Profiles
+
+`src/app/students/[id].tsx` is now a reusable student profile screen backed by `mockStudents`.
+
+Completed behavior:
+
+- Reads the student ID with `useLocalSearchParams`.
+- Finds the matching student in shared mock data.
+- Displays:
+  - Avatar
+  - Name
+  - Program
+  - Year
+  - Campus
+  - Shared interests
+  - Shared-course or activity note
+- Displays a Top Match badge when available.
+- Displays an active indicator for recently active students.
+- Includes a Message button.
+- Opens the correct student chat.
+- Handles invalid IDs with a Student Not Found screen.
+- Back navigation returns to Classmates.
+- The page scrolls correctly on a physical Android device.
+
+Tested students:
+
+- Aisha R.
+- Mei L.
+- Jordan T.
 
 ---
 
@@ -282,17 +417,23 @@ Completed behavior:
 - The text input stores typed messages.
 - Send adds a local message.
 - Back returns to Messages.
+- Android keyboard avoidance keeps the composer visible.
+- Multiline input works above the Android keyboard.
+- Hiding and reopening the keyboard keeps the composer usable.
 
-Known working flow:
+Classmate chat routing was corrected:
 
-```text
-Messages
-→ Conversation
-→ Send local message
-→ Back to Messages
-```
+- Classmate IDs are resolved against `mockStudents`.
+- Aisha, Mei, and Jordan display the correct name, major, and avatar.
+- New classmate chats begin with an empty thread.
+- New classmate chats no longer display Marcus's mock messages.
+- Existing inbox conversations still display their original mock threads.
 
-Messages are still local/mock only.
+Known limitation:
+
+- Messages are local and in memory only.
+- New classmate conversations are not added permanently to the Messages inbox.
+- Messages reset after reload.
 
 ---
 
@@ -307,12 +448,16 @@ Completed behavior:
   - Pickup
   - Study Help
 - Request cards open `/requests/[id]`.
-- Offer Help buttons open request details.
-- Nested button presses use `event.stopPropagation()`.
-- Back navigation requires only one press.
-- New requests are added to the top of the feed.
+- Nested Offer Help presses use `event.stopPropagation()`.
+- Offer Help does not trigger duplicate navigation.
+- Back navigation requires one press.
+- Newly created requests are added to the beginning of the feed.
 - An empty state appears when a filter has no matching requests.
-- The empty state includes a Create Request button.
+- The empty state includes:
+  - Icon
+  - `No requests found`
+  - Explanation text
+  - Create Request button
 - The floating `+` button opens `/requests/create`.
 
 ---
@@ -361,19 +506,37 @@ Type-specific fields:
 Completed behavior:
 
 - Campus selector supports Burnaby, Surrey, and Vancouver.
+- Burnaby is the default.
+- The selected campus uses red/pink styling and a checkmark.
 - Web and native date selection are supported.
 - Past dates are blocked.
 - Points accept numeric input only.
+- Letters are removed from the points input.
+- Empty points are invalid.
+- `0` is invalid.
 - Points must be a whole number greater than zero.
 - Type-specific validation is implemented.
 - Invalid fields receive a red border.
 - Validation clears when the user corrects a field.
-- Rapid double submission is blocked.
-- The button shows `Posting...`.
-- The button then shows `Request Posted`.
+- Changing request type clears stale type-specific validation.
+- Rapid duplicate submissions are blocked.
+- The button displays `Posting...`.
+- The button then displays `Request Posted`.
 - A success message appears.
-- The app returns to the Requests feed.
+- The app returns to the Requests feed after approximately one second.
 - Exactly one request is created.
+- Submission timeout cleanup runs on unmount.
+
+Android form improvements:
+
+- Deadline and Points Offered display as two aligned columns.
+- The Points Offered label is positioned above the input.
+- The coin icon and typed value no longer overlap.
+- The points field can be cleared completely.
+- `KeyboardAvoidingView` keeps lower form fields visible above the Android keyboard.
+- The form can be scrolled while the keyboard is open.
+- Dragging or pressing Android Back can dismiss the keyboard.
+- Request submission still works after the layout changes.
 
 ---
 
@@ -384,9 +547,16 @@ Completed behavior:
 - Reads request IDs with `useLocalSearchParams`.
 - Finds the request through `RequestsContext`.
 - Handles invalid IDs with a Request Not Found screen.
-- Displays request category, title, description, location, deadline, and points.
+- Displays:
+  - Category
+  - Title
+  - Description
+  - Location
+  - Deadline
+  - Points
 - Urgent requests display an urgent badge.
 - Newly created requests display an Additional Details section.
+- Old mock requests do not show an empty Additional Details card.
 - Offer Help changes to Offer Sent.
 - Offer Help becomes disabled after being pressed.
 - A confirmation message appears.
@@ -407,20 +577,37 @@ Additional Details can include:
 - Status
 - Posted date and time
 
-Old mock requests do not display an empty Additional Details section.
+Known limitation:
+
+- Offer Help state resets when the screen is reopened.
 
 ---
 
 ## Shared Request Data Model
 
-The shared request type supports:
+Request categories include:
+
+```ts
+export type RequestCategory =
+  | "ALL"
+  | "DELIVERY"
+  | "EVENT HELP"
+  | "PICKUP"
+  | "STUDY HELP";
+```
+
+Shared item size:
 
 ```ts
 export type RequestItemSize =
   | "Small"
   | "Medium"
   | "Large";
+```
 
+Request status:
+
+```ts
 export type RequestStatus =
   | "open"
   | "offered"
@@ -428,21 +615,189 @@ export type RequestStatus =
   | "completed";
 ```
 
-`CampusRequest` includes optional detailed fields for all request types.
+`CampusRequest` supports shared and type-specific optional fields.
 
-`RequestsContext` creates IDs and inserts new requests at the start of the list.
+`RequestsContext`:
 
-Current request state is in memory only.
+- Creates a local request ID.
+- Inserts the complete request at the start of the list.
+- Preserves the structure needed for a later backend replacement.
+
+Current request state remains in memory.
 
 Reloading the app resets requests to `mockRequests`.
 
 ---
 
+# Expo EAS Configuration
+
+## EAS Project
+
+CampusClutch is linked to:
+
+```text
+@marchosias405/CampusClutch
+```
+
+Expo project ID:
+
+```text
+a5524197-aec7-42b0-a8ea-37d5fe714c68
+```
+
+Permanent identifiers:
+
+```text
+Android package:
+com.marchosias405.campusclutch
+
+iOS bundle identifier:
+com.marchosias405.campusclutch
+```
+
+`app.json` includes:
+
+- Expo owner
+- Android package
+- iOS bundle identifier
+- EAS project ID
+
+---
+
+## EAS Build Profiles
+
+`eas.json` includes:
+
+### Development
+
+```json
+{
+  "developmentClient": true,
+  "distribution": "internal"
+}
+```
+
+### Preview
+
+```json
+{
+  "distribution": "internal"
+}
+```
+
+The Android preview profile produces an installable APK for direct testing.
+
+### Production
+
+```json
+{
+  "autoIncrement": true
+}
+```
+
+The project uses remote app version management.
+
+No production store submission has been performed.
+
+---
+
+## Android Preview Builds
+
+Completed:
+
+- EAS successfully created the initial Android preview APK.
+- EAS generated and securely managed the Android signing keystore.
+- The APK installed successfully on a physical Android device.
+- The app launched successfully.
+- The initial build exposed several Android-specific UI and routing issues.
+- Each issue was fixed in a focused branch and merged through CI.
+- A fresh Android preview APK was built from the updated `main` branch.
+- The updated APK installed successfully.
+- The updated core-flow test was completed successfully.
+
+Android issues fixed after the first APK test:
+
+1. Message composer hidden by the Android keyboard.
+2. Classmate Message buttons opening a generic Chat header with Marcus's thread.
+3. Student profile placeholder screen.
+4. Points Offered label/icon/input overlap.
+5. Lower Create Request fields hidden by the Android keyboard.
+
+No production build or store submission has been started.
+
+---
+
+## Physical Android Test Coverage
+
+The updated preview APK was tested for:
+
+- App launch
+- Closing and reopening the app
+- Bottom-tab navigation
+- Courses
+- Classmates
+- Student profiles
+- Student-to-chat navigation
+- Existing inbox conversations
+- Local message sending
+- Android message keyboard behavior
+- Request filters
+- Request details
+- Offer Help
+- Create Request
+- Native date picker
+- Points validation
+- Request-form keyboard avoidance
+- Request submission
+- Newly created request appearing at the top of the feed
+- Expected in-memory reset after restarting the app
+
+---
+
+# Completed Roadmap Tasks
+
+## Task 1 — Configure Expo EAS
+
+**Status: Complete**
+
+Completed:
+
+- Verified the Expo account.
+- Confirmed permanent Android and iOS identifiers.
+- Added identifiers to `app.json`.
+- Linked the local project to Expo.
+- Added the EAS project ID.
+- Generated `eas.json`.
+- Added development, preview, and production profiles.
+- Confirmed no secrets or unwanted files were generated.
+- Ran local checks.
+- Opened a pull request.
+- Passed CI.
+- Merged the configuration.
+- Synchronized local `main`.
+
+---
+
+## Task 2 — Create and Test an Android Preview Build
+
+**Status: Complete**
+
+Completed:
+
+- Confirmed the preview profile produces an APK.
+- Created an Android preview build.
+- Installed the APK on a physical Android phone.
+- Tested the main user flows.
+- Fixed Android-specific issues through focused branches.
+- Passed local checks and CI for each fix.
+- Rebuilt the preview APK from updated `main`.
+- Completed final physical-device testing.
+
+---
+
 # Ordered Waterfall Roadmap
 
-The tasks below must be completed in order.
-
-Do not move to the next numbered task until the current task has:
+Do not begin a later task before the current task has:
 
 - Completed implementation
 - Passed manual testing
@@ -454,110 +809,11 @@ Do not move to the next numbered task until the current task has:
 
 ---
 
-# Task 1 — Configure Expo EAS
-
-This is the next task.
-
-Create a branch:
-
-```powershell
-git switch main
-git pull origin main
-git switch -c chore/configure-eas
-```
-
-Before changing files:
-
-```powershell
-git status
-Test-Path .\eas.json
-Select-String -Path .\app.json -Pattern '"package"', '"bundleIdentifier"', '"projectId"'
-npx eas-cli@latest whoami
-```
-
-Do not run `eas build:configure` until the output is reviewed.
-
-The proposed permanent identifiers are:
-
-```text
-Android package:
-com.marchosias405.campusclutch
-
-iOS bundle identifier:
-com.marchosias405.campusclutch
-```
-
-The team must confirm these before adding them.
-
-Task 1 must include:
-
-1. Verify the Expo account.
-2. Confirm Android and iOS identifiers.
-3. Add identifiers to `app.json`.
-4. Link the project to Expo/EAS.
-5. Generate `eas.json`.
-6. Configure development, preview, and production profiles.
-7. Confirm no secrets or unwanted files were generated.
-8. Run local checks.
-9. Open a pull request.
-10. Wait for CI.
-11. Merge.
-12. Sync local `main`.
-
-Completion condition:
-
-- `app.json` contains confirmed identifiers.
-- The Expo project is linked.
-- `eas.json` is committed.
-- CI passes.
-- Configuration is merged to `main`.
-
----
-
-# Task 2 — Create and Test an Android Preview Build
-
-Start only after Task 1 is merged.
-
-Create a new branch if any configuration changes are needed.
-
-Goals:
-
-1. Confirm the preview profile creates an APK suitable for direct installation.
-2. Run the EAS Android preview build.
-3. Download and install the APK on an Android device.
-4. Test navigation and major flows.
-5. Document build URL, build profile, version, and test result.
-6. Fix build-only issues through a focused branch and pull request.
-
-Minimum Android preview test:
-
-```text
-Launch app
-→ open Courses
-→ open Classmates
-→ open Student Profile
-→ open Message Thread
-→ open Requests
-→ create each request type
-→ open Request Details
-→ use Offer Help
-→ verify back navigation
-```
-
-Completion condition:
-
-- An installable Android preview build exists.
-- The APK installs successfully.
-- Core flows work on a physical Android device.
-- Any required fixes are merged.
-
----
-
 # Task 3 — Define Backend Architecture
 
-Start only after the Android preview build is working.
+**Status: Next**
 
-Do not immediately add a backend SDK.
+Do not immediately install a backend SDK.
 
 First create:
 
@@ -565,13 +821,19 @@ First create:
 docs/backend-plan.md
 ```
 
-The plan must compare suitable options, such as Supabase and Firebase, and choose one.
+The plan should compare suitable backend options, such as:
 
-The plan must define:
+- Supabase
+- Firebase
+
+The team must select one backend before implementation begins.
+
+The architecture plan must define:
 
 - Authentication approach
+- University-email verification decision
 - Users table
-- Profiles table
+- Public profiles table
 - Courses table
 - Course memberships
 - Requests table
@@ -586,13 +848,29 @@ The plan must define:
 - Environment variable strategy
 - Local development setup
 - Migration path from mock data
-- Error and loading-state expectations
+- Loading-state expectations
+- Error-state expectations
+- Offline and retry expectations
+- File/avatar storage strategy
+- Account deletion approach
+- Reporting and blocking requirements
+- Development, preview, and production environments
+
+Recommended branch:
+
+```powershell
+git switch main
+git pull origin main
+git switch -c docs/backend-architecture
+```
 
 Completion condition:
 
-- The architecture document is reviewed.
+- `docs/backend-plan.md` is reviewed.
 - The team agrees on the backend.
-- The schema and security model are documented.
+- The initial schema is documented.
+- The security model is documented.
+- The migration path from mock data is documented.
 - No backend implementation starts before approval.
 
 ---
@@ -601,7 +879,7 @@ Completion condition:
 
 Start only after Task 3 is approved.
 
-This task should:
+Requirements:
 
 1. Create the backend project.
 2. Add only public client configuration to the app.
@@ -609,7 +887,7 @@ This task should:
 4. Add `.env.example`.
 5. Confirm real `.env` files are ignored.
 6. Document setup instructions.
-7. Verify the app still starts without committed secrets.
+7. Verify the app starts without committed secrets.
 8. Add a typed backend client module.
 9. Add connection-error handling.
 10. Run CI and merge.
@@ -621,7 +899,7 @@ Completion condition:
 - Backend connection exists.
 - Environment setup is documented.
 - No secrets are committed.
-- App still passes CI.
+- The app still passes CI.
 
 ---
 
@@ -629,7 +907,7 @@ Completion condition:
 
 Start only after backend setup is merged.
 
-Authentication requirements:
+Requirements:
 
 - Sign up
 - Sign in
@@ -640,8 +918,7 @@ Authentication requirements:
 - Protected app routes
 - User profile initialization
 - Secure token handling
-
-Decide whether university-email verification is required before implementation.
+- University-email verification based on the Task 3 decision
 
 Completion condition:
 
@@ -691,7 +968,7 @@ Requirements:
 - Prevent duplicate membership.
 - Remove a course.
 - Separate current and previous courses.
-- Load classmates from actual course memberships.
+- Load classmates from real course memberships.
 - Preserve existing navigation.
 - Add loading, error, and empty states.
 - Resolve the existing `matchesQuery` lint warnings during this task.
@@ -741,23 +1018,23 @@ Requirements:
 
 - Create request-offer records.
 - Prevent duplicate active offers.
-- Store offering user.
-- Store request ID.
+- Store the offering user.
+- Store the request ID.
 - Add offer status:
   - pending
   - accepted
   - rejected
   - withdrawn
 - Notify the request owner.
-- Allow owner to accept or reject.
+- Allow the owner to accept or reject.
 - Update request status.
-- Replace local `offerSent` state with backend state.
+- Replace local Offer Help state with backend state.
 - Define what happens when an offer is accepted.
 
 Completion condition:
 
 - Offer state persists.
-- Request owner can manage offers.
+- The request owner can manage offers.
 - Unauthorized users cannot manage another user's offers.
 - Duplicate offers are prevented.
 
@@ -780,7 +1057,7 @@ Requirements:
 - Prevent unauthorized conversation access.
 - Connect accepted request offers to a conversation.
 - Decide whether `/messages/new` should be added.
-- Verify the current folder structure before adding the route.
+- Verify the current folder structure before adding that route.
 
 Completion condition:
 
@@ -794,7 +1071,7 @@ Completion condition:
 
 Start only after messages are persisted.
 
-Notification events may include:
+Possible notification events:
 
 - Someone offered help.
 - An offer was accepted.
@@ -808,7 +1085,7 @@ Requirements:
 
 - Persist notification records.
 - Load unread count.
-- Mark as read.
+- Mark notifications as read.
 - Open the relevant screen.
 - Add empty state.
 - Add loading state.
@@ -833,7 +1110,7 @@ Recommended order:
 - Request validation
 - Request filtering
 - Date formatting
-- Type mapping
+- Request type mapping
 - Permission helpers
 
 ## Component tests
@@ -844,6 +1121,7 @@ Recommended order:
 - Offer state
 - Authentication forms
 - Message sending states
+- Student Profile states
 
 ## End-to-end tests
 
@@ -886,6 +1164,8 @@ Audit:
 - Route-transition focus warnings
 - Android back behavior
 - Small-screen layouts
+- Keyboard avoidance
+- Form scrolling on mobile
 
 Completion condition:
 
@@ -928,11 +1208,11 @@ Start only after privacy and moderation work is complete.
 
 Requirements:
 
-- App icon final review
-- Splash screen final review
+- Final app icon review
+- Final splash screen review
 - Android version code
 - iOS build number
-- Production EAS profile
+- Production EAS profile review
 - Production environment configuration
 - Store descriptions
 - Store screenshots
@@ -959,17 +1239,17 @@ Start only after production preparation is approved.
 
 Requirements:
 
-- Submit Android build.
-- Submit iOS build.
+- Submit the Android build.
+- Submit the iOS build.
 - Answer store privacy questions.
 - Resolve review feedback.
-- Track release version.
-- Document rollback plan.
-- Confirm support contact.
+- Track the release version.
+- Document a rollback plan.
+- Confirm the support contact.
 
 Completion condition:
 
-- App is approved or release feedback is being handled.
+- The app is approved or store feedback is actively being handled.
 - Release documentation is complete.
 
 ---
@@ -995,13 +1275,28 @@ Possible work:
 
 ---
 
+# Repository and Release Notes
 
+- Repository license: Apache License 2.0
+- Repository visibility: Public
+- GitHub Actions CI: Active
+- Protected `main`: Active
+- EAS project: Linked
+- Android preview APK: Built and tested
+- Production Android build: Not started
+- Production iOS build: Not started
+- Google Play submission: Not started
+- App Store submission: Not started
 
+No secrets, private keys, store credentials, or production environment files should be committed.
+
+---
 
 # Current Production Limitations
 
 CampusClutch still needs:
 
+- Backend architecture approval
 - Real backend
 - Authentication
 - Authorization
@@ -1012,12 +1307,11 @@ CampusClutch still needs:
 - User ownership
 - Secure environment configuration
 - Privacy policy
-- Content moderation/reporting
+- Content moderation and reporting
 - Account deletion
 - Error reporting
 - Automated tests beyond lint/typecheck
-
-EAS can create an installable build, but an installable build alone does not make the app a complete production service.
+- Production store setup
 
 ---
 
@@ -1026,22 +1320,22 @@ EAS can create an installable build, but an installable build alone does not mak
 Start only:
 
 ```text
-Task 1 — Configure Expo EAS
+Task 3 — Define Backend Architecture
 ```
 
-Before editing files, run:
+Recommended first commands:
 
 ```powershell
+git switch main
+git pull origin main
+git switch -c docs/backend-architecture
 git status
-Test-Path .\eas.json
-Select-String -Path .\app.json -Pattern '"package"', '"bundleIdentifier"', '"projectId"'
-npx eas-cli@latest whoami
 ```
 
-Review the output before running:
+Then create:
 
-```powershell
-eas build:configure
+```text
+docs/backend-plan.md
 ```
 
-Do not begin Task 2 until Task 1 is merged and documented.
+Do not install Supabase, Firebase, or another backend SDK until the architecture plan has been reviewed and approved.
