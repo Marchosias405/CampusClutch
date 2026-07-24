@@ -5,6 +5,7 @@ import DateTimePicker, {
 import { useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
+  KeyboardAvoidingView,
   Platform,
   Pressable,
   ScrollView,
@@ -640,11 +641,20 @@ const formatCalendarMonthLabel = (date: Date) => {
           <View style={styles.headerSpacer} />
         </ScreenHeader>
 
-        <ScrollView
-          style={styles.scrollView}
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
+        <KeyboardAvoidingView
+          style={styles.keyboardAvoidingView}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          keyboardVerticalOffset={0}
         >
+          <ScrollView
+            style={styles.scrollView}
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode={
+              Platform.OS === "ios" ? "interactive" : "on-drag"
+            }
+          >
           <Text style={styles.sectionTitle}>Request Type</Text>
 
           <ScrollView
@@ -1201,15 +1211,15 @@ const formatCalendarMonthLabel = (date: Date) => {
 
 
 
-            <View
-              style={[
-                styles.iconInputWrapSmall,
-                invalidField === "pointsOffered" && styles.invalidInput,
-              ]}
-            >
+            <View style={styles.columnField}>
               <Text style={styles.inputLabel}>Points Offered</Text>
 
-              <View style={styles.iconInputWrapSmall}>
+              <View
+                style={[
+                  styles.iconInputWrapSmall,
+                  invalidField === "pointsOffered" && styles.invalidInput,
+                ]}
+              >
                 <FontAwesome5
                   name="coins"
                   size={16}
@@ -1304,7 +1314,8 @@ const formatCalendarMonthLabel = (date: Date) => {
 
 
 
-        </ScrollView>
+          </ScrollView>
+        </KeyboardAvoidingView>
       </View>
     </View>
   );
@@ -1335,6 +1346,10 @@ const styles = StyleSheet.create({
 
   headerSpacer: {
     width: 24,
+  },
+
+  keyboardAvoidingView: {
+    flex: 1,
   },
 
   scrollView: {
