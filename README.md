@@ -2,9 +2,9 @@
 
 CampusClutch is an Expo React Native mobile app for university students to connect through courses, classmates, student profiles, campus help requests, direct messages, group conversations, notifications, and user profiles.
 
-The app currently uses mock data and in-memory React context while the main user flows, build configuration, and release workflow are being developed.
+The app still uses mock data and in-memory React context for its current feature flows, but the Supabase backend foundation is now configured for local development, shared development, and preview environments.
 
-> **Current status:** The app can be built as an installable Android preview APK through Expo EAS. Core flows have been tested on a physical Android device. CampusClutch is not yet production-ready because it does not have a backend, authentication, permanent storage, authorization, moderation, or production privacy infrastructure.
+> **Current status:** Tasks 1–4 are complete. CampusClutch has tested Android preview builds, an approved Supabase architecture, local Supabase tooling, separate hosted Development and Preview projects, typed environment validation, and a reusable Supabase client. Task 5—Authentication—is the next milestone. The app is not production-ready because authentication, application database tables, persistent feature data, authorization policies, moderation, and production infrastructure are not complete.
 
 ---
 
@@ -20,6 +20,12 @@ The app currently uses mock data and in-memory React context while the main user
 - React Native Safe Area Context
 - React Native Community DateTimePicker
 - Expo Vector Icons
+- Supabase
+- Supabase JavaScript client
+- React Native AsyncStorage
+- React Native URL polyfill
+- Supabase CLI
+- Docker Desktop for local Supabase
 - Mock data
 - In-memory React context
 - Expo Application Services (EAS)
@@ -28,8 +34,6 @@ The app currently uses mock data and in-memory React context while the main user
 - Node 22
 - npm
 - Windows and PowerShell development environment
-
----
 
 ## Current Project Status
 
@@ -53,20 +57,26 @@ Completed major milestones:
 - Protected `main` branch workflow
 - Public repository review
 - Apache License 2.0
+- Approved Supabase backend architecture
+- Local Supabase project structure and Docker workflow
+- Hosted Supabase Development and Preview projects
+- Separate EAS Development and Preview environment variables
+- Typed Expo environment validation
+- Reusable Supabase client foundation
+- Backend setup documentation
+- Task 4 Android smoke test after backend setup
 
 Next major milestone:
 
 ```text
-Task 3 — Define Backend Architecture
+Task 5 — Add Authentication
 ```
 
-The backend must be planned before adding a backend SDK or replacing mock data.
-
----
+Authentication must be implemented from the approved architecture in `docs/backend-plan.md`. Relevant navigation, layouts, profile flows, providers, and session behavior must be inspected before code is changed.
 
 ## Important Current Limitations
 
-CampusClutch still uses mock and in-memory data.
+CampusClutch now has a backend foundation, but its application features still use mock and in-memory data.
 
 This means:
 
@@ -75,16 +85,16 @@ This means:
 - Offer Help state is local UI state and resets when the request details screen is reopened.
 - Course membership is not persisted.
 - Student profiles are loaded from shared mock data.
-- There are no real user accounts.
-- There is no authentication or authorization.
-- There is no permanent database.
-- There are no backend security rules.
+- There are no real user accounts yet.
+- Authentication is not connected to the application.
+- Protected routes and session restoration are not implemented.
+- No application database schema or feature migrations exist yet.
+- Application tables and Row Level Security policies are not implemented yet.
 - There are no real push notifications.
 - There is no production reporting or moderation workflow.
+- The production Supabase project and production EAS variables are not configured.
 
-An installable EAS build does not make the app a complete production service.
-
----
+An installable EAS build and configured Supabase projects do not make the app a complete production service.
 
 ## Team Working Method
 
@@ -279,6 +289,9 @@ CampusClutch/
 ├── .vscode/
 │   ├── extensions.json
 │   └── settings.json
+├── docs/
+│   ├── backend-plan.md
+│   └── backend-setup.md
 ├── src/
 │   ├── app/
 │   │   ├── (tabs)/
@@ -307,8 +320,16 @@ CampusClutch/
 │   │   └── mockData.ts
 │   ├── context/
 │   │   └── RequestsContext.tsx
+│   ├── lib/
+│   │   ├── env.ts
+│   │   └── supabase.ts
 │   └── types/
 │       └── index.ts
+├── supabase/
+│   ├── .gitignore
+│   ├── config.toml
+│   └── seed.sql
+├── .env.example
 ├── .gitignore
 ├── app.json
 ├── babel.config.js
@@ -322,7 +343,7 @@ CampusClutch/
 └── tsconfig.json
 ```
 
-Verify the current folder structure before adding a new route.
+Verify the current folder structure before adding a new route or provider.
 
 In particular, do not assume this file exists:
 
@@ -330,7 +351,7 @@ In particular, do not assume this file exists:
 src/app/messages/new.tsx
 ```
 
----
+The Supabase CLI may also create ignored temporary state under `supabase/.temp/`. Do not commit that directory.
 
 # Completed Features
 
@@ -811,103 +832,88 @@ Do not begin a later task before the current task has:
 
 # Task 3 — Define Backend Architecture
 
-**Status: Next**
+**Status: Complete**
 
-Do not immediately install a backend SDK.
+Completed:
 
-First create:
+- Compared suitable backend platforms.
+- Selected Supabase as the backend.
+- Documented the high-level architecture.
+- Defined authentication and session requirements.
+- Defined profile, course, membership, request, offer, conversation, message, notification, and storage strategies.
+- Defined Row Level Security and authorization direction.
+- Defined local, development, preview, and production environment separation.
+- Defined migration order from mock data.
+- Defined loading, error, retry, offline, testing, and security expectations.
+- Defined the Task 4–17 implementation roadmap.
+- Reviewed and merged the architecture through pull request #14.
+
+Architecture document:
 
 ```text
 docs/backend-plan.md
 ```
 
-The plan should compare suitable backend options, such as:
+Completion condition: Met.
 
-- Supabase
-- Firebase
-
-The team must select one backend before implementation begins.
-
-The architecture plan must define:
-
-- Authentication approach
-- University-email verification decision
-- Users table
-- Public profiles table
-- Courses table
-- Course memberships
-- Requests table
-- Request offers table
-- Conversations table
-- Conversation members
-- Messages table
-- Notifications table
-- Ownership rules
-- Authorization rules
-- Row-level security or equivalent
-- Environment variable strategy
-- Local development setup
-- Migration path from mock data
-- Loading-state expectations
-- Error-state expectations
-- Offline and retry expectations
-- File/avatar storage strategy
-- Account deletion approach
-- Reporting and blocking requirements
-- Development, preview, and production environments
-
-Recommended branch:
-
-```powershell
-git switch main
-git pull origin main
-git switch -c docs/backend-architecture
-```
-
-Completion condition:
-
-- `docs/backend-plan.md` is reviewed.
-- The team agrees on the backend.
-- The initial schema is documented.
-- The security model is documented.
-- The migration path from mock data is documented.
-- No backend implementation starts before approval.
-
----
+No feature data was migrated during this task.
 
 # Task 4 — Add Backend Project and Environment Setup
 
-Start only after Task 3 is approved.
+**Status: Complete**
 
-Requirements:
+Completed:
 
-1. Create the backend project.
-2. Add only public client configuration to the app.
-3. Store secrets correctly.
-4. Add `.env.example`.
-5. Confirm real `.env` files are ignored.
-6. Document setup instructions.
-7. Verify the app starts without committed secrets.
-8. Add a typed backend client module.
-9. Add connection-error handling.
-10. Run CI and merge.
+- Initialized the local Supabase project structure.
+- Added the Supabase CLI as a development dependency.
+- Added the Supabase JavaScript client.
+- Added React Native AsyncStorage and URL polyfill support.
+- Added `.env.example` with public placeholders only.
+- Confirmed real environment files are ignored.
+- Added typed public configuration in `src/lib/env.ts`.
+- Added the reusable Supabase client in `src/lib/supabase.ts`.
+- Configured local Supabase through Docker Desktop.
+- Created the hosted `CampusClutch Development` project.
+- Created the hosted `CampusClutch Preview` project.
+- Kept the repository linked to Development.
+- Configured separate EAS Development and Preview variables.
+- Added explicit EAS environment mapping.
+- Added backend setup documentation.
+- Verified local API and Studio access.
+- Verified no credentials were committed.
+- Passed local lint and type checking.
+- Passed GitHub CI.
+- Completed an Android smoke test.
+- Merged pull request #15 into `main`.
 
-Do not implement every feature in this task.
+Setup guide:
 
-Setup guide: [`docs/backend-setup.md`](docs/backend-setup.md)
+[`docs/backend-setup.md`](docs/backend-setup.md)
 
-Completion condition:
+Current boundary:
 
-- Backend connection exists.
-- Environment setup is documented.
-- No secrets are committed.
-- The app still passes CI.
+- No application tables or feature migrations exist yet.
+- No production Supabase project exists yet.
+- Existing feature screens still use mock and in-memory data.
 
----
+Completion condition: Met.
 
 # Task 5 — Add Authentication
 
-Start only after backend setup is merged.
+**Status: Next**
+
+Start only from an updated, clean `main` branch.
+
+Before coding:
+
+- Verify Git status and branches.
+- Create or switch to `feature/supabase-authentication`.
+- Inspect the current Expo Router layouts and navigation.
+- Inspect profile, home, and account-related routes.
+- Inspect existing context providers.
+- Inspect `src/lib/env.ts` and `src/lib/supabase.ts`.
+- Read the approved authentication sections in `docs/backend-plan.md`.
+- Write a focused implementation plan and review it before modifying files.
 
 Requirements:
 
@@ -915,12 +921,26 @@ Requirements:
 - Sign in
 - Sign out
 - Session restoration
-- Loading state
+- Auth-state subscription
+- Loading state during session restoration
 - Authentication error messages
-- Protected app routes
-- User profile initialization
-- Secure token handling
-- University-email verification based on the Task 3 decision
+- Public authentication routes
+- Protected application routes
+- Email verification based on the approved architecture
+- Password reset
+- Secure token handling through the existing Supabase client
+- Minimal profile initialization only where required by the approved Task 5 design
+- Preservation of current mock feature data
+
+Out of scope:
+
+- Persistent courses
+- Persistent requests
+- Real offers
+- Persistent conversations and messages
+- Notifications
+- Production environment configuration
+- Unrelated UI redesigns
 
 Completion condition:
 
@@ -928,9 +948,9 @@ Completion condition:
 - A user can sign in and sign out.
 - Session restoration works.
 - Protected routes cannot be opened without authentication.
-- Tests and CI pass.
-
----
+- Verification and password-reset behavior are handled.
+- Existing mock feature flows remain usable after sign-in.
+- Manual tests, `npm run check`, GitHub CI, and review pass.
 
 # Task 6 — Persist User Profiles
 
@@ -1285,29 +1305,42 @@ Possible work:
 - Protected `main`: Active
 - EAS project: Linked
 - Android preview APK: Built and tested
+- Backend decision: Supabase
+- Backend architecture: Approved and documented
+- Local Supabase: Initialized and tested
+- Hosted Development project: Created and linked
+- Hosted Preview project: Created
+- EAS Development variables: Configured
+- EAS Preview variables: Configured
+- Production Supabase project: Not created
+- Production EAS variables: Not configured
+- Application database schema: Not created
+- Authentication: Not implemented
 - Production Android build: Not started
 - Production iOS build: Not started
 - Google Play submission: Not started
 - App Store submission: Not started
 
-No secrets, private keys, store credentials, or production environment files should be committed.
-
----
+No secrets, private keys, database passwords, store credentials, or real environment files should be committed.
 
 # Current Production Limitations
 
 CampusClutch still needs:
 
-- Backend architecture approval
-- Real backend
 - Authentication
-- Authorization
-- Permanent request storage
-- Permanent course storage
-- Permanent message storage
+- Session restoration
+- Protected routes
+- Email verification and password reset
+- Application database schema and migrations
+- Row Level Security policies and explicit grants
+- Persistent request storage
+- Persistent course storage
+- Persistent profile storage
+- Persistent message storage
+- Real request offers
 - Real notifications
-- User ownership
-- Secure environment configuration
+- User ownership enforcement
+- Production Supabase and EAS environments
 - Privacy policy
 - Content moderation and reporting
 - Account deletion
@@ -1315,29 +1348,37 @@ CampusClutch still needs:
 - Automated tests beyond lint/typecheck
 - Production store setup
 
----
-
 # Next Action
 
 Start only:
 
 ```text
-Task 3 — Define Backend Architecture
+Task 5 — Add Authentication
 ```
 
-Recommended first commands:
+First verify the repository state:
 
 ```powershell
-git switch main
-git pull origin main
-git switch -c docs/backend-architecture
+cd D:\Projects\CampusClutch
 git status
+git branch -vv
+git log -3 --oneline --decorate
 ```
 
-Then create:
+Do not assume the authentication branch already exists.
 
-```text
-docs/backend-plan.md
+After verifying a clean and current `main`, create the branch if needed:
+
+```powershell
+git switch -c feature/supabase-authentication
 ```
 
-Do not install Supabase, Firebase, or another backend SDK until the architecture plan has been reviewed and approved.
+Before writing code:
+
+1. Inspect the current source tree.
+2. Inspect relevant layouts, routes, providers, environment modules, and CI files.
+3. Read the approved authentication sections in `docs/backend-plan.md`.
+4. Produce a focused Task 5 plan.
+5. Review the plan before implementation.
+
+Do not begin Task 6 until Task 5 has passed manual testing, local checks, CI, review, and merge.
