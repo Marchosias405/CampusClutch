@@ -1,9 +1,9 @@
 # CampusClutch Backend Architecture Plan
 
-**Status:** Draft
+**Status:** Ready for review
 **Selected backend:** Supabase
-**Current task:** Architecture and documentation only
-**Implementation status:** Not started
+**Current task:** Task 3 — Define Backend Architecture
+**Implementation status:** Architecture complete; backend implementation not started
 
 ## 1. Purpose
 
@@ -4394,15 +4394,4490 @@ The messaging milestone must eventually test:
 - Realtime authorization testing
 - Query-plan and index review
 
-## 15. Deferred Sections
+## 15. Notifications
 
-The following sections will be added and reviewed incrementally:
+### 15.1 Goals
 
+The notification architecture must support:
+
+- Persistent in-app notifications
+- Read and unread state
+- Notification history
+- Navigation to the related application screen
+- Optional push-notification delivery
+- Multiple registered devices per user
+- User notification preferences
+- Secure server-side notification creation
+- Retry-safe delivery
+- Invalid-token cleanup
+- Realtime in-app updates where appropriate
+- Scheduled deadline reminders
+- Gradual replacement of the current notifications mock data
+
+Persistent in-app notification records remain the source of truth.
+
+Push notifications are a delivery convenience and must not be the only record that an event occurred.
+
+### 15.2 Core records
+
+The planned notification domain contains:
+
+- `notifications`
+- `push_devices`
+- `notification_preferences`
+- `push_delivery_attempts`
+
+The relationships are:
+
+- One profile may own many notification records.
+- One profile may register multiple push-enabled installations.
+- One profile has one notification-preferences record.
+- One notification may have multiple delivery attempts.
+- One notification may reference a request, offer, conversation, message, course, or another approved entity.
+
+### 15.3 Notification event types
+
+Initial notification event types should include:
+
+- `request_offer_created`
+- `request_offer_accepted`
+- `request_offer_rejected`
+- `request_offer_withdrawn`
+- `request_cancelled`
+- `request_expired`
+- `request_completed`
+- `request_deadline_approaching`
+- `message_received`
+- `conversation_created`
+- `group_member_added`
+- `group_member_removed`
+- `course_classmate_joined`
+
+Potential future event types include:
+
+- Profile or account action required
+- Moderation update
+- Report outcome
+- Safety notice
+- Group role changed
+- New course announcement
+- System maintenance
+
+Event types must use a controlled database enum or constrained text value.
+
+Normal clients must not create arbitrary event types.
+
+### 15.4 Notifications table
+
+The proposed `notifications` fields are:
+
+| Field | Planned type | Required | Purpose |
+|---|---|---:|---|
+| `id` | UUID | Yes | Primary key |
+| `recipient_id` | UUID foreign key | Yes | Profile that owns the notification |
+| `actor_id` | UUID foreign key | No | Profile whose action caused the event |
+| `event_type` | Text or enum | Yes | Controlled notification event |
+| `title` | Text | Yes | Short user-facing title |
+| `body` | Text | Yes | Short user-facing description |
+| `request_id` | UUID foreign key | No | Related request |
+| `offer_id` | UUID foreign key | No | Related request offer |
+| `conversation_id` | UUID foreign key | No | Related conversation |
+| `message_id` | UUID foreign key | No | Related message |
+| `course_id` | UUID foreign key | No | Related course |
+| `navigation_key` | Text or enum | Yes | Approved application destination type |
+| `read_at` | Timestamp with time zone | No | When the user marked it read |
+| `created_at` | Timestamp with time zone | Yes | Server-generated creation time |
+| `expires_at` | Timestamp with time zone | No | Optional notification-history expiration |
+| `deduplication_key` | Text | No | Retry-safe event identifier |
+
+Potential future fields include:
+
+- Priority
+- Administrative category
+- Localization template key
+- Notification grouping key
+- Retention category
+- Moderation reference
+
+The table must not store:
+
+- Push-provider credentials
+- Expo access tokens
+- Authentication tokens
+- Private message histories
+- Sensitive administrative notes
+- Raw user passwords
+- Arbitrary client-controlled navigation URLs
+
+### 15.5 Notification ownership
+
+`recipient_id` identifies the user who owns the notification.
+
+The backend must enforce that:
+
+- A notification has exactly one recipient.
+- Normal users cannot create notifications for themselves or other users.
+- Normal users cannot change the recipient.
+- Users may read only their own notification records.
+- Users may update only approved read-state fields on their own notifications.
+- Users cannot inspect another user's notification history.
+- Trusted backend operations determine the recipient from the related event.
+
+The Expo client must not submit a recipient ID and expect it to be trusted.
+
+### 15.6 Notification actor
+
+`actor_id` identifies the user whose action caused the notification when relevant.
+
+Examples include:
+
+- The person who offered help
+- The request owner who accepted an offer
+- The sender of a message
+- The classmate who joined a course
+
+`actor_id` may be null for system-generated events such as:
+
+- Deadline approaching
+- Request expired
+- Administrative notice
+- System maintenance
+
+Actor display information should be loaded from approved profile fields.
+
+The actor's email address and private profile fields must not be copied into the notification.
+
+### 15.7 Related entities
+
+Notification records should use explicit nullable foreign keys for supported related entities.
+
+Examples include:
+
+- `request_offer_created`
+  - Request ID
+  - Offer ID
+  - Actor ID
+
+- `request_offer_accepted`
+  - Request ID
+  - Offer ID
+  - Actor ID
+
+- `message_received`
+  - Conversation ID
+  - Message ID
+  - Actor ID
+
+- `request_deadline_approaching`
+  - Request ID
+  - No actor
+
+- `course_classmate_joined`
+  - Course ID
+  - Actor ID
+
+The final schema should include check constraints or trusted creation functions that verify each event type contains the required relationship fields.
+
+A message notification must not reference a message from an unrelated conversation.
+
+### 15.8 Navigation targets
+
+Notifications must use approved structured navigation information rather than arbitrary URLs supplied by a client.
+
+The proposed `navigation_key` values include:
+
+- `request_details`
+- `request_offers`
+- `conversation`
+- `student_profile`
+- `course_classmates`
+- `notifications`
+- `account_settings`
+
+The client maps the navigation key and related entity ID to an existing Expo Router route.
+
+Examples:
+
+- `request_details` plus `request_id`
+  - Opens `/requests/[id]`
+
+- `conversation` plus `conversation_id`
+  - Opens `/messages/[id]`
+
+- `student_profile` plus `actor_id`
+  - Opens `/students/[id]`
+
+- `course_classmates` plus `course_id`
+  - Opens the approved classmates route with the course parameter
+
+The client must validate that the required identifier exists before navigating.
+
+The notification record must not contain a client-controlled external URL.
+
+### 15.9 Read and unread state
+
+A notification is unread when:
+
+- `read_at` is null
+
+A notification is read when:
+
+- `read_at` contains a server-approved timestamp
+
+The initial design does not require a separate status column for read and unread state.
+
+Unread count is derived from the signed-in user's notification rows where `read_at` is null.
+
+The application should support:
+
+- Mark one notification read
+- Mark all notifications read
+- Display unread count
+- Display read and unread styling
+- Preserve read state after application restart
+- Synchronize read state across devices
+
+### 15.10 Marking one notification read
+
+The mark-read operation must:
+
+1. Verify that the caller is authenticated.
+2. Verify that the notification belongs to the caller.
+3. Set `read_at` only when it is currently null.
+4. Use a server timestamp.
+5. Return the updated notification.
+6. Be safe to repeat.
+
+A user must not mark another user's notification as read.
+
+The operation must not change:
+
+- Recipient
+- Actor
+- Event type
+- Related entities
+- Creation timestamp
+- Notification body
+
+### 15.11 Marking all notifications read
+
+The mark-all-read operation should use a narrow database function or controlled update.
+
+It must:
+
+- Apply only to the authenticated user's notifications.
+- Update only unread rows.
+- Use one server timestamp for the operation where practical.
+- Avoid updating another user's records.
+- Return the resulting unread count or affected count.
+- Be safe to repeat.
+
+The Expo client must not first download notification IDs and send an unrestricted bulk update.
+
+### 15.12 Notification text
+
+The initial notification row stores a short title and body so the user can view a consistent historical notification.
+
+Notification text must:
+
+- Be created by trusted backend logic.
+- Use approved templates.
+- Apply length limits.
+- Avoid raw HTML.
+- Avoid secrets and private account information.
+- Avoid including complete private messages.
+- Avoid including sensitive request details on a locked screen.
+- Remain understandable if an actor later changes their display name.
+
+A future localization system may store:
+
+- Template key
+- Template parameters
+- Rendered fallback text
+
+That complexity is not required for the first implementation.
+
+### 15.13 Notification creation
+
+Normal Expo clients must not directly insert notification records.
+
+Notifications should be created through trusted backend logic such as:
+
+- Transactional database functions
+- Database triggers where the event is simple and safe
+- Supabase Edge Functions
+- Scheduled jobs
+- Trusted administrative processes
+
+Examples include:
+
+- Offer creation transaction creates the owner notification.
+- Offer acceptance transaction creates the helper notification.
+- Message insertion creates recipient notification records.
+- Deadline scheduler creates deadline notifications.
+- Course membership operation creates an approved classmate notification.
+
+Notification creation must remain in the same transaction as the related business event when consistency requires it.
+
+### 15.14 Idempotency and duplicate prevention
+
+Notification creation must handle retries safely.
+
+The proposed direction uses a `deduplication_key`.
+
+Examples include:
+
+- `offer-created:<offer-id>:<recipient-id>`
+- `offer-accepted:<offer-id>:<recipient-id>`
+- `message:<message-id>:<recipient-id>`
+- `deadline-24h:<request-id>:<recipient-id>`
+- `request-completed:<request-id>:<recipient-id>`
+
+The database should enforce uniqueness for non-null deduplication keys.
+
+This prevents duplicate notification rows caused by:
+
+- Retried database functions
+- Retried Edge Functions
+- Database webhook retries
+- Scheduled-job retries
+- Network timeouts
+- Multiple workers processing the same event
+
+The exact deduplication format must be generated by trusted backend logic.
+
+### 15.15 New offer notification
+
+When a user submits a valid request offer:
+
+- The request owner receives a notification.
+- The offering user is the actor.
+- The request and offer are referenced.
+- The destination opens the request-offer review flow.
+- The notification is created only after the offer insert succeeds.
+- A retry does not create a duplicate notification.
+- The user does not receive a notification for offering on their own request because that action is prohibited.
+
+The notification should not expose the offerer's private contact information.
+
+### 15.16 Offer accepted notification
+
+When an offer is accepted:
+
+- The accepted helper receives an accepted notification.
+- The request owner is the actor.
+- The request and accepted offer are referenced.
+- The destination opens the request or linked conversation.
+- The notification is committed with the acceptance transaction.
+- Rejected offering users receive separate approved notifications.
+- Duplicate notifications are prevented.
+
+The accepted notification must not be created if the acceptance transaction rolls back.
+
+### 15.17 Offer rejected notification
+
+When an offer is rejected:
+
+- The offering user receives a rejection notification.
+- The request owner is the actor.
+- The request and offer are referenced.
+- The notification opens the related request where access is still permitted.
+- The body does not expose information about other offering users.
+- Direct rejection and automatic rejection may use different event templates.
+
+A rejected user must not receive access to an accepted conversation.
+
+### 15.18 New message notification
+
+When a message is persisted:
+
+- Active recipients other than the sender may receive an in-app notification.
+- The sender is the actor.
+- The conversation and message are referenced.
+- The destination opens the conversation.
+- The notification is created only for authorized conversation members.
+- Muted conversation preferences are respected for push delivery.
+- The persistent notification may still be created even when push is muted.
+
+The push preview should contain minimal private content.
+
+The initial product may display:
+
+- Sender name
+- Generic text such as `Sent you a message`
+
+Displaying the complete message body on a device lock screen should require an explicit privacy decision.
+
+### 15.19 Deadline-approaching notification
+
+Deadline notifications are system-generated.
+
+Potential reminders include:
+
+- 24 hours before deadline
+- 1 hour before deadline
+
+The first implementation should choose one reminder window rather than creating many reminders.
+
+A reminder should be created only when:
+
+- The request remains active.
+- The recipient owns or is the accepted helper for the request.
+- The deadline remains in the future.
+- The same reminder has not already been generated.
+- The request has not been completed, cancelled, or expired.
+
+Deadline reminders require trusted server time.
+
+The mobile device clock must not control reminder creation.
+
+### 15.20 Classmate-joined notification
+
+The product may notify course members when a new classmate joins.
+
+This event must be conservative because large courses could create excessive notifications.
+
+Before implementation, the product must decide:
+
+- Whether this notification is enabled at all
+- Whether it is limited to small courses
+- Whether it is grouped into summaries
+- Whether it is in-app only
+- Whether users can disable it
+- Whether hidden profiles generate notifications
+- Whether existing members may navigate to the new profile
+
+The initial implementation may keep this event disabled by default.
+
+### 15.21 Request-completed notification
+
+When a request is completed:
+
+- The request owner and accepted helper may receive notifications as appropriate.
+- The request is referenced.
+- The accepted relationship is verified.
+- The destination opens the request details or conversation.
+- The notification is created with the trusted completion operation.
+- Unrelated offering users do not receive completion details.
+- Duplicate completion notifications are prevented.
+
+The exact completion-confirmation workflow will be defined during the Request Offers or safety implementation task.
+
+### 15.22 In-app notifications versus push notifications
+
+In-app notifications and push notifications serve different purposes.
+
+#### In-app record
+
+- Stored in PostgreSQL
+- Provides notification history
+- Provides read and unread state
+- Supports unread counts
+- Supports application navigation
+- Remains available after device changes
+- Is protected through RLS
+
+#### Push notification
+
+- Delivered through an external platform
+- May arrive while the application is backgrounded or closed
+- May be delayed, duplicated, or not delivered
+- May be disabled by the user or operating system
+- Should contain minimal private content
+- Must not be the source of truth
+
+A push failure must not remove or invalidate the in-app notification.
+
+### 15.23 Push-device registrations
+
+Push registration belongs to an application installation rather than directly to a profile.
+
+One user may have:
+
+- An Android phone
+- An iPhone
+- A tablet
+- A replacement device
+- Multiple preview or development installations
+
+Each active installation may have its own push token.
+
+Signing out should detach or disable the installation's user association according to the approved security workflow.
+
+### 15.24 Push devices table
+
+The proposed `push_devices` fields are:
+
+| Field | Planned type | Required | Purpose |
+|---|---|---:|---|
+| `id` | UUID | Yes | Primary key |
+| `profile_id` | UUID foreign key | Yes | Current authenticated owner |
+| `installation_id` | UUID | Yes | App-generated installation identifier |
+| `expo_push_token` | Text | Yes | Expo push token |
+| `platform` | Text or enum | Yes | Android or iOS |
+| `app_environment` | Text or enum | Yes | Development, preview, or production |
+| `project_id` | Text | Yes | Expected Expo/EAS project identifier |
+| `notifications_enabled` | Boolean | Yes | Last confirmed app-level state |
+| `last_registered_at` | Timestamp with time zone | Yes | Most recent successful registration |
+| `last_seen_at` | Timestamp with time zone | Yes | Most recent authenticated app activity |
+| `disabled_at` | Timestamp with time zone | No | When delivery was disabled |
+| `created_at` | Timestamp with time zone | Yes | Server-generated creation time |
+| `updated_at` | Timestamp with time zone | Yes | Server-maintained modification time |
+
+The database should prevent inappropriate duplicate active registrations.
+
+The final uniqueness design should consider:
+
+- Expo push token
+- Installation ID
+- Environment
+- Profile ID
+
+Development and preview tokens must not be used by the production notification sender.
+
+### 15.25 Push-token registration
+
+The planned registration flow is:
+
+1. Restore the authenticated session.
+2. Determine whether push registration is appropriate.
+3. Create the required Android notification channel.
+4. Check existing notification permission.
+5. Request permission only with clear user context.
+6. Obtain the Expo push token using the configured project ID.
+7. Generate or restore the installation ID.
+8. Upsert the installation record for the authenticated user.
+9. Record platform and application environment.
+10. Refresh the registration when the token changes.
+11. Disable or detach the registration after sign-out as approved.
+
+The app must not display push registration as successful until the backend confirms the stored registration.
+
+### 15.26 Notification permission UX
+
+The application should not request notification permission immediately without context.
+
+A preferred flow is:
+
+1. Explain why CampusClutch notifications are useful.
+2. Describe examples such as accepted offers and new messages.
+3. Allow the user to continue without push permission.
+4. Request operating-system permission after user intent.
+5. Handle allowed, denied, and unavailable states.
+6. Provide a path to system settings after permanent denial.
+7. Continue supporting in-app notifications when push is denied.
+
+Push permission must not be required to create an account.
+
+### 15.27 Android notification channels
+
+Android notification channels should separate meaningful notification categories.
+
+Potential channels include:
+
+- Messages
+- Requests and offers
+- Reminders
+- General account notifications
+
+The first implementation may begin with:
+
+- Messages
+- General
+
+Channel behavior should define:
+
+- Name
+- Description
+- Importance
+- Sound
+- Vibration
+- Badge behavior
+
+Channel IDs become persistent operating-system configuration and should be chosen carefully.
+
+The application must create the required channel before requesting a push token on Android versions where this is required.
+
+### 15.28 Notification preferences
+
+The proposed `notification_preferences` fields are:
+
+| Field | Planned type | Required | Purpose |
+|---|---|---:|---|
+| `profile_id` | UUID foreign key | Yes | Primary key and profile owner |
+| `push_enabled` | Boolean | Yes | Master push preference |
+| `messages_push_enabled` | Boolean | Yes | Push for messages |
+| `offers_push_enabled` | Boolean | Yes | Push for request offers |
+| `request_updates_push_enabled` | Boolean | Yes | Push for request changes |
+| `deadline_push_enabled` | Boolean | Yes | Push for deadline reminders |
+| `course_push_enabled` | Boolean | Yes | Push for course events |
+| `created_at` | Timestamp with time zone | Yes | Server-generated creation time |
+| `updated_at` | Timestamp with time zone | Yes | Server-maintained modification time |
+
+The initial design keeps in-app notification records enabled for required product events.
+
+Preferences primarily control external push delivery.
+
+Future preferences may include:
+
+- Quiet hours
+- Per-conversation mute
+- Email notifications
+- Notification preview privacy
+- Digest frequency
+
+### 15.29 Preference ownership
+
+Users may read and update only their own notification preferences.
+
+The backend must enforce that:
+
+- The preference profile ID matches the authenticated user.
+- Users cannot change another user's preferences.
+- Administrative fields cannot be changed through preference updates.
+- Missing preferences receive reviewed defaults.
+- Preference creation is idempotent.
+- Preference changes apply to future push delivery.
+
+A preference change must not delete existing notification history.
+
+### 15.30 Trusted push delivery
+
+The Expo mobile client must not send push notifications directly.
+
+Push delivery requires trusted server-side logic because it may need:
+
+- Expo access credentials
+- Service-level database access
+- Recipient token lookup
+- Preference evaluation
+- Rate limiting
+- Retry logic
+- Receipt processing
+- Invalid-token cleanup
+
+The preferred direction is a Supabase Edge Function triggered by a controlled delivery workflow.
+
+Potential invocation strategies include:
+
+- Database webhook after notification creation
+- Database function queuing a delivery record
+- Scheduled worker processing pending deliveries
+- Direct call from a trusted transaction workflow
+
+The final strategy must avoid sending a push before the related database transaction commits.
+
+### 15.31 Edge Function security
+
+A push Edge Function must:
+
+- Keep Expo access credentials in server-side secrets.
+- Never expose push credentials to the Expo client.
+- Validate the invocation source.
+- Load notification and recipient data from trusted storage.
+- Verify preferences.
+- Load only active tokens for the correct environment.
+- Avoid logging tokens or private notification bodies.
+- Apply timeout and retry handling.
+- Record delivery outcomes.
+- Restrict administrative database access.
+- Be tested locally and in preview.
+
+A Supabase secret or service-role credential must never be bundled into the mobile application.
+
+### 15.32 Push delivery attempts
+
+The proposed `push_delivery_attempts` fields are:
+
+| Field | Planned type | Required | Purpose |
+|---|---|---:|---|
+| `id` | UUID | Yes | Primary key |
+| `notification_id` | UUID foreign key | Yes | Related in-app notification |
+| `push_device_id` | UUID foreign key | Yes | Target installation |
+| `status` | Text or enum | Yes | Pending, sent, delivered, failed, or disabled |
+| `attempt_count` | Small integer | Yes | Number of attempts |
+| `provider_ticket_id` | Text | No | Expo ticket identifier |
+| `provider_error_code` | Text | No | Approved provider error |
+| `next_attempt_at` | Timestamp with time zone | No | Retry time |
+| `sent_at` | Timestamp with time zone | No | Time request was sent |
+| `receipt_checked_at` | Timestamp with time zone | No | Time receipt was checked |
+| `created_at` | Timestamp with time zone | Yes | Server-generated creation time |
+| `updated_at` | Timestamp with time zone | Yes | Server-maintained modification time |
+
+The table must not expose provider details to normal mobile clients.
+
+Delivery records are operational data, not user-facing notification history.
+
+### 15.33 Push payload privacy
+
+Push payloads should contain the minimum information needed to display and route the notification.
+
+Potential fields include:
+
+- Notification ID
+- Navigation key
+- Related entity ID
+- Short title
+- Short body
+
+Push payloads must not contain:
+
+- Authentication tokens
+- Supabase credentials
+- Full private message histories
+- Private email addresses
+- Phone numbers
+- Moderation notes
+- Hidden profile information
+- Detailed location information unnecessary for the preview
+
+The application should fetch authoritative details after opening.
+
+Lock-screen message previews require an explicit privacy setting before production.
+
+### 15.34 Delivery tickets and receipts
+
+Sending a push request successfully does not prove that the device received it.
+
+The push-delivery system must distinguish:
+
+- Request accepted by Expo
+- Provider ticket returned
+- Receipt available
+- Provider delivery error
+- Device token no longer registered
+- Temporary failure
+- Permanent failure
+
+Receipt processing should:
+
+- Match receipts to recorded delivery attempts.
+- Disable invalid tokens.
+- Retry only appropriate temporary failures.
+- Avoid unbounded retries.
+- Store only approved operational error information.
+- Support monitoring and investigation.
+
+### 15.35 Invalid and replaced tokens
+
+Push tokens may become invalid because:
+
+- The application was uninstalled.
+- Notification permission was revoked.
+- The device registration changed.
+- The user installed a different application environment.
+- The operating system or push provider replaced the token.
+
+When a token is reported as unregistered or invalid:
+
+- Mark the push-device record disabled.
+- Stop sending to that token.
+- Preserve the operational history.
+- Allow a future authenticated registration to reactivate or replace it.
+- Do not disable the user's other devices.
+
+### 15.36 Retry and rate-limit strategy
+
+Push delivery is not guaranteed to succeed on the first attempt.
+
+The delivery system must:
+
+- Batch requests according to provider guidance.
+- Apply bounded exponential backoff for retryable failures.
+- Respect provider rate limits.
+- Avoid retrying permanent token errors.
+- Prevent duplicate user-visible notification records.
+- Use delivery-attempt state to avoid duplicate uncontrolled sends.
+- Monitor repeated failures.
+- Stop after a reviewed maximum attempt count.
+
+At-least-once external delivery means the application must tolerate a rare duplicate push.
+
+The notification ID allows the client to reconcile duplicate taps with one in-app notification.
+
+### 15.37 Tapping a push notification
+
+When a user taps a push notification:
+
+1. The application restores or verifies authentication.
+2. The notification ID is read from approved payload data.
+3. The application loads the notification through authorized backend access.
+4. The app validates that it belongs to the signed-in user.
+5. The notification is marked read.
+6. The application maps the navigation key to an Expo Router route.
+7. The related entity is loaded with normal authorization.
+8. Missing or inaccessible targets show a safe fallback.
+
+The app must handle taps when it is:
+
+- Open in the foreground
+- Running in the background
+- Fully closed
+- Restoring a session
+- Signed out
+- Opening an expired or deleted target
+
+A push payload alone must not grant access to a protected screen.
+
+### 15.38 In-app realtime updates
+
+Realtime may update:
+
+- Notification-list rows
+- Unread badge count
+- New notification banners
+
+The initial direction is:
+
+- Persist the notification first.
+- Subscribe only while an authenticated session is active.
+- Filter updates to the signed-in user.
+- Refetch after reconnection.
+- Remove subscriptions on sign-out.
+- Deduplicate by notification ID.
+- Continue supporting manual refresh.
+
+Broadcast may be evaluated for scalability, but persistent rows remain authoritative.
+
+### 15.39 Foreground behavior
+
+When the application receives an event while open, the product may choose to:
+
+- Update the unread badge silently
+- Display an in-app banner
+- Display a native notification
+- Suppress notification UI when the user already views the related screen
+
+Examples:
+
+- Do not show an intrusive message notification when the user is actively viewing that conversation.
+- Still persist the notification or update unread state according to the approved rule.
+- Avoid displaying duplicate native and in-app banners simultaneously.
+
+Foreground behavior must be tested on Android and iOS.
+
+### 15.40 Scheduled notifications
+
+Deadline reminders require a trusted scheduled process.
+
+The planned process is:
+
+1. Run at a reviewed interval.
+2. Query active requests entering the reminder window.
+3. Determine approved recipients.
+4. Generate deterministic deduplication keys.
+5. Insert missing in-app notification records.
+6. Queue push delivery where preferences allow it.
+7. Skip completed, cancelled, expired, or already-reminded requests.
+8. Record failures and retry safely.
+
+Potential Supabase mechanisms include scheduled Edge Functions and PostgreSQL scheduling capabilities.
+
+The final implementation must be tested for:
+
+- Timezone boundaries
+- Daylight-saving changes
+- Duplicate scheduler runs
+- Delayed scheduler execution
+- Request status changing during the run
+- Deadline being edited after a reminder
+
+### 15.41 Notification retention
+
+The product must define how long notification history remains available.
+
+The initial direction is:
+
+- Preserve unread notifications.
+- Preserve recent read notifications.
+- Allow older non-critical notifications to expire.
+- Keep operational push-delivery records for a shorter controlled period.
+- Retain safety or moderation events according to separate policy.
+- Delete or anonymize records through account-deletion and retention workflows.
+
+Deleting a notification must not delete its related request, message, offer, course, or conversation.
+
+### 15.42 Row Level Security direction
+
+RLS will be enabled on:
+
+- `notifications`
+- `push_devices`
+- `notification_preferences`
+
+Operational delivery tables should not be directly exposed to normal mobile clients.
+
+#### Notifications: select
+
+- Users may read only notifications where `recipient_id` matches the authenticated user.
+- Signed-out users receive no access.
+- Trusted support and moderation use separate authorization.
+
+#### Notifications: insert
+
+- Normal clients cannot directly insert notifications.
+- Trusted transactions, functions, schedulers, or server processes create them.
+
+#### Notifications: update
+
+- Users may update only approved read-state fields on their own notifications.
+- Users cannot change recipient, actor, event type, content, or related entities.
+- Mark-all-read uses a narrowly scoped operation.
+
+#### Notifications: delete
+
+- Normal clients should not directly hard-delete notifications initially.
+- Retention and account-deletion processing handle removal.
+
+#### Push devices
+
+- Users may read their own registered installations.
+- Users may register or update only an installation associated with themselves.
+- Users cannot read another user's push token.
+- Sensitive tokens should be omitted from ordinary client queries where possible.
+- Trusted delivery processes can read active tokens.
+
+#### Notification preferences
+
+- Users may read and update only their own preferences.
+- Defaults are created through an approved idempotent process.
+
+### 15.43 Grants and backend access
+
+The final migration must explicitly review:
+
+- Client select access to notifications
+- Narrow notification read-state update access
+- Push-device registration function execution
+- Preference update access
+- Anonymous access denial
+- Edge Function database credentials
+- Scheduler access
+- Delivery-attempt table isolation
+- Receipt-processing access
+- Administrative support access
+
+A service-level backend process must still limit itself to the minimum required operation.
+
+### 15.44 Indexes
+
+The final schema should consider indexes for:
+
+- Notification recipient ID
+- Recipient and unread state
+- Recipient and creation timestamp
+- Notification event type
+- Related request ID
+- Related offer ID
+- Related conversation ID
+- Related message ID
+- Related course ID
+- Deduplication-key uniqueness
+- Active push devices by profile
+- Expo push-token uniqueness
+- Installation ID and environment
+- Pending delivery attempts
+- Retry scheduling
+- Receipt lookup
+
+Likely important composite indexes include:
+
+- Notifications by recipient and descending creation time
+- Unread notifications by recipient
+- Active push devices by profile and environment
+- Pending delivery attempts by status and next attempt time
+
+Final indexes must be confirmed through query-plan testing.
+
+### 15.45 Realtime and push are separate
+
+Realtime and push delivery must remain independent.
+
+Realtime is useful while:
+
+- The app is open
+- The authenticated session is active
+- A subscription is connected
+
+Push is useful while:
+
+- The app is backgrounded
+- The app is closed
+- The device still allows notifications
+
+Neither guarantees permanent history.
+
+The PostgreSQL notification row provides that history.
+
+### 15.46 Mock-data migration
+
+The notification migration should occur after persistent authentication and the event-producing domains are available.
+
+A proposed focused migration order is:
+
+1. Add notification event types and notification table.
+2. Add constraints, indexes, grants, and RLS.
+3. Add typed notification data access.
+4. Load in-app notification history.
+5. Add unread count.
+6. Add mark-one-read.
+7. Add mark-all-read.
+8. Add notifications for request offers.
+9. Add notifications for accepted and rejected offers.
+10. Add persistent message notifications.
+11. Add request-completion notifications.
+12. Add deadline scheduler.
+13. Add push-device registration.
+14. Add notification preferences.
+15. Add trusted push Edge Function.
+16. Add delivery attempts and receipt handling.
+17. Add realtime in-app updates.
+18. Add deep-link and notification-tap routing.
+19. Remove obsolete notification mock paths only after testing.
+
+Push delivery should be implemented after in-app notification records work reliably.
+
+### 15.47 Notification UX requirements
+
+Backend-backed notification screens must eventually define:
+
+- Initial loading state
+- Empty notification state
+- Error state
+- Retry behavior
+- Pull-to-refresh
+- Pagination
+- Unread badge
+- Read and unread styling
+- Mark-one-read feedback
+- Mark-all-read submitting state
+- Deleted or inaccessible navigation target
+- Notification-permission explanation
+- Permission denied state
+- Permanent-denial settings guidance
+- Push-registration error
+- Notification preferences
+- Offline notification-history behavior
+- Realtime reconnect behavior
+- Foreground banner behavior
+- Duplicate-push reconciliation
+
+The app must remain usable when push permission is denied.
+
+### 15.48 Notification testing requirements
+
+The notification milestone must eventually test:
+
+- User reads own notifications
+- User cannot read another user's notifications
+- Signed-out notification access is rejected
+- Normal client cannot insert notifications
+- Offer-created notification
+- Offer-accepted notification
+- Offer-rejected notification
+- Request-completed notification
+- New-message notification
+- Deadline reminder
+- Classmate-joined preference behavior
+- Correct recipient selection
+- Correct actor selection
+- Required related entity references
+- Invalid event and entity combinations
+- Duplicate notification prevention
+- Retry-safe notification creation
+- Mark one notification read
+- Mark another user's notification read is rejected
+- Mark all notifications read
+- Unread-count calculation
+- Read state across multiple devices
+- Notification-list pagination
+- Push permission allowed
+- Push permission denied
+- Push permission permanently denied
+- Android notification-channel creation
+- Push-token registration
+- Push-token replacement
+- Multiple-device registration
+- Development and production token separation
+- Sign-out registration behavior
+- Push preference enforcement
+- Conversation mute enforcement
+- Edge Function authentication
+- Secret exposure checks
+- Push ticket recording
+- Push receipt processing
+- Invalid-token disabling
+- Retryable delivery failure
+- Permanent delivery failure
+- Delivery rate limiting
+- Duplicate push tolerance
+- Foreground notification handling
+- Background notification tap
+- Closed-application notification tap
+- Session restoration before navigation
+- Unauthorized target rejection
+- Deleted-target fallback
+- Realtime notification insert
+- Realtime subscription cleanup
+- Scheduler duplicate-run protection
+- Timezone and daylight-saving behavior
+- RLS policy tests
+- Edge Function tests
+- Query-plan and index review
+
+## 16. Detailed Security Policies
+
+### 16.1 Security goals
+
+The CampusClutch backend must protect:
+
+- User accounts
+- Public and private profile information
+- Course memberships
+- Request ownership
+- Request offers
+- Conversations
+- Messages
 - Notifications
-- Detailed security policies
-- Environment strategy
-- Storage strategy
-- Mock-data migration order
-- UX requirements
-- Testing strategy
-- Final implementation roadmap
+- Avatar and future file storage
+- Push-device registrations
+- Administrative operations
+- Service credentials
+- Database integrity
+- Audit and moderation evidence
+
+Security must be enforced by the backend.
+
+Client-side validation, hidden buttons, disabled controls, route guards, and UI state improve usability but do not provide authorization.
+
+### 16.2 Security model
+
+CampusClutch will use several security layers:
+
+1. Supabase Auth verifies user identity.
+2. PostgreSQL constraints protect data integrity.
+3. SQL grants control which operations each database role may attempt.
+4. Row Level Security controls which rows an authenticated user may access.
+5. Narrow database functions implement trusted multi-record operations.
+6. Edge Functions handle server-only integrations and secrets.
+7. Storage policies protect avatar and file objects.
+8. Realtime authorization restricts subscriptions and event visibility.
+9. Application-level rate limits and abuse controls protect expensive actions.
+10. Monitoring and security testing detect incorrect configuration.
+
+No single layer should be treated as sufficient by itself.
+
+### 16.3 Shared responsibility
+
+Supabase manages the security of its hosted platform and infrastructure.
+
+The CampusClutch team remains responsible for:
+
+- Database schema design
+- RLS policies
+- SQL grants
+- Function permissions
+- API-key handling
+- Application authorization
+- Authentication settings
+- File-access policies
+- Secret storage
+- Environment separation
+- User privacy
+- Moderation
+- Data retention
+- Dependency updates
+- Monitoring
+- Incident response
+
+Using a managed backend does not automatically make CampusClutch secure or production-ready.
+
+### 16.4 Default-deny approach
+
+All application tables exposed through the Supabase Data API must use Row Level Security.
+
+The policy direction is:
+
+- Enable RLS as soon as each exposed table is created.
+- Begin with no client policies.
+- Add narrowly scoped policies only after the intended access is documented.
+- Avoid broad policies such as allowing every authenticated user to access every row.
+- Explicitly deny anonymous access unless a reviewed feature requires it.
+- Test every policy from the perspective of multiple users.
+
+When RLS is enabled and no applicable policy exists, client access should fail.
+
+A missing policy is safer than an overly broad temporary policy.
+
+### 16.5 Authenticated identity
+
+Backend authorization must use the authenticated Supabase user identity.
+
+The primary identity check should be based on:
+
+- `auth.uid()`
+- Trusted database relationships linked to that UUID
+- Trusted server-controlled claims only when explicitly required
+
+The backend must not trust:
+
+- User IDs supplied in request bodies
+- Profile IDs stored only in local state
+- Client-provided roles
+- Client-provided ownership flags
+- Route parameters as proof of authorization
+- User-editable metadata as proof of administrative access
+
+When inserting user-owned data, the resulting owner ID must match the authenticated user.
+
+### 16.6 Anonymous access
+
+The initial CampusClutch architecture does not require anonymous database access.
+
+The `anon` role should not receive access to:
+
+- Profiles
+- Course memberships
+- Requests
+- Offers
+- Conversations
+- Messages
+- Notifications
+- Push-device records
+- Private Storage objects
+
+Authentication screens may use Supabase Auth endpoints without granting anonymous access to application data.
+
+Any future public content feature requires a separate security review.
+
+### 16.7 Authentication requirements
+
+The authentication security baseline includes:
+
+- Verified email addresses
+- Secure session persistence
+- Token refresh
+- Session restoration
+- Password-reset support
+- Generic errors where account enumeration is a concern
+- Rate-limit handling
+- Verification resend protection
+- Secure deep-link validation
+- Complete session cleanup on sign-out
+- No password or token logging
+
+The final production configuration must define:
+
+- Minimum password requirements
+- Password-compromise protection where available
+- Authentication email limits
+- Session lifetime
+- Refresh-token behavior
+- Multi-factor authentication requirements for administrators
+- Account recovery procedures
+
+### 16.8 Authentication abuse controls
+
+The authentication configuration should use:
+
+- Supabase Auth rate limits
+- CAPTCHA or an approved bot-protection service where necessary
+- Email-send limits
+- Verification resend cooldowns
+- Password-reset cooldowns
+- Generic invalid-credential messages
+- Monitoring for repeated failures
+- Custom SMTP before production
+
+The client must handle HTTP `429` responses clearly.
+
+Repeated authentication requests must not cause uncontrolled email delivery.
+
+### 16.9 User metadata
+
+User-editable authentication metadata must not control authorization.
+
+The following must not be trusted when stored in editable metadata:
+
+- Administrator role
+- Moderator role
+- Course membership
+- Request ownership
+- Offer ownership
+- Conversation membership
+- Verified-student status
+- Account suspension state
+
+Authorization should use relational database records and backend-controlled state.
+
+Trusted custom claims may be considered later only when:
+
+- The claim cannot be edited by the user.
+- Token-refresh behavior is understood.
+- Stale-token behavior is acceptable.
+- The same rule is tested against database state.
+- The claim provides a measurable performance or architecture benefit.
+
+### 16.10 SQL grants and RLS
+
+RLS policies and SQL grants must work together.
+
+For each table, the migration must review:
+
+- `SELECT`
+- `INSERT`
+- `UPDATE`
+- `DELETE`
+- Function execution
+- Sequence access
+- Schema usage
+
+A policy does not grant an operation that the role cannot attempt.
+
+A SQL grant does not bypass an applicable RLS policy.
+
+The final migration should grant only the minimum operations required by the authenticated application.
+
+### 16.11 Policy role targeting
+
+Policies should explicitly target the intended database role.
+
+The default direction is:
+
+- Authenticated application policies target `authenticated`.
+- Anonymous access receives no application-data policies.
+- Server-only operations do not depend on normal client policies.
+- Administrative processes use separately controlled credentials and authorization.
+
+Policies should not target `PUBLIC` unless a reviewed requirement justifies it.
+
+### 16.12 Profile ownership policies
+
+Profile security must enforce:
+
+- Users may read their own profile.
+- Authenticated users may read only approved discoverable profile fields.
+- Users may update only their own editable fields.
+- Users cannot change profile ownership.
+- Users cannot change server-controlled timestamps.
+- Users cannot change moderation or administrative fields.
+- Normal users cannot directly delete profile rows.
+- Signed-out users cannot query student profiles.
+
+Private settings should use separate tables with owner-only policies.
+
+### 16.13 Course and membership policies
+
+Course security must enforce:
+
+- Authenticated users may read approved active course-catalog records.
+- Normal users cannot create or edit course records.
+- Users may join only as themselves.
+- Users may leave only their own membership.
+- Duplicate membership is prevented by database constraints.
+- Nonmembers cannot read unrestricted membership lists.
+- Classmate queries verify shared-course membership.
+- Closed and archived courses reject new membership.
+- Administrative course changes use trusted authorization.
+
+A user must not gain classmate access by supplying another user's profile ID.
+
+### 16.14 Request ownership policies
+
+Request security must enforce:
+
+- Request ownership matches the authenticated user at creation.
+- Owners may update only their editable open requests.
+- Owners cannot change the owner ID.
+- Owners cannot directly bypass lifecycle rules.
+- Nonowners cannot edit or cancel requests.
+- Signed-out users cannot access requests.
+- General feed access includes only approved visible requests.
+- Historical access is limited to involved users.
+- Detail-table access follows parent-request access.
+- Normal users cannot hard-delete requests.
+
+Request status changes requiring multiple records must use trusted operations.
+
+### 16.15 Offer-management policies
+
+Offer security must enforce:
+
+- Users may offer help only as themselves.
+- Users cannot offer help on their own request.
+- Duplicate offers are prevented.
+- Offering users may read their own offers.
+- Request owners may read offers on their own requests.
+- Other users may not read the offers.
+- Offering users may withdraw only their pending offers.
+- Request owners may accept or reject only offers on their requests.
+- Direct client updates cannot set arbitrary accepted status.
+- Only one offer may be accepted per request.
+- Acceptance updates all related records atomically.
+
+The backend must handle concurrent acceptance attempts safely.
+
+### 16.16 Conversation membership policies
+
+Conversation security must enforce:
+
+- Only approved members may read a conversation.
+- Only approved members may read the membership list.
+- Only active members may read messages.
+- Only active members may send messages.
+- Users cannot add themselves to unrelated conversations.
+- Users cannot promote themselves.
+- Normal members cannot manage other members.
+- Group administrators cannot exceed their approved role.
+- Nonmembers cannot infer private conversation existence.
+- Rejected request offerers do not receive conversation access.
+
+Direct-conversation creation must normalize and uniquely enforce the user pair.
+
+### 16.17 Message policies
+
+Message security must enforce:
+
+- The sender matches the authenticated user.
+- The sender has active conversation membership.
+- The conversation permits new messages.
+- Message text satisfies database constraints.
+- Client retry identifiers are unique for the sender.
+- Users cannot change message ownership.
+- Users cannot move messages between conversations.
+- Normal users cannot hard-delete messages.
+- Normal users cannot create trusted system messages.
+- Nonmembers cannot subscribe to or query message events.
+
+Message authorization must be identical for initial queries and realtime subscriptions.
+
+### 16.18 Notification policies
+
+Notification security must enforce:
+
+- Users may read only notifications addressed to them.
+- Users may update only their own read state.
+- Users cannot change notification content or recipient.
+- Normal users cannot directly create notifications.
+- Trusted workflows determine recipients.
+- Push tokens are visible only where required.
+- Users may manage only their own registered installations.
+- Delivery-attempt data is not exposed to normal clients.
+- Notification preferences belong only to their owner.
+
+A client-provided push recipient must never be trusted.
+
+### 16.19 Storage policies
+
+Storage security must enforce:
+
+- Users upload only to approved buckets.
+- Avatar paths are scoped to the authenticated user.
+- Users cannot overwrite another user's files.
+- Users cannot delete another user's files.
+- Allowed MIME types are validated.
+- File size limits are enforced.
+- Filenames are generated or sanitized.
+- Public and private bucket behavior is documented.
+- Old files are cleaned up safely.
+- Account deletion removes or reassigns owned objects.
+- Normal uploads cannot execute server-side code.
+
+Storage object ownership alone must not replace explicit Storage policies.
+
+### 16.20 Realtime security
+
+Realtime subscriptions must:
+
+- Require an authenticated session for private data.
+- Use approved private channels where applicable.
+- Filter by the narrowest practical relationship.
+- Enforce the same visibility rules as database queries.
+- Remove subscriptions when the session changes.
+- Remove subscriptions when the user loses membership.
+- Refetch after reconnecting.
+- Deduplicate repeated events.
+- Avoid subscribing to entire sensitive tables without filters.
+
+Realtime must not become an authorization bypass.
+
+### 16.21 Edge Function authentication
+
+Every Edge Function must define its caller model.
+
+Possible caller types include:
+
+- Signed-in CampusClutch user
+- Trusted scheduled process
+- Database webhook
+- Internal administrative operation
+- External provider webhook
+
+A user-invoked function must:
+
+- Validate the authorization header.
+- Verify the user session.
+- Check the user's database relationship.
+- Reject missing or invalid sessions.
+- Avoid trusting user IDs in the body.
+- Return only authorized data.
+
+A machine-invoked function must validate the configured shared secret, signing method, or trusted invocation mechanism.
+
+### 16.22 Secret and service keys
+
+Supabase secret and legacy service-role credentials bypass Row Level Security.
+
+They must be treated as server-only secrets.
+
+They must never appear in:
+
+- Expo source code
+- `EXPO_PUBLIC_*` variables
+- Git commits
+- README examples containing real values
+- Client logs
+- Mobile build configuration readable by users
+- Screenshots
+- Error reports
+- Analytics properties
+
+Server-only credentials may be used only in controlled environments such as:
+
+- Edge Function secrets
+- Protected CI secrets
+- Secure administrative tooling
+- Trusted backend processes
+
+### 16.23 Publishable client configuration
+
+The Expo client may use only values intended for public client use, such as:
+
+- Supabase project URL
+- Supabase publishable client key
+- Legacy anonymous key only if required by the selected SDK setup
+- Expo project ID
+- Environment identifier
+
+Public client configuration is not confidential.
+
+Security still depends on:
+
+- RLS
+- SQL grants
+- Storage policies
+- Function authorization
+- Correct environment separation
+
+The client key being public does not permit broad database access when policies are correct.
+
+### 16.24 Secret rotation
+
+The security plan must support credential rotation.
+
+Rotation procedures should cover:
+
+- Supabase secret keys
+- Legacy service-role keys
+- Database passwords
+- SMTP credentials
+- Expo push credentials
+- Third-party webhook secrets
+- CI access tokens
+- Administrative personal access tokens
+
+Rotation must include:
+
+1. Create or activate the replacement credential.
+2. Update trusted environments.
+3. Deploy and verify the replacement.
+4. Revoke the old credential.
+5. Review logs for unexpected continued use.
+6. Document the incident or scheduled rotation.
+
+A suspected leaked credential must be rotated immediately.
+
+### 16.25 Environment isolation
+
+Development, preview, and production must not share unrestricted data or secrets.
+
+Each environment should have:
+
+- Separate Supabase project or an explicitly reviewed isolation strategy
+- Separate database records
+- Separate authentication users
+- Separate redirect URLs
+- Separate email settings where practical
+- Separate push-device registrations
+- Separate secrets
+- Separate monitoring context
+
+Development accounts must not automatically exist in production.
+
+Preview builds must not connect to production by accident.
+
+### 16.26 Database schemas
+
+Application objects should use deliberate schemas.
+
+The design should distinguish:
+
+- Objects exposed through the Data API
+- Internal operational tables
+- Administrative functions
+- Private helper functions
+- Extension-created objects
+- Auth-managed objects
+- Storage-managed objects
+
+Sensitive operational tables should not be exposed merely because they are placed in `public`.
+
+The final migration must review the Data API exposed-schema configuration.
+
+### 16.27 Database functions
+
+Database functions must be narrowly scoped.
+
+Each function must define:
+
+- Expected caller
+- Required inputs
+- Authentication requirement
+- Authorization checks
+- Transaction behavior
+- Returned columns
+- Error behavior
+- Retry and idempotency behavior
+- Execution grants
+- Search path
+- Whether it runs as invoker or definer
+
+Functions must not accept an owner ID or role and trust it without verification.
+
+### 16.28 Security-invoker functions
+
+`SECURITY INVOKER` should be preferred when the caller's existing privileges and RLS policies are sufficient.
+
+Invoker functions:
+
+- Run with the caller's database privileges.
+- Continue to rely on the caller's grants.
+- Continue to rely on applicable RLS.
+- Reduce the risk of accidental privilege escalation.
+
+A security-definer function should not be used merely to avoid writing correct policies.
+
+### 16.29 Security-definer functions
+
+`SECURITY DEFINER` may be used only when a reviewed workflow requires controlled elevated privileges.
+
+Examples may include:
+
+- Creating an initial profile from an Auth trigger
+- Atomic offer acceptance
+- Safe classmate lookup that avoids recursive policies
+- Trusted notification creation
+- Account-deletion cleanup
+
+A security-definer function must:
+
+- Be owned by an appropriate controlled role.
+- Use a fixed safe `search_path`.
+- Schema-qualify sensitive objects.
+- Avoid schemas writable by untrusted roles.
+- Verify the authenticated user explicitly.
+- Check every required relationship.
+- Return only necessary fields.
+- Restrict `EXECUTE` grants.
+- Avoid dynamic SQL where possible.
+- Be covered by privilege-escalation tests.
+- Be reviewed during every relevant migration.
+
+### 16.30 Function search path
+
+Functions performing privileged operations must not inherit an unsafe search path.
+
+The function should:
+
+- Set a deliberate search path.
+- Exclude schemas where untrusted users can create objects.
+- Schema-qualify tables and functions where practical.
+- Avoid relying on whichever object name appears first.
+- Avoid calling unreviewed helper functions.
+
+Search-path safety is required for triggers as well as directly invoked functions.
+
+### 16.31 Dynamic SQL
+
+Dynamic SQL should be avoided unless the operation genuinely requires it.
+
+When dynamic SQL is necessary:
+
+- Do not concatenate raw user input into SQL.
+- Use parameter binding or safe formatting.
+- Validate identifiers against an allowlist.
+- Avoid user-controlled schema or table names.
+- Restrict the function's privileges.
+- Test injection attempts.
+- Log only safe operational details.
+
+Most CampusClutch operations should use static SQL.
+
+### 16.32 Database constraints
+
+Security policies must be supported by database constraints.
+
+Constraints should enforce:
+
+- Required fields
+- Valid enum values
+- Positive request points
+- Valid deadlines where feasible
+- Foreign-key relationships
+- One profile per Auth user
+- Unique course membership
+- Unique request offer
+- One accepted offer per request
+- Unique conversation membership
+- Unique direct-conversation pair
+- Unique request-conversation link
+- Valid user-pair ordering
+- Retry-safe message identifiers
+- Notification deduplication
+
+RLS determines who may attempt an operation.
+
+Constraints determine whether the resulting data is valid.
+
+### 16.33 Input validation
+
+Validation must occur at multiple layers:
+
+#### Client
+
+- Immediate feedback
+- Required-field highlighting
+- Length guidance
+- Disabled submitting states
+- Input formatting
+
+#### Database
+
+- Required constraints
+- Length constraints
+- Numeric constraints
+- Foreign keys
+- Uniqueness
+- Approved status values
+- Trusted state transitions
+
+#### Server-side functions
+
+- Cross-table rules
+- Ownership
+- Membership
+- Rate limits
+- Multi-record transitions
+- File and provider validation
+
+Client validation must not be the final authority.
+
+### 16.34 Error handling
+
+Security-sensitive errors should be useful without disclosing unnecessary information.
+
+The application should distinguish:
+
+- Validation failure
+- Authentication required
+- Session expired
+- Permission denied
+- Record unavailable
+- Rate limited
+- Conflict
+- Network failure
+- Temporary server failure
+
+The backend should avoid revealing:
+
+- Whether a private record exists
+- Another user's email
+- Internal database structure
+- SQL statements
+- Secret values
+- Privileged function details
+- Stack traces in production responses
+
+Detailed errors may be recorded securely for investigation.
+
+### 16.35 Logging
+
+Logs must not contain:
+
+- Passwords
+- Access tokens
+- Refresh tokens
+- Supabase secret keys
+- Database passwords
+- SMTP credentials
+- Expo push credentials
+- Full push tokens
+- Full private message bodies
+- Sensitive location details
+- Private moderation evidence unless required in a protected system
+
+Operational logs may include:
+
+- Request identifier
+- Function name
+- Safe event category
+- Actor UUID where justified
+- Result status
+- Duration
+- Safe error code
+- Correlation ID
+
+Logs require retention and access-control rules.
+
+### 16.36 Audit trail
+
+Trusted administrative actions should be auditable.
+
+Potential audit events include:
+
+- Course catalog changes
+- Request moderation
+- Offer intervention
+- Conversation or message moderation
+- User suspension
+- Role changes
+- Administrative data access
+- Account-deletion execution
+- Credential rotation
+- Security-setting changes
+
+Audit records should include:
+
+- Actor
+- Action
+- Target
+- Timestamp
+- Safe reason
+- Result
+- Correlation identifier
+
+Normal users must not access administrative audit records.
+
+### 16.37 Administrative access
+
+Administrative access must follow least privilege.
+
+The plan should require:
+
+- Individual administrator accounts
+- No shared dashboard accounts
+- Multi-factor authentication
+- Minimum necessary organization role
+- Separation between development and production access
+- Periodic access review
+- Removal of former team members
+- Protected database credentials
+- Audited high-risk actions
+
+Administrator status must not be set through an editable public profile field.
+
+### 16.38 Database network protection
+
+Production database access should use:
+
+- Encrypted connections
+- SSL enforcement where supported
+- Network restrictions for direct Postgres connections where practical
+- Limited database credentials
+- Connection pooling appropriate to the workload
+- No database passwords in the mobile client
+
+Supabase network restrictions protect direct Postgres and pooler connections.
+
+They do not replace RLS or protect every HTTPS product API.
+
+### 16.39 Security Advisor
+
+Before preview and production release, the team should review Supabase Security Advisor findings.
+
+The review should check for:
+
+- Tables without RLS
+- Overly broad policies
+- Unsafe functions
+- Exposed objects
+- Extension or schema concerns
+- Weak database configuration
+- Newly introduced warnings after migrations
+
+Security Advisor findings must be investigated rather than dismissed automatically.
+
+The project should record reviewed exceptions.
+
+### 16.40 Backups and recovery
+
+Production planning must include:
+
+- Database backup availability
+- Backup retention
+- Point-in-time recovery requirements
+- Storage-object recovery limitations
+- Migration rollback strategy
+- Accidental deletion response
+- Recovery testing
+- Responsible team member
+- Recovery documentation
+
+A backup is not considered reliable until restoration has been tested.
+
+Database backups may not automatically provide the same recovery behavior for external Storage objects, Auth email delivery, or third-party push systems.
+
+### 16.41 Rate limiting
+
+Rate limits are needed beyond Supabase Auth.
+
+Potential rate-limited operations include:
+
+- Request creation
+- Offer creation
+- Message sending
+- Group creation
+- Member invitations
+- Avatar uploads
+- Push-device registration
+- Notification resends
+- Report creation
+- Account deletion requests
+
+Rate limits should consider:
+
+- Authenticated user
+- Installation
+- IP address where available
+- Target entity
+- Time window
+- Product risk
+
+Disabled buttons alone do not prevent automated abuse.
+
+### 16.42 Rate-limit enforcement
+
+Rate limits may be enforced using:
+
+- Supabase Auth configuration
+- Database counters and trusted functions
+- Edge Functions
+- External gateway controls
+- Provider-specific limits
+- Unique constraints for duplicate prevention
+
+The selected mechanism must be:
+
+- Server-enforced
+- Concurrency-safe
+- Testable
+- Observable
+- Environment-specific
+- Clear to users when exceeded
+
+Rate-limit errors should identify when retrying later is appropriate without exposing internal limits unnecessarily.
+
+### 16.43 Messaging abuse controls
+
+Before production messaging, the app needs controls for:
+
+- Message send rate
+- Repeated identical messages
+- Spam conversation creation
+- Unwanted group additions
+- Blocked-user communication
+- Reported content
+- Removed-member access
+- Attachment abuse when files are introduced
+
+These controls require the future blocking, reporting, moderation, and safety architecture.
+
+Persistent messaging alone is not production-ready.
+
+### 16.44 Request abuse controls
+
+Before production requests, the app needs controls for:
+
+- Excessive request creation
+- Repeated urgent marking
+- Misleading locations
+- Unsafe requests
+- Harassment
+- Fraudulent points promises
+- Repeated offers
+- Offer spam
+- Deadline manipulation
+- Evading moderation after cancellation
+
+The product must provide reporting and moderation paths.
+
+### 16.45 File-upload abuse controls
+
+File uploads require:
+
+- Authenticated ownership
+- MIME-type allowlists
+- File-signature validation where appropriate
+- Maximum file size
+- Image dimension limits
+- Metadata handling
+- Safe generated object paths
+- Upload rate limits
+- Malware-risk review for future documents
+- Cleanup for failed or abandoned uploads
+- Moderation for abusive imagery
+
+The first Storage implementation should support avatars only.
+
+### 16.46 Blocking dependency
+
+Blocking must be designed before production launch.
+
+A blocked relationship may need to affect:
+
+- Profile discovery
+- Classmate results
+- Request visibility
+- Offer creation
+- Direct conversations
+- New messages
+- Group invitations
+- Notifications
+- Activity status
+- Search
+
+Blocking rules must be enforced in backend queries and policies, not only by hiding UI elements.
+
+### 16.47 Reporting and moderation dependency
+
+Reporting must support approved entities such as:
+
+- Profile
+- Request
+- Offer
+- Conversation
+- Message
+- Avatar
+
+A report should include:
+
+- Reporting user
+- Reported entity
+- Controlled reason
+- Optional explanation
+- Timestamp
+- Review status
+- Assigned moderator where applicable
+
+Users must not be able to read another user's reports.
+
+Moderation decisions require trusted administrative authorization and audit logging.
+
+### 16.48 Data minimization
+
+CampusClutch should store only information required for approved features.
+
+The initial backend should avoid collecting:
+
+- Legal names when display names are sufficient
+- Exact location history
+- Continuous background location
+- Birth dates unless required
+- Government identification
+- Payment information
+- Unnecessary device identifiers
+- Message analytics containing private content
+- Unnecessary authentication metadata duplication
+
+New personal fields require a product, privacy, and retention justification.
+
+### 16.49 Privacy-sensitive activity data
+
+Activity data such as `last_active_at` must be coarse and privacy-conscious.
+
+The system should avoid exposing:
+
+- Exact login times
+- Exact session duration
+- Detailed device activity
+- Continuous online presence
+- Unnecessary location information
+
+The UI may display a broad status such as `Recently active` only when the approved relationship and user preference allow it.
+
+### 16.50 Dependency security
+
+The project should maintain:
+
+- Supported Node and Expo versions
+- Reviewed package updates
+- Lockfile integrity
+- Dependabot or equivalent alerts
+- Regular vulnerability review
+- Removal of unused packages
+- Review of native package permissions
+- Review of Expo configuration changes
+- Review of Supabase SDK release changes
+
+Automated vulnerability output must be reviewed rather than fixed through unrelated mass upgrades.
+
+### 16.51 CI security checks
+
+Future CI may include:
+
+- Existing lint and TypeScript checks
+- Migration syntax validation
+- Generated database-type consistency
+- RLS policy tests
+- Database function tests
+- Secret scanning
+- Dependency vulnerability review
+- Edge Function tests
+- Storage-policy tests
+- Formatting checks
+- Test database reset and migration replay
+
+Security tests should fail the pull request when a protected rule regresses.
+
+### 16.52 Migration security review
+
+Every database migration should be reviewed for:
+
+- New tables
+- RLS enablement
+- Policies
+- Grants
+- Foreign keys
+- Unique constraints
+- Function security mode
+- Function search path
+- Trigger behavior
+- Exposed schemas
+- Realtime publication
+- Storage access
+- Rollback consequences
+- Data migration safety
+
+A table should not be merged into an exposed schema without its access model being documented.
+
+### 16.53 Security test identities
+
+Security tests should use multiple explicit identities:
+
+- Signed-out client
+- User A
+- User B
+- Unrelated user
+- Request owner
+- Offering user
+- Accepted helper
+- Rejected offering user
+- Course member
+- Course nonmember
+- Conversation member
+- Removed conversation member
+- Group owner
+- Group administrator
+- Normal group member
+- Trusted server process
+- Administrator or moderator where applicable
+
+Testing only as the record owner is insufficient.
+
+### 16.54 Required RLS tests
+
+Every protected table should test:
+
+- Allowed `SELECT`
+- Denied `SELECT`
+- Allowed `INSERT`
+- Denied `INSERT`
+- Allowed `UPDATE`
+- Denied `UPDATE`
+- Allowed `DELETE` where applicable
+- Denied `DELETE`
+- Ownership spoofing
+- Membership spoofing
+- Cross-user access
+- Signed-out access
+- Terminal-status behavior
+- Function-mediated operations
+- Direct-table bypass attempts
+
+Tests should verify both returned data and database state.
+
+### 16.55 Function security tests
+
+Privileged functions should test:
+
+- Missing authentication
+- Invalid authentication
+- Wrong owner
+- Wrong membership
+- Valid caller
+- Forged user ID
+- Invalid record ID
+- Concurrent execution
+- Duplicate retry
+- Partial-operation rollback
+- Unsafe status transition
+- Search-path manipulation attempt
+- Unexpected execution role
+- Excess returned data
+
+A function must not be considered safe only because its happy path works.
+
+### 16.56 Secret scanning
+
+The repository and CI should detect committed secrets.
+
+Secret review should cover:
+
+- `.env` files
+- Expo configuration
+- EAS configuration
+- Source files
+- Test fixtures
+- Documentation
+- Screenshots
+- Build logs
+- GitHub Actions
+- Migration files
+
+`.env.example` must contain placeholders only.
+
+If a real secret is committed, removing it from the latest file is not enough; the secret must be revoked and rotated.
+
+### 16.57 Monitoring and alerts
+
+Production monitoring should eventually cover:
+
+- Authentication failure spikes
+- Rate-limit spikes
+- Database errors
+- RLS authorization failures
+- Edge Function failures
+- Push delivery failures
+- Invalid token growth
+- Realtime connection failures
+- Storage upload failures
+- Suspicious request or message volume
+- Administrative actions
+- Backup failures
+
+Alerts must avoid including private message or request content.
+
+### 16.58 Incident response
+
+Before production, CampusClutch should document:
+
+1. How a security issue is reported.
+2. Who receives the report.
+3. How access is restricted.
+4. How leaked credentials are rotated.
+5. How affected environments are identified.
+6. How logs are preserved.
+7. How users are notified when required.
+8. How data is restored.
+9. How the fix is tested.
+10. How the incident is documented afterward.
+
+An incident-response owner and backup contact must be defined.
+
+### 16.59 Production security gate
+
+CampusClutch must not be described as production-ready until at least:
+
+- RLS exists on all exposed application tables.
+- RLS and function tests pass.
+- Client builds contain no server secrets.
+- Authentication abuse protections are configured.
+- Production SMTP is configured.
+- Storage policies are tested.
+- Push credentials remain server-side.
+- Security Advisor findings are reviewed.
+- Backup and recovery behavior is documented.
+- Administrative access uses MFA and least privilege.
+- Blocking and reporting are implemented.
+- Privacy and retention policies are approved.
+- Account deletion is functional.
+- Monitoring and incident response are prepared.
+
+### 16.60 Security implementation order
+
+Security is implemented alongside each backend domain rather than added at the end.
+
+The recommended order is:
+
+1. Establish environment and secret boundaries.
+2. Add authentication configuration and session security.
+3. Add profile constraints and RLS.
+4. Add course and membership constraints and RLS.
+5. Add request constraints and ownership policies.
+6. Add offer transactional authorization.
+7. Add conversation membership and message policies.
+8. Add notification and push security.
+9. Add Storage policies.
+10. Add rate limits and abuse controls.
+11. Add blocking, reporting, and moderation.
+12. Add automated security tests.
+13. Review Security Advisor findings.
+14. Complete production security review.
+
+## 17. Environment Strategy
+
+### 17.1 Goals
+
+The CampusClutch environment strategy must:
+
+- Separate local, development, preview, and production data.
+- Prevent preview builds from connecting to production accidentally.
+- Keep real secrets out of the Expo client.
+- Keep real environment files out of Git.
+- Provide a safe `.env.example`.
+- Make developer setup repeatable.
+- Track database changes through migrations.
+- Support CI validation.
+- Support EAS development, preview, and production builds.
+- Allow safe credential rotation.
+- Keep test data out of production.
+- Avoid one shared unrestricted backend for every environment.
+
+Environment setup will begin during Task 4, not during Task 3.
+
+### 17.2 Planned environments
+
+CampusClutch should use four environment levels:
+
+1. Local developer environment
+2. Shared development environment
+3. Preview environment
+4. Production environment
+
+Each level has a different purpose and must not be treated as interchangeable.
+
+### 17.3 Local developer environment
+
+Each developer should eventually run a local Supabase stack for:
+
+- Schema development
+- Migration development
+- RLS testing
+- Database-function testing
+- Seed data
+- Authentication-flow testing
+- Resettable integration tests
+
+The local stack should:
+
+- Run only on the developer's machine.
+- Use local generated credentials.
+- Use development-only users and records.
+- Be reproducible from committed configuration and migrations.
+- Be resettable without affecting hosted environments.
+- Never be exposed directly to the public internet.
+- Never contain production personal data.
+
+The local stack is not a production server.
+
+### 17.4 Shared development environment
+
+A hosted development Supabase project should support:
+
+- Team integration testing
+- Development builds
+- Testing across physical devices
+- Shared test accounts
+- Early authentication testing
+- Testing remote email callbacks
+- Testing remote Storage behavior
+- Testing remote Realtime behavior
+- Reviewing migrations before preview deployment
+
+Development data may be deleted or reset.
+
+No real student data should be required.
+
+### 17.5 Preview environment
+
+A separate hosted preview Supabase project should support:
+
+- EAS preview APK and internal iOS builds
+- Pull-request or release-candidate testing
+- Physical-device acceptance testing
+- Authentication redirect testing
+- Push-notification testing
+- Realtime testing
+- Storage-policy testing
+- Security-policy testing
+- End-to-end testing before production
+
+Preview must not connect to production data.
+
+Preview test accounts and push tokens must remain separate from production accounts and tokens.
+
+### 17.6 Production environment
+
+The production Supabase project will eventually contain:
+
+- Real user accounts
+- Real profiles
+- Real memberships
+- Real requests
+- Real messages
+- Real notifications
+- Production Storage objects
+- Production push-device registrations
+
+Production access must be limited.
+
+Production changes require:
+
+- Reviewed migrations
+- Passing CI
+- Approved security tests
+- Backup and recovery review
+- Deployment documentation
+- Rollback planning
+- Monitoring
+
+No production project is created during Task 3.
+
+### 17.7 Environment isolation decision
+
+The preferred hosted architecture is:
+
+- One shared development Supabase project
+- One preview Supabase project
+- One production Supabase project
+- One local stack per developer
+
+Separate projects provide clearer isolation for:
+
+- Auth users
+- Database records
+- Storage buckets
+- Realtime configuration
+- Redirect URLs
+- SMTP configuration
+- Edge Function secrets
+- Logs
+- Push-device registrations
+
+Project availability and cost must be reviewed before Task 4.
+
+Environment separation must not be weakened silently to reduce setup work.
+
+### 17.8 Supabase branching
+
+Supabase database branching may later provide temporary branch environments.
+
+It is not required for the initial architecture.
+
+The baseline workflow should remain usable without paid branching:
+
+- Local database for feature work
+- Shared development project
+- Preview project
+- Production project
+- Version-controlled migrations
+
+Branching may later be evaluated for:
+
+- Pull-request databases
+- Migration review
+- Isolated integration tests
+- Short-lived feature environments
+
+The team must review cost, limitations, seed behavior, Auth behavior, and cleanup before enabling it.
+
+### 17.9 Environment names
+
+CampusClutch should use consistent environment names:
+
+- `local`
+- `development`
+- `preview`
+- `production`
+
+### 17.10 Expo public variables
+
+The Expo client will eventually require public configuration similar to:
+
+```text
+EXPO_PUBLIC_APP_ENV=
+EXPO_PUBLIC_SUPABASE_URL=
+EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY=
+```
+
+These values are considered public because they are embedded in the mobile application.
+
+Security must rely on:
+
+* Supabase Auth
+* Row Level Security
+* SQL grants
+* Storage policies
+* Function authorization
+* Correct environment separation
+
+The publishable key is not a replacement for user authentication.
+
+### 17.11 Supabase key decision
+
+New CampusClutch client configuration should prefer the Supabase publishable key.
+
+The planned client variable is:
+
+```text
+EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+```
+
+A legacy anonymous key should be used only when required by a reviewed compatibility issue.
+
+The architecture must not expose:
+
+```text
+SUPABASE_SECRET_KEY
+SUPABASE_SERVICE_ROLE_KEY
+```
+
+Secret and service-role credentials bypass normal client authorization and are server-only.
+
+### 17.12 Server-only environment values
+
+Potential server-only values include:
+
+```text
+SUPABASE_SECRET_KEY
+SUPABASE_SERVICE_ROLE_KEY
+SUPABASE_DB_URL
+SUPABASE_ACCESS_TOKEN
+EXPO_ACCESS_TOKEN
+SMTP_PASSWORD
+PUSH_PROVIDER_SECRET
+WEBHOOK_SECRET
+```
+
+These values may be needed by:
+
+* Supabase Edge Functions
+* Protected CI jobs
+* Database migration jobs
+* Trusted administrative scripts
+* Push-delivery services
+* SMTP integrations
+* Webhook handlers
+
+They must not use the `EXPO_PUBLIC_` prefix.
+
+They must not be imported by Expo application code.
+
+### 17.13 `.env.example`
+
+Task 4 should add a committed `.env.example` containing placeholders only.
+
+The initial shape should be similar to:
+
+```text
+# Public Expo client configuration
+EXPO_PUBLIC_APP_ENV=development
+EXPO_PUBLIC_SUPABASE_URL=
+EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY=
+```
+
+The example file must:
+
+* Contain no real secret key.
+* Contain no database password.
+* Contain no SMTP credentials.
+* Explain which values are public.
+* Explain where developers obtain local or hosted values.
+* Remain synchronized with required client configuration.
+
+Server-only variables may use a separate documented template if trusted backend tooling later requires them.
+
+### 17.14 Local environment files
+
+Real local environment files must be ignored by Git.
+
+Potential ignored files include:
+
+```text
+.env
+.env.local
+.env.development.local
+.env.preview.local
+.env.production.local
+```
+
+The final `.gitignore` update must be reviewed against Expo's environment-file behavior.
+
+Before committing Task 4, the developer must verify ignore behavior with commands such as:
+
+```powershell
+git status --short --untracked-files=all
+git check-ignore -v .env.local
+```
+
+A real environment file must not be staged.
+
+### 17.15 Environment-file workflow
+
+The preferred local workflow is:
+
+* Keep `.env.example` committed.
+* Keep `.env.local` ignored.
+* Copy the required placeholders into `.env.local`.
+* Add approved local or development values.
+* Use one documented active source of configuration.
+* Avoid multiple conflicting environment files.
+* Verify the active backend before creating test data.
+
+The documentation must explain which file takes priority when multiple files exist.
+
+### 17.16 Backend selection
+
+CampusClutch should not rely on manually changing `NODE_ENV` to select a Supabase project.
+
+Build tools may set `NODE_ENV` automatically.
+
+Backend selection should instead use:
+
+* EAS environment selection
+* Explicit public environment values
+* An approved local `.env.local`
+* Build-profile configuration
+
+The selected Supabase URL must be explicit and reviewable.
+
+The application must never silently fall back to production.
+
+### 17.17 Static Expo variable access
+
+Expo public variables should be referenced statically:
+
+```typescript
+process.env.EXPO_PUBLIC_APP_ENV
+process.env.EXPO_PUBLIC_SUPABASE_URL
+process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+```
+
+The implementation should avoid dynamic access such as:
+
+```typescript
+process.env["EXPO_PUBLIC_SUPABASE_URL"]
+```
+
+Task 4 should create a typed configuration module that validates the required values before constructing the Supabase client.
+
+### 17.18 Typed environment configuration
+
+The Expo application should not read environment variables throughout unrelated screens.
+
+A typed configuration module should eventually:
+
+* Read public variables once.
+* Validate required values.
+* Validate the environment name.
+* Reject empty configuration clearly.
+* Export only approved public values.
+* Avoid logging keys.
+* Avoid exposing server-only variable names.
+* Keep screens independent of raw environment access.
+* Provide a safe development error message.
+
+The exact filename and location will be chosen during Task 4 after inspecting the current repository.
+
+### 17.19 Configuration failure behavior
+
+When required configuration is missing or invalid:
+
+* The application must not silently connect to another environment.
+* The application must not use a production fallback.
+* The Supabase client must not be created with empty values.
+* Development should display a clear configuration error.
+* Preview and production should fail during build or startup validation where practical.
+* Logs must not expose keys or secret values.
+
+Connecting to the wrong environment is more dangerous than an explicit startup failure.
+
+### 17.20 EAS environment mapping
+
+CampusClutch should map its existing EAS build profiles to EAS environments:
+
+* `development` profile uses development variables.
+* `preview` profile uses preview variables.
+* `production` profile uses production variables.
+
+Task 4 must inspect the current `eas.json` before changing it.
+
+No existing EAS build behavior should be modified without review.
+
+### 17.21 EAS variable scope
+
+CampusClutch variables should normally be project-scoped rather than account-wide.
+
+Project-scoped variables reduce accidental reuse by unrelated Expo projects.
+
+Account-wide values should be used only when:
+
+* The value is intentionally shared.
+* The security implications are understood.
+* The value is not specific to one backend project.
+* Access has been reviewed.
+
+Supabase project URLs and keys should normally be project-scoped.
+
+### 17.22 EAS variable visibility
+
+Public client values may use an appropriate EAS visibility setting.
+
+However:
+
+* `EXPO_PUBLIC_*` values remain readable from the compiled application.
+* Secret visibility does not make embedded client values confidential.
+* Server-only values must not be referenced by client code.
+* Production secrets must not be written directly into `eas.json`.
+* Visibility settings should reflect operational handling, not create false security assumptions.
+
+### 17.23 EAS Build verification
+
+Every EAS build must use the intended environment.
+
+The build process should verify:
+
+* Build profile
+* EAS environment
+* Application environment identifier
+* Supabase project URL
+* Expo project ID
+* Android package identifier
+* iOS bundle identifier
+* Update channel where applicable
+
+A preview build must not use production variables.
+
+A production build must not use preview variables.
+
+### 17.24 EAS Update
+
+EAS Update must use explicit environment and channel selection.
+
+Before publishing an update, the team must verify:
+
+* Runtime compatibility
+* Target branch or channel
+* Target build environment
+* Supabase backend environment
+* Public environment variables
+* Production approval where applicable
+
+A preview JavaScript update must not be delivered to a production runtime.
+
+### 17.25 Development-build configuration
+
+Development builds may connect to:
+
+* Local Supabase from an emulator
+* Local Supabase through an approved device-access method
+* Shared development Supabase
+
+Physical-device access to a local backend requires explicit networking configuration.
+
+The local Supabase stack must not be exposed publicly merely to simplify device testing.
+
+When safe local-device connectivity is impractical, the shared development project should be used.
+
+### 17.26 Preview-build configuration
+
+Preview builds should connect only to the preview Supabase project.
+
+Preview configuration should include:
+
+* Preview Supabase project URL
+* Preview publishable key
+* Preview authentication redirect URLs
+* Preview Storage buckets
+* Preview Edge Function endpoints
+* Preview push-device environment label
+* Preview test users
+* Preview monitoring context
+
+Preview records may be reset after testing.
+
+### 17.27 Production-build configuration
+
+Production builds should connect only to the production Supabase project.
+
+Production configuration requires:
+
+* Production Supabase project URL
+* Production publishable key
+* Production authentication redirect URLs
+* Production SMTP
+* Production Storage policies
+* Production Edge Function secrets
+* Production push configuration
+* Production monitoring
+* Production backup review
+
+Production secrets must not be stored in `eas.json`.
+
+### 17.28 Local Supabase repository structure
+
+Task 4 should eventually initialize a `supabase/` directory similar to:
+
+```text
+supabase/
+├── config.toml
+├── migrations/
+└── seed.sql
+```
+
+The expected version-control direction is:
+
+* Commit `config.toml`.
+* Commit migration files.
+* Commit safe development seed structure.
+* Ignore temporary CLI state.
+* Reference secrets through environment variables.
+* Never hard-code OAuth, SMTP, webhook, or provider secrets into `config.toml`.
+
+The exact generated structure must be inspected before staging.
+
+### 17.29 Database migrations
+
+All schema changes should be represented by timestamped migration files.
+
+Migrations may define:
+
+* Tables
+* Enums
+* Constraints
+* Indexes
+* Row Level Security
+* Policies
+* Grants
+* Database functions
+* Triggers
+* Storage policies
+* Realtime publication changes
+* Safe data transformations
+
+Dashboard-only schema changes should be avoided after the migration workflow begins.
+
+### 17.30 Local migration workflow
+
+The planned local schema workflow is:
+
+1. Update local `main`.
+2. Create a focused branch.
+3. Start the local Supabase stack.
+4. Create one focused migration.
+5. Reset the local database.
+6. Apply all migrations from zero.
+7. Load safe seed data.
+8. Run database and RLS tests.
+9. Review the migration.
+10. Commit only related files.
+11. Push and open a pull request.
+12. Deploy only after review and CI.
+
+Exact Supabase CLI commands will be defined during implementation.
+
+### 17.31 Hosted migration workflow
+
+Hosted schema changes should follow this order:
+
+1. Validate locally.
+2. Deploy to shared development.
+3. Run integration and security tests.
+4. Deploy to preview.
+5. Complete physical-device acceptance testing.
+6. Merge approved work to `main`.
+7. Deploy to production through a protected process.
+
+There should be no casual manual production database push from an unreviewed local branch.
+
+The project must avoid competing schema changes from multiple developer machines.
+
+### 17.32 Migration ownership
+
+Each migration should have:
+
+* One focused purpose
+* A clear filename
+* Reviewed SQL
+* Security-impact review
+* Data-loss review
+* Environment deployment order
+* Test evidence
+* Rollback or recovery notes
+
+Large unrelated schema changes should be divided into smaller migrations where safe.
+
+### 17.33 Seed data
+
+Seed data is for development and testing only.
+
+Appropriate seed records include:
+
+* Campuses
+* Academic terms
+* Sample courses
+* Explicit test profiles
+* Test requests
+* Test conversations
+* Controlled interests
+
+Seed data must not contain:
+
+* Real student accounts
+* Production email addresses
+* Real private messages
+* Real push tokens
+* Real credentials
+* Real moderation records
+* Production personal information
+
+Production reference data should be delivered through reviewed migrations or administrative workflows, not development seed files.
+
+### 17.34 Test accounts
+
+Each hosted non-production environment may use explicit test accounts.
+
+Test-account documentation should define:
+
+* Purpose
+* Environment
+* Role
+* Owned records
+* Reset behavior
+* Credential storage
+* Who may access the account
+* Cleanup procedure
+
+Test credentials must not be committed.
+
+Shared test accounts should be minimized.
+
+### 17.35 Authentication redirect URLs
+
+Each hosted environment requires separate approved authentication redirect URLs.
+
+Redirect configuration must distinguish:
+
+* Development builds
+* Preview builds
+* Production builds
+* Local web testing where applicable
+* Password-reset links
+* Email-verification links
+
+A preview verification link must not open the production backend flow.
+
+Wildcard redirect URLs should be avoided unless their security impact has been reviewed.
+
+### 17.36 SMTP separation
+
+Authentication email behavior should be environment-specific.
+
+Development and preview may use:
+
+* Controlled testing SMTP
+* Limited recipients
+* Test templates
+
+Production requires:
+
+* Approved sender domain
+* Production SMTP credentials
+* Reviewed templates
+* Delivery monitoring
+* Bounce handling
+* Authentication email rate-limit review
+
+Production SMTP credentials remain server-side.
+
+### 17.37 Edge Function environments
+
+Edge Functions should use environment-specific secrets.
+
+Development, preview, and production must not share unrestricted:
+
+* Supabase secret keys
+* Push credentials
+* SMTP credentials
+* Webhook secrets
+* Third-party API credentials
+
+Function deployments must target the intended project explicitly.
+
+### 17.38 Push environment isolation
+
+Push registrations must store their environment.
+
+The push sender must:
+
+* Send development notifications only to development tokens.
+* Send preview notifications only to preview tokens.
+* Send production notifications only to production tokens.
+* Reject mismatched project identifiers.
+* Disable invalid tokens without affecting other environments.
+
+### 17.39 CI environment strategy
+
+CI should use temporary or protected test configuration.
+
+CI must not expose production secrets to ordinary pull requests.
+
+Future CI may:
+
+* Start local Supabase services.
+* Apply all migrations.
+* Load safe seed data.
+* Run RLS tests.
+* Run database-function tests.
+* Generate database types.
+* Verify that no migration drift exists.
+* Run application checks.
+
+Production deployment credentials should be available only to protected deployment workflows.
+
+### 17.40 GitHub secrets
+
+GitHub repository or environment secrets may eventually store:
+
+* Supabase access token
+* Supabase project reference
+* Database deployment credential
+* Expo access token
+* Server-only test credentials
+
+Secrets should be scoped to the minimum required workflow.
+
+Production secrets should use protected GitHub environments where available.
+
+### 17.41 Environment validation checklist
+
+Before building or deploying, verify:
+
+* Current Git branch
+* Working-tree status
+* Build profile
+* Application environment
+* Supabase project URL
+* Supabase project reference
+* Migration state
+* Authentication redirect URLs
+* Storage bucket environment
+* Push environment
+* No real secret is staged
+
+### 17.42 Developer setup documentation
+
+Task 4 documentation should explain:
+
+* Required Node version
+* Required npm version
+* Supabase CLI setup
+* Docker requirement for local Supabase
+* How to create `.env.local`
+* How to retrieve local public values
+* How to start the local stack
+* How to reset the local database
+* How to apply migrations
+* How to load seed data
+* How to run checks
+* How to stop local services
+
+Instructions should use PowerShell-compatible commands.
+
+### 17.43 Environment security requirements
+
+The environment implementation must ensure:
+
+* No server secret enters the Expo client.
+* No real `.env` file enters Git.
+* Preview cannot reach production accidentally.
+* Local data does not contain production personal information.
+* Hosted project access follows least privilege.
+* Production migrations are reviewed.
+* Credentials can be rotated.
+* Logs do not expose keys.
+* Test accounts remain environment-specific.
+
+### 17.44 Environment testing requirements
+
+The environment milestone must eventually test:
+
+* Missing Supabase URL
+* Missing publishable key
+* Invalid environment name
+* Local configuration
+* Development configuration
+* Preview configuration
+* Production configuration
+* Preview build cannot access production
+* Production build cannot access preview
+* Authentication redirect per environment
+* Storage isolation
+* Push-token isolation
+* Edge Function secret isolation
+* `.env.local` ignore behavior
+* `.env.example` contains placeholders only
+* Client bundle contains no server secret
+* Migration replay from an empty database
+* Development seed reset
+* CI migration and RLS tests
+* EAS environment mapping
+* EAS Update environment mapping
+
+## 18. Storage Strategy
+
+### 18.1 Goals
+
+The CampusClutch Storage architecture must:
+
+* Support profile avatars securely.
+* Keep file ownership tied to authenticated users.
+* Prevent users from accessing or modifying another user's files without authorization.
+* Enforce allowed file types and size limits.
+* Avoid storing image binary data in PostgreSQL rows.
+* Keep development, preview, and production files separate.
+* Support safe replacement and cleanup.
+* Support account deletion.
+* Avoid introducing general-purpose file sharing before its safety requirements are approved.
+
+The first Storage milestone should support avatars only.
+
+Request attachments, message attachments, documents, videos, and other uploads require separate product and security reviews.
+
+### 18.2 Avatar bucket
+
+CampusClutch should create a dedicated avatar bucket.
+
+The preferred initial direction is a private bucket because student profiles are intended for authenticated CampusClutch users rather than unrestricted public internet access.
+
+The bucket should define:
+
+* Approved image MIME types
+* A reviewed maximum file size
+* Private access by default
+* Storage RLS policies
+* Environment-specific separation
+* A documented cleanup process
+
+The exact bucket name will be chosen during implementation.
+
+A likely name is:
+
+```text
+avatars
+```
+
+### 18.3 Avatar database reference
+
+The `profiles` table should store only the object path or stable file reference.
+
+It should not store:
+
+* Base64 image data
+* Raw binary image data
+* Permanent signed URLs
+* Device-local file paths
+* User-provided external image URLs without review
+
+A signed URL may expire and therefore should not be stored as the permanent avatar reference.
+
+### 18.4 Object-path design
+
+Avatar files should use a user-scoped generated path.
+
+A suitable structure is:
+
+```text
+<profile-id>/<generated-file-id>.<approved-extension>
+```
+
+The path must:
+
+* Include the authenticated profile ID.
+* Use a server-approved or application-generated unique filename.
+* Avoid trusting the original device filename.
+* Avoid predictable shared filenames outside the user's directory.
+* Remain separate across Supabase environments.
+
+The database profile row stores the current avatar object path.
+
+### 18.5 Upload workflow
+
+The planned avatar upload flow is:
+
+1. The authenticated user selects an image.
+2. The client validates basic type and size requirements.
+3. The client prepares the approved upload format.
+4. The client generates a safe unique object name.
+5. Storage policies verify that the path belongs to the authenticated user.
+6. The upload completes.
+7. The backend profile record is updated with the new path.
+8. The application confirms that the new avatar can be loaded.
+9. The previous avatar is deleted safely.
+10. The UI displays the confirmed avatar.
+
+The previous avatar should not be deleted before the replacement upload and profile update succeed.
+
+### 18.6 File-type restrictions
+
+The avatar bucket should allow only reviewed image types.
+
+Potential initial types include:
+
+* JPEG
+* PNG
+* WebP
+
+The final implementation must validate:
+
+* File extension
+* Declared MIME type
+* Actual content where practical
+* Image decoding
+* Maximum dimensions
+* Maximum file size
+
+Client validation improves the experience but must not replace Storage restrictions and backend checks.
+
+SVG should remain disabled initially because it can contain active content and requires additional sanitization.
+
+### 18.7 File-size and image processing
+
+The project should select a conservative avatar size limit during implementation.
+
+The upload flow may resize or compress images before upload to:
+
+* Reduce bandwidth
+* Reduce Storage usage
+* Improve profile loading
+* Avoid excessively large source images
+* Standardize avatar quality
+
+The original full-resolution image does not need to be retained unless a later product requirement justifies it.
+
+The app should preserve reasonable image quality and orientation.
+
+### 18.8 Storage access policies
+
+Storage access must be enforced through policies on Storage objects.
+
+The initial policy direction is:
+
+#### Upload
+
+* The user must be authenticated.
+* The first path segment must match the authenticated user ID.
+* The bucket must be the approved avatar bucket.
+* The object must satisfy bucket restrictions.
+
+#### Read
+
+* Authenticated users may read avatars required by approved profile, request, course, and conversation screens.
+* Signed-out users receive no avatar access initially.
+* Hidden or inaccessible profiles must not become discoverable through Storage alone.
+
+#### Update
+
+* Users may replace only objects inside their own user-scoped path.
+* Users cannot overwrite another user's object.
+
+#### Delete
+
+* Users may delete only their own avatar objects through an approved workflow.
+* Trusted account-deletion processing may remove all objects owned by a deleted user.
+
+Storage access must not be broader than profile visibility.
+
+### 18.9 Loading avatars
+
+The application should obtain avatar access through an approved authenticated download or short-lived authorized URL.
+
+The client must handle:
+
+* Missing avatar
+* Expired URL
+* Authorization failure
+* Network failure
+* Corrupt image
+* Deleted object
+* Loading placeholder
+* Retry behavior
+
+The existing initials-based avatar fallback should remain available.
+
+### 18.10 Avatar replacement and caching
+
+Replacing an avatar must account for image caching.
+
+Using a unique object name for each replacement avoids a device continuing to show an old cached file.
+
+The profile row should update only after the new object exists.
+
+After confirmation:
+
+* The new path becomes authoritative.
+* The old object is queued for deletion.
+* Failed cleanup is recorded and retried safely.
+* The application refreshes the displayed avatar.
+
+### 18.11 Orphaned-file cleanup
+
+Orphaned files may occur when:
+
+* Upload succeeds but profile update fails.
+* Profile update succeeds but old-file deletion fails.
+* A user closes the application during replacement.
+* Account deletion partially fails.
+
+A trusted cleanup process should identify avatar objects that:
+
+* Are not referenced by any profile
+* Belong to deleted accounts
+* Exceed an approved temporary age
+* Are marked for deletion
+
+Cleanup must not delete the current profile avatar.
+
+### 18.12 Account deletion
+
+Account deletion must remove avatar objects before or as part of deleting the Auth user.
+
+The trusted deletion workflow should:
+
+1. Identify all user-owned avatar objects.
+2. Remove the objects using trusted authorization.
+3. Verify deletion or record a retry.
+4. Clear the profile reference.
+5. Continue the approved database anonymization or deletion process.
+6. Delete the Auth user only after required cleanup is handled.
+
+The mobile application must not contain a secret-level Storage credential.
+
+### 18.13 Future request attachments
+
+Request attachments are not included in the first Storage milestone.
+
+Before adding them, the architecture must define:
+
+* Allowed request categories
+* Allowed file types
+* File-size limits
+* Maximum attachment count
+* Ownership
+* Visibility
+* Accepted-helper access
+* Moderation
+* Reporting
+* Malware risk
+* Retention
+* Cleanup after cancellation or deletion
+
+Request attachments must use a separate bucket or clearly separated policy model.
+
+### 18.14 Future message attachments
+
+Message attachments are also deferred.
+
+Before adding them, the architecture must define:
+
+* Conversation-member access
+* Upload authorization
+* Download authorization
+* Attachment types
+* Media previews
+* Retention after user deletion
+* Blocking and reporting
+* Removed-member access
+* Forwarding or sharing behavior
+* Malware and abusive-content controls
+
+Persistent text messaging should work before message attachments are introduced.
+
+### 18.15 Environment separation
+
+Development, preview, and production must use separate Storage environments.
+
+The implementation must prevent:
+
+* Preview profiles from referencing production objects
+* Production users from receiving development URLs
+* Development cleanup jobs from targeting production
+* Push or test data from crossing environments
+
+Object paths may be similar between environments because the projects themselves remain separate.
+
+### 18.16 Storage migration order
+
+The avatar Storage migration should occur during the persistent profile task.
+
+A proposed order is:
+
+1. Create the avatar bucket through a reviewed migration or setup process.
+2. Configure MIME-type and size restrictions.
+3. Add Storage RLS policies.
+4. Add typed avatar upload functions.
+5. Add avatar loading and fallback behavior.
+6. Add upload progress and errors.
+7. Add profile-path update.
+8. Add safe avatar replacement.
+9. Add old-file cleanup.
+10. Add account-deletion cleanup.
+11. Test on Android and iOS preview builds.
+12. Remove obsolete mock avatar assumptions only after testing.
+
+### 18.17 Storage testing requirements
+
+The Storage milestone must eventually test:
+
+* Authenticated avatar upload
+* Signed-out upload rejection
+* Upload into own path
+* Upload into another user's path rejection
+* Read approved avatar
+* Unauthorized avatar access rejection
+* Valid JPEG
+* Valid PNG
+* Valid WebP
+* Disallowed file type
+* Oversized file
+* Empty file
+* Corrupt image
+* Unique filename generation
+* Avatar replacement
+* Old-file cleanup
+* Failed profile update after upload
+* Failed old-file deletion
+* Missing avatar fallback
+* Deleted avatar fallback
+* Account-deletion cleanup
+* Development and preview separation
+* Storage policy tests
+* Client contains no server Storage secret
+
+No Storage bucket, object, policy, package, migration, or Supabase project is created during Task 3.
+
+## 19. Mock-Data Migration Order
+
+### 19.1 Migration goals
+
+The migration from mock and in-memory data must:
+
+* Keep the app buildable after every pull request.
+* Migrate one domain at a time.
+* Preserve existing routes and UI where practical.
+* Avoid one giant backend change.
+* Keep unaffected screens using their current data until their migration begins.
+* Remove mock paths only after the replacement has been tested.
+* Add loading, empty, error, and retry states with each domain.
+* Add backend authorization with the data model, not afterward.
+
+### 19.2 Migration principles
+
+Each migration task should:
+
+1. Inspect the latest repository files.
+2. Define the focused data boundary.
+3. Add backend schema and security.
+4. Add typed data access.
+5. Connect one existing UI flow.
+6. Test success and failure behavior.
+7. Preserve unrelated mock flows.
+8. Remove only obsolete code for that domain.
+9. Run local checks.
+10. Merge before starting a dependent task.
+
+The app must not mix production data and mock data in a way that misrepresents mock users as real students.
+
+### 19.3 Stage 1 — Backend foundation
+
+Task 4 should add only:
+
+* Local Supabase project structure
+* Hosted environment plan implementation
+* Public Expo environment variables
+* `.env.example`
+* Ignored real environment files
+* Typed configuration validation
+* Typed Supabase client
+* Initial connection handling
+* Setup documentation
+
+It must not migrate every feature.
+
+### 19.4 Stage 2 — Authentication
+
+Task 5 should add:
+
+* Sign up
+* Email verification
+* Sign in
+* Sign out
+* Password reset
+* Session restoration
+* Protected navigation
+* Authentication loading and error states
+* Minimal profile initialization
+
+Existing mock feature data may remain after authentication is introduced.
+
+### 19.5 Stage 3 — Profiles and avatars
+
+Task 6 should migrate:
+
+* Signed-in user profile
+* Public student profiles
+* Interests
+* Discoverability
+* Profile editing
+* Avatar Storage
+* Profile loading and error states
+
+Mock student profiles should remain only where a still-unmigrated flow requires clearly identified fixtures.
+
+### 19.6 Stage 4 — Courses and memberships
+
+Task 7 should migrate:
+
+* Course catalog
+* Academic terms
+* Add Course
+* Leave Course
+* Current courses
+* Previous courses
+* Classmate queries
+* Shared-course information
+
+This task should also resolve the existing Courses `useMemo` warnings because it is the focused Courses migration.
+
+### 19.7 Stage 5 — Requests
+
+Task 8 should migrate:
+
+* Request feed
+* Filters
+* Create Request
+* Request details
+* Request ownership
+* Editing
+* Cancellation
+* Status and timestamps
+* Category-specific details
+
+`RequestsContext` should remain until the backend-backed replacement is confirmed.
+
+### 19.8 Stage 6 — Request offers
+
+Task 9 should migrate:
+
+* Offer Help
+* Persistent offer state
+* Withdrawal
+* Owner offer review
+* Rejection
+* Atomic acceptance
+* Request status synchronization
+* Offer-related notifications
+
+The local Offer Sent state should be removed only after persisted state survives screen reopening and application restart.
+
+### 19.9 Stage 7 — Conversations and messages
+
+Task 10 should migrate:
+
+* Inbox conversations
+* Direct conversation creation
+* Group conversations
+* Membership
+* Persistent messages
+* Read and unread state
+* Archive and mute
+* Request-linked conversations
+* Realtime updates
+
+The existing Android keyboard behavior must be preserved.
+
+### 19.10 Stage 8 — Notifications
+
+Task 11 should migrate:
+
+* In-app notification history
+* Unread count
+* Mark read
+* Navigation targets
+* Offer notifications
+* Message notifications
+* Deadline reminders
+* Push-device registration
+* Push delivery
+* Notification preferences
+
+Push delivery should be added only after persistent in-app notification records work.
+
+### 19.11 Stage 9 — Remove obsolete mock paths
+
+Mock and in-memory paths should be removed only after all dependent flows work.
+
+Removal should include:
+
+* Obsolete mock records
+* Obsolete local providers
+* Duplicate data-access paths
+* Temporary fallback code
+* Unused shared types
+* Unused imports
+* Outdated documentation
+
+Development fixtures may remain in an explicit seed system.
+
+### 19.12 Compatibility during migration
+
+During migration:
+
+* A backend-backed screen may coexist with unrelated mock-backed screens.
+* One domain should have one clear source of truth.
+* Screens must not silently merge mock and real records.
+* Mock records must not receive real ownership or authorization behavior.
+* Test accounts should replace fake students when relational testing requires real users.
+
+### 19.13 Rollback approach
+
+Each stage should be independently reversible where practical.
+
+A rollback plan may include:
+
+* Reverting the focused application commit
+* Applying a forward-fix migration
+* Disabling a feature flag where approved
+* Restoring the prior data-access module
+* Preserving existing backend records during UI rollback
+
+Applied production migrations should not be casually rewritten or deleted.
+
+### 19.14 Migration completion criteria
+
+A domain is migrated only when:
+
+* Backend records persist.
+* Authorization is enforced.
+* Loading, empty, error, and retry states exist.
+* Relevant tests pass.
+* Physical-device behavior is verified where necessary.
+* Existing routes still work.
+* Obsolete mock code is identified.
+* Documentation is updated.
+* CI passes.
+* The pull request is reviewed and merged.
+
+## 20. UX Requirements
+
+### 20.1 Global requirements
+
+Every backend-backed screen must define:
+
+* Initial loading state
+* Empty state
+* Error state
+* Retry behavior
+* Refresh behavior where appropriate
+* Submitting or saving state
+* Disabled state
+* Success feedback
+* Authorization failure
+* Session-expired behavior
+* Offline behavior
+* Safe navigation behavior
+
+A screen must not remain blank while a request is loading or has failed.
+
+### 20.2 Loading states
+
+Loading states should:
+
+* Appear promptly.
+* Preserve the existing layout where practical.
+* Avoid repeated layout jumps.
+* Distinguish initial loading from refresh.
+* Avoid blocking unrelated navigation unnecessarily.
+* Prevent duplicate submissions.
+* Avoid showing stale private data after account changes.
+
+Skeletons may be used where they improve clarity, but a simple loading indicator is acceptable initially.
+
+### 20.3 Empty states
+
+Empty states should explain:
+
+* What is empty
+* Why it may be empty
+* What the user can do next
+
+Examples include:
+
+* No current courses
+* No classmates found
+* No open requests
+* No offers yet
+* No conversations
+* No messages
+* No notifications
+
+Empty states should preserve the current CampusClutch visual design.
+
+### 20.4 Error states
+
+User-facing errors should distinguish:
+
+* Validation error
+* Network failure
+* Authentication required
+* Session expired
+* Permission denied
+* Record not found
+* Conflict
+* Rate limit
+* Temporary server failure
+
+Errors must not expose internal SQL, stack traces, credentials, or private record details.
+
+### 20.5 Retry behavior
+
+Retry actions should:
+
+* Repeat only the failed operation.
+* Avoid duplicate creates.
+* Preserve user input where safe.
+* Use idempotency keys for messages and other retry-sensitive operations.
+* Avoid retrying permanent authorization or validation errors automatically.
+* Clearly indicate when retrying later is required.
+
+### 20.6 Form behavior
+
+Backend forms must:
+
+* Preserve field-level validation.
+* Disable duplicate submission.
+* Show submitting state.
+* Preserve typed input after recoverable failure.
+* Focus or identify invalid fields.
+* Handle server validation.
+* Avoid showing success before the backend confirms the write.
+* Preserve Android keyboard and scrolling behavior.
+
+### 20.7 Optimistic updates
+
+Optimistic updates may be used only when:
+
+* The operation is likely to succeed.
+* The rollback is clear.
+* The optimistic state cannot create a security misunderstanding.
+* The final backend result is reconciled.
+
+Good candidates may include:
+
+* Mark notification read
+* Archive conversation
+* Update local mute state
+
+Riskier operations should wait for backend confirmation:
+
+* Create request
+* Accept offer
+* Send final success state
+* Delete account
+* Change membership
+* Upload avatar
+
+### 20.8 Offline behavior
+
+CampusClutch is not initially designed as a fully offline-first application.
+
+The initial offline direction is:
+
+* Detect clear network failures.
+* Preserve unsent form input where practical.
+* Allow retry after reconnection.
+* Avoid pretending a backend write succeeded.
+* Display previously loaded non-sensitive data only when safe.
+* Clear private cached data after sign-out.
+* Refetch important records after reconnection.
+
+Message offline queues require a separate reliable design.
+
+### 20.9 Session restoration
+
+The app must have a clear session-restoration state.
+
+Before restoration completes:
+
+* Do not assume signed-in status.
+* Do not briefly display protected screens.
+* Do not load private data for the previous user.
+* Do not redirect repeatedly.
+* Show an appropriate splash or loading state.
+
+### 20.10 Authorization changes
+
+The UI must handle access changing while a screen is open.
+
+Examples include:
+
+* User removed from a group
+* Request cancelled
+* Offer accepted by another device
+* Course membership ended
+* Profile hidden
+* Session revoked
+
+The app should:
+
+* Stop unauthorized subscriptions.
+* Clear inaccessible private data.
+* Show an understandable state.
+* Return to a safe route where necessary.
+
+### 20.11 Destructive actions
+
+Actions such as leaving a course, cancelling a request, withdrawing an offer, leaving a group, deleting an avatar, or deleting an account require:
+
+* Clear action label
+* Consequence explanation
+* Confirmation
+* Submitting state
+* Failure recovery
+* No duplicate action
+* Success feedback
+* Safe navigation afterward
+
+### 20.12 Realtime UX
+
+Realtime updates should:
+
+* Reconcile with persisted data.
+* Avoid duplicate rows.
+* Avoid unexpected list jumping.
+* Preserve user scroll position where practical.
+* Display newly received messages clearly.
+* Refetch after reconnecting.
+* Avoid showing events the user is no longer authorized to see.
+
+### 20.13 Accessibility baseline
+
+Every migrated screen should preserve or improve:
+
+* Accessible labels
+* Touch-target sizes
+* Font scaling
+* Contrast
+* Screen-reader order
+* Keyboard focus
+* Error announcements
+* Disabled-state clarity
+
+A complete accessibility audit remains a later roadmap task.
+
+### 20.14 Domain requirements
+
+Each domain must preserve its established behavior:
+
+* Courses retain search, selection, and classmate routing.
+* Profiles retain Student Not Found and avatar fallback.
+* Requests retain filters, validation, date handling, and keyboard avoidance.
+* Offers retain clear submitted and accepted states.
+* Messages retain multiline input and Android keyboard behavior.
+* Notifications retain navigation and unread styling.
+
+### 20.15 UX completion criteria
+
+A migrated screen is not complete until:
+
+* Success behavior works.
+* Loading behavior works.
+* Empty behavior works.
+* Failure behavior works.
+* Retry works.
+* Duplicate submission is blocked.
+* Authorization loss is handled.
+* Android behavior is tested.
+* Navigation remains correct.
+
+## 21. Testing Strategy
+
+### 21.1 Goals
+
+Testing must verify:
+
+* Application logic
+* Screen behavior
+* Data access
+* Database constraints
+* RLS authorization
+* Database functions
+* Storage policies
+* Realtime behavior
+* End-to-end user flows
+* Environment isolation
+* Regression safety
+
+Linting and TypeScript checks alone are not sufficient for production readiness.
+
+### 21.2 Current checks
+
+The existing baseline remains:
+
+```text
+npm run lint
+npm run typecheck
+npm run check
+```
+
+The expected current result is:
+
+* 0 errors
+* 2 existing Courses warnings
+
+Those warnings should be resolved during the persistent Courses migration.
+
+### 21.3 Unit tests
+
+Unit tests should cover pure logic such as:
+
+* Environment validation
+* Data mappers
+* Request validation
+* Course-code normalization
+* Status formatting
+* Notification navigation mapping
+* Message reconciliation
+* Date and deadline helpers
+* Error translation
+* Permission helper logic that does not replace backend authorization
+
+### 21.4 Component tests
+
+Component tests should cover:
+
+* Loading states
+* Empty states
+* Error states
+* Form validation
+* Submitting states
+* Retry behavior
+* Button disabling
+* Navigation calls
+* Authentication guards
+* Message composer behavior
+* Notification read styling
+
+Expo-compatible Jest and React Native Testing Library should be evaluated during the automated-testing task.
+
+### 21.5 Database tests
+
+Database tests should run against a resettable local Supabase environment.
+
+They should verify:
+
+* Tables
+* Required constraints
+* Foreign keys
+* Unique constraints
+* Check constraints
+* Enums
+* Index existence where critical
+* Functions
+* Triggers
+* Transaction rollback
+* Seed data
+* Migration replay
+
+pgTAP or another Supabase-compatible database test approach should be used for SQL-level tests.
+
+### 21.6 RLS tests
+
+RLS tests must use multiple identities.
+
+At minimum:
+
+* Signed-out client
+* User A
+* User B
+* Record owner
+* Unrelated authenticated user
+* Course member
+* Course nonmember
+* Request owner
+* Offering user
+* Accepted helper
+* Conversation member
+* Removed member
+* Trusted backend process
+
+Tests must verify both allowed and denied operations.
+
+### 21.7 Function tests
+
+Trusted functions must test:
+
+* Valid caller
+* Missing authentication
+* Wrong owner
+* Wrong membership
+* Forged IDs
+* Duplicate retry
+* Concurrent execution
+* Partial-operation rollback
+* Invalid state transition
+* Excess returned data
+* Restricted execution grants
+
+High-risk functions include:
+
+* Profile initialization
+* Course join or rejoin
+* Request creation
+* Offer acceptance
+* Direct conversation creation
+* Mark all notifications read
+* Account deletion
+
+### 21.8 Storage-policy tests
+
+Storage tests must verify:
+
+* Upload to own path
+* Upload to another user's path rejected
+* Approved read access
+* Unauthorized read rejected
+* Replacement
+* Deletion
+* MIME restrictions
+* File-size restrictions
+* Missing object
+* Account cleanup
+* Environment separation
+
+### 21.9 Integration tests
+
+Integration tests should exercise the Expo data-access layer against a test backend.
+
+Examples include:
+
+* Sign up creates a profile.
+* Add Course creates one membership.
+* Create Request creates matching detail data.
+* Offer acceptance updates offers and request atomically.
+* Accepted offer links a conversation.
+* Message send creates a notification.
+* Mark notification read updates unread count.
+* Avatar upload updates the profile reference.
+
+### 21.10 End-to-end tests
+
+End-to-end testing should cover critical user journeys on preview builds.
+
+Potential Maestro flows include:
+
+* Sign up and verify account
+* Sign in and restore session
+* Complete profile
+* Add a course
+* View classmates
+* Create a request
+* Offer help from another account
+* Accept the offer
+* Open linked conversation
+* Send a message
+* Read a notification
+* Sign out
+
+Physical-device manual testing remains necessary for:
+
+* Native date picker
+* Android keyboard behavior
+* Push notifications
+* Deep links
+* Background and closed-app behavior
+* Permission prompts
+* Image selection and upload
+
+### 21.11 Realtime tests
+
+Realtime testing should verify:
+
+* Authorized subscription
+* Unauthorized subscription rejection
+* New message delivery
+* Offer update delivery
+* Notification delivery
+* Reconnection
+* Missed-event refetch
+* Duplicate-event reconciliation
+* Subscription cleanup
+* Sign-out cleanup
+* Membership removal
+
+### 21.12 Environment tests
+
+Environment tests should verify:
+
+* Missing public configuration
+* Invalid environment value
+* Development configuration
+* Preview configuration
+* Production configuration
+* Preview cannot access production
+* Production cannot access preview
+* Storage isolation
+* Push-token isolation
+* Auth redirect isolation
+* Edge Function secret isolation
+
+### 21.13 CI phases
+
+The CI roadmap should progress gradually.
+
+#### Current CI
+
+* Install dependencies
+* Run `npm run check`
+
+#### Database foundation CI
+
+* Start local Supabase
+* Apply migrations
+* Load safe seed data
+* Run database tests
+* Run RLS tests
+* Verify migration replay
+
+#### Application test CI
+
+* Run unit tests
+* Run component tests
+* Run integration tests
+* Generate coverage where useful
+
+#### Preview acceptance
+
+* Build preview application
+* Run critical end-to-end flows
+* Complete manual device checks
+* Review CI and EAS results before merge
+
+### 21.14 Test data
+
+Tests must use:
+
+* Explicit generated users
+* Stable fixtures
+* Safe fake emails
+* Deterministic course and request records
+* Isolated test transactions or resets
+* No production personal data
+* No real push tokens
+* No committed credentials
+
+Tests must clean up or reset their data.
+
+### 21.15 Test reliability
+
+Tests should avoid:
+
+* Depending on execution order
+* Sharing mutable state unexpectedly
+* Using uncontrolled current time
+* Using production services
+* Using arbitrary sleeps where a real condition can be awaited
+* Assuming realtime delivery without reconciliation
+* Treating snapshots as the only behavioral assertion
+
+### 21.16 Coverage priorities
+
+The highest-priority automated coverage is:
+
+1. Authentication and session restoration
+2. RLS and ownership
+3. Offer acceptance transaction
+4. Conversation membership
+5. Message authorization
+6. Notification ownership
+7. Environment isolation
+8. Account deletion
+9. Storage ownership
+10. Critical Android flows
+
+### 21.17 Testing completion criteria
+
+A backend domain is ready to merge when:
+
+* Focused unit or component tests pass.
+* Database constraints are tested.
+* RLS allowed and denied paths are tested.
+* Functions are tested.
+* Existing application checks pass.
+* Manual flow testing is documented.
+* Preview testing is completed where required.
+* No unrelated failures are hidden.
+
+No test framework, package, workflow, test database, or EAS workflow is added during Task 3.
+
+## 22. Final Implementation Roadmap
+
+### 22.1 Task 4 — Backend project and environment setup
+
+* Create the selected Supabase projects according to the approved environment strategy.
+* Initialize local Supabase structure.
+* Add `.env.example`.
+* Verify real environment files are ignored.
+* Add typed public configuration.
+* Add the typed Supabase client.
+* Add setup documentation.
+* Add safe configuration errors.
+* Do not migrate feature data yet.
+
+### 22.2 Task 5 — Authentication
+
+* Sign up
+* Email verification
+* Sign in
+* Sign out
+* Session restoration
+* Password reset
+* Protected navigation
+* Profile initialization
+* Loading and error states
+* University-email policy implementation if approved
+
+### 22.3 Task 6 — Profiles and avatars
+
+* Persistent profiles
+* Profile editing
+* Interests
+* Discoverability
+* Avatar Storage
+* Storage RLS
+* Loading, empty, and error states
+* Account-deletion preparation
+
+### 22.4 Task 7 — Courses and memberships
+
+* Academic terms
+* Course catalog
+* Add and leave membership
+* Duplicate prevention
+* Current and previous courses
+* Real classmates
+* Shared-course information
+* Resolve existing Courses warnings
+
+### 22.5 Task 8 — Requests
+
+* Persistent requests
+* Category-specific details
+* Request ownership
+* Feed and filters
+* Request details
+* Create Request
+* Edit and cancel
+* Deadlines and status
+* Loading, refresh, and error states
+
+### 22.6 Task 9 — Request offers
+
+* Persistent Offer Help
+* Duplicate prevention
+* Withdraw
+* Owner review
+* Reject
+* Atomic acceptance
+* Request status synchronization
+* Offer notifications
+* Accepted-helper authorization
+
+### 22.7 Task 10 — Conversations and messages
+
+* Direct conversation uniqueness
+* Group conversations
+* Conversation membership
+* Persistent message history
+* Idempotent message sending
+* Read and unread state
+* Request-linked conversations
+* Realtime
+* Archive and mute
+* Preserve Android keyboard behavior
+
+### 22.8 Task 11 — Notifications
+
+* Persistent notification records
+* Unread count
+* Mark read
+* Navigation
+* Offer and message events
+* Deadline reminders
+* Push-device registration
+* Preferences
+* Edge Function push delivery
+* Delivery receipts
+* Invalid-token cleanup
+
+### 22.9 Task 12 — Automated tests
+
+* Unit tests
+* Component tests
+* Database tests
+* RLS tests
+* Function tests
+* Storage-policy tests
+* Integration tests
+* End-to-end tests
+* CI expansion
+* Preview-environment testing
+
+### 22.10 Task 13 — Accessibility and UI quality audit
+
+* Screen-reader behavior
+* Font scaling
+* Contrast
+* Touch targets
+* Focus
+* Small screens
+* Keyboard behavior
+* Android Back
+* Loading, empty, error, and disabled states
+
+### 22.11 Task 14 — Privacy, safety, and moderation
+
+* Privacy policy
+* Terms
+* Retention
+* Account deletion
+* Blocking
+* Reporting
+* Moderation
+* Abuse handling
+* Safety notices
+* Support and contact process
+
+### 22.12 Task 15 — Production release preparation
+
+* Final icons and splash assets
+* Version and build numbers
+* Production environment
+* Store metadata
+* Privacy and support URLs
+* Google Play setup
+* Apple Developer and App Store Connect setup
+* Production builds
+* Internal store testing
+* Security review
+* Backup and monitoring review
+
+### 22.13 Task 16 — Store submission
+
+* Android submission
+* iOS submission
+* Store privacy questionnaires
+* Review feedback
+* Release notes
+* Rollback plan
+* Support contact
+
+### 22.14 Task 17 — Post-release operations
+
+* Crash reporting
+* Analytics
+* Performance monitoring
+* User feedback
+* Bug triage
+* Security review
+* Backups
+* Incident response
+* EAS Update strategy
+* Release cadence
+* Dependency updates
+* Regression testing
+
+### 22.15 Task 3 completion criteria
+
+Task 3 is complete when:
+
+* Supabase is documented as the selected backend.
+* Authentication architecture is defined.
+* Profiles and interests are defined.
+* Courses and memberships are defined.
+* Requests and category details are defined.
+* Request offers are defined.
+* Conversations and messages are defined.
+* Notifications and push strategy are defined.
+* Security policies are defined.
+* Environment strategy is defined.
+* Storage strategy is defined.
+* Mock-data migration order is defined.
+* UX requirements are defined.
+* Testing strategy is defined.
+* The implementation roadmap is defined.
+* The document is reviewed for contradictions and duplicate sections.
+* Existing checks pass.
+* The pull request passes CI.
+* The pull request is reviewed and merged.
+
+### 22.16 Approved architecture decision
+
+CampusClutch will use Supabase as the planned backend because:
+
+* PostgreSQL fits the application's relational data.
+* Foreign keys and unique constraints protect memberships and ownership relationships.
+* Row Level Security supports client-facing authorization.
+* Supabase Auth supports account and session requirements.
+* Realtime supports messaging and notification updates.
+* Storage supports avatars with RLS.
+* SQL migrations fit the existing Git and pull-request workflow.
+* Local development supports repeatable schema and security testing.
+
+This approval does not make CampusClutch production-ready.
+
+Implementation remains divided into focused tasks and pull requests.
+
+### 22.17 Production warning
+
+CampusClutch must not be described as fully production-ready until it has:
+
+* Real authentication
+* Permanent backend storage
+* Tested authorization
+* Security-rule tests
+* Account deletion
+* Blocking
+* Reporting
+* Moderation
+* Privacy and retention policies
+* Production environment isolation
+* Secret management
+* Push-notification security
+* Automated tests
+* Monitoring
+* Backup and recovery planning
+* Store configuration
+* Production release testing
+
+Task 4 must not begin until this architecture document is reviewed, its pull request passes CI, and it is merged into main.
