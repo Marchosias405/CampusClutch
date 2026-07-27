@@ -1,0 +1,5 @@
+-- CampusClutch local development seed data.
+--
+-- Keep schema changes in version-controlled migration files.
+-- Add safe development-only records here after the related tables exist.
+-- Never add production credentials or real student data.
