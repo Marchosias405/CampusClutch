@@ -894,6 +894,8 @@ Requirements:
 
 Do not implement every feature in this task.
 
+Setup guide: [`docs/backend-setup.md`](docs/backend-setup.md)
+
 Completion condition:
 
 - Backend connection exists.
