@@ -1,7 +1,9 @@
+import { useAuth } from "@/context/AuthContext";
 import { FontAwesome5, Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React from "react";
+import React, { useState } from "react";
 import {
+  ActivityIndicator,
   Image,
   Pressable,
   ScrollView,
@@ -48,7 +50,21 @@ const activities = [
 
 export default function ProfileScreen() {
   const router = useRouter();
+  const { signOut } = useAuth();
+  const [isSigningOut, setIsSigningOut] = useState(false);
+  const [signOutError, setSignOutError] = useState<string | null>(null);
 
+  const handleSignOut = async () => {
+    setIsSigningOut(true);
+    setSignOutError(null);
+
+    const error = await signOut();
+
+    if (error) {
+      setSignOutError("Unable to sign out. Please try again.");
+      setIsSigningOut(false);
+    }
+  };
   return (
     <View style={styles.safeArea}>
       <View style={styles.screen}>
@@ -170,8 +186,25 @@ export default function ProfileScreen() {
             </View>
           </View>
 
-          <Pressable style={styles.logoutButton}>
-            <Text style={styles.logoutText}>Log Out</Text>
+          {signOutError ? (
+            <Text style={styles.signOutError}>{signOutError}</Text>
+          ) : null}
+
+          <Pressable
+            style={[
+              styles.logoutButton,
+              isSigningOut && styles.logoutButtonDisabled,
+            ]}
+            onPress={() => {
+              void handleSignOut();
+            }}
+            disabled={isSigningOut}
+          >
+            {isSigningOut ? (
+              <ActivityIndicator color={COLORS.primary} />
+            ) : (
+              <Text style={styles.logoutText}>Log Out</Text>
+            )}
           </Pressable>
         </ScrollView>
       </View>
@@ -491,4 +524,19 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#B45B67",
   },
+
+  logoutButtonDisabled: {
+  opacity: 0.6,
+},
+
+  signOutError: {
+    marginBottom: 8,
+    fontSize: 13,
+    fontWeight: "700",
+    color: COLORS.primary,
+    textAlign: "center",
+  },
+
+
+
 });

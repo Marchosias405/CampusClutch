@@ -2,15 +2,16 @@
 
 CampusClutch is an Expo React Native mobile app for university students to connect through courses, classmates, student profiles, campus help requests, direct messages, group conversations, notifications, and user profiles.
 
-The app still uses mock data and in-memory React context for its current feature flows, but the Supabase backend foundation is now configured for local development, shared development, and preview environments.
+The app still uses mock data and in-memory React context for its feature flows, but Supabase authentication is now connected to the hosted Development environment and a minimal authenticated profile schema has been introduced.
 
-> **Current status:** Tasks 1–4 are complete. CampusClutch has tested Android preview builds, an approved Supabase architecture, local Supabase tooling, separate hosted Development and Preview projects, typed environment validation, and a reusable Supabase client. Task 5—Authentication—is the next milestone. The app is not production-ready because authentication, application database tables, persistent feature data, authorization policies, moderation, and production infrastructure are not complete.
+> **Current status:** Tasks 1–4 are complete and Task 5—Authentication—is in progress. Email/password sign-up and sign-in, sign-out, session restoration, protected Expo Router navigation, auth loading states, email confirmation, a PKCE callback route, and minimal profile creation are implemented. A physical Android development build has also been created and tested. Password reset and the final end-to-end PKCE email-link retest remain before Task 5 can be completed. The app is not production-ready because persistent feature tables, complete authorization policies, moderation, production infrastructure, and release work are still outstanding.
 
 ---
 
 ## Current Tech Stack
 
 - Expo SDK 54
+- Expo Dev Client
 - React Native
 - TypeScript
 - Expo Router
@@ -65,14 +66,23 @@ Completed major milestones:
 - Reusable Supabase client foundation
 - Backend setup documentation
 - Task 4 Android smoke test after backend setup
+- Hosted Development email/password authentication
+- Auth-state subscription and session restoration
+- Protected Expo Router navigation
+- Sign-out integration on the Profile screen
+- Email confirmation and resend flow
+- Minimal `profiles` migration with owner-only read access
+- Android development build with `expo-dev-client`
+- USB/ADB Metro testing on a physical Pixel device
+- PKCE callback route for mobile authentication links
 
-Next major milestone:
+Current milestone:
 
 ```text
-Task 5 — Add Authentication
+Task 5 — Complete Authentication
 ```
 
-Authentication must be implemented from the approved architecture in `docs/backend-plan.md`. Relevant navigation, layouts, profile flows, providers, and session behavior must be inspected before code is changed.
+The core authentication flow works. Remaining Task 5 work is limited to password reset, final end-to-end validation of the fresh PKCE email callback after the hosted email rate limit resets, final review, and pull-request completion.
 
 ## Important Current Limitations
 
@@ -84,12 +94,14 @@ This means:
 - Locally sent messages reset when the conversation is reopened or the app reloads.
 - Offer Help state is local UI state and resets when the request details screen is reopened.
 - Course membership is not persisted.
-- Student profiles are loaded from shared mock data.
-- There are no real user accounts yet.
-- Authentication is not connected to the application.
-- Protected routes and session restoration are not implemented.
-- No application database schema or feature migrations exist yet.
-- Application tables and Row Level Security policies are not implemented yet.
+- Student profile content is still loaded from shared mock data.
+- Real Development-environment user accounts now exist, but feature data is not yet associated with them.
+- Email/password sign-up, sign-in, sign-out, session restoration, and protected routes are implemented.
+- Email confirmation succeeds, but the fresh PKCE callback must still pass its final end-to-end test.
+- Password reset is not implemented yet.
+- Only the minimal authentication-linked `profiles` table exists.
+- Feature tables and their Row Level Security policies are not implemented yet.
+- The authentication migration has been applied to Development; Preview validation is still pending.
 - There are no real push notifications.
 - There is no production reporting or moderation workflow.
 - The production Supabase project and production EAS variables are not configured.
@@ -294,6 +306,9 @@ CampusClutch/
 │   └── backend-setup.md
 ├── src/
 │   ├── app/
+│   │   ├── (auth)/
+│   │   │   ├── sign-in.tsx
+│   │   │   └── sign-up.tsx
 │   │   ├── (tabs)/
 │   │   │   ├── _layout.tsx
 │   │   │   ├── courses.tsx
@@ -301,6 +316,8 @@ CampusClutch/
 │   │   │   ├── messages.tsx
 │   │   │   ├── profile.tsx
 │   │   │   └── requests.tsx
+│   │   ├── auth/
+│   │   │   └── callback.tsx
 │   │   ├── courses/
 │   │   │   ├── add.tsx
 │   │   │   └── classmates.tsx
@@ -319,6 +336,7 @@ CampusClutch/
 │   ├── constants/
 │   │   └── mockData.ts
 │   ├── context/
+│   │   ├── AuthContext.tsx
 │   │   └── RequestsContext.tsx
 │   ├── lib/
 │   │   ├── env.ts
@@ -327,6 +345,8 @@ CampusClutch/
 │       └── index.ts
 ├── supabase/
 │   ├── .gitignore
+│   ├── migrations/
+│   │   └── 20260729074002_add_auth_profiles.sql
 │   ├── config.toml
 │   └── seed.sql
 ├── .env.example
@@ -744,6 +764,16 @@ Android issues fixed after the first APK test:
 4. Points Offered label/icon/input overlap.
 5. Lower Create Request fields hidden by the Android keyboard.
 
+A separate Android development build was also created after adding `expo-dev-client`.
+
+Development-build validation completed:
+
+- EAS development profile produced an installable APK.
+- The APK installed on a physical Pixel device.
+- The development client connected to Metro through USB and `adb reverse`.
+- Android registered the `campusclutch` custom URL scheme.
+- The native callback route opened from an ADB deep-link test.
+
 No production build or store submission has been started.
 
 ---
@@ -772,8 +802,67 @@ The updated preview APK was tested for:
 - Request submission
 - Newly created request appearing at the top of the feed
 - Expected in-memory reset after restarting the app
+- Email/password sign-up and sign-in
+- Sign-out from Profile
+- Protected-route behavior after sign-out
+- Session restoration after a full app restart
+- Hosted email confirmation
+- Native `campusclutch://auth/callback` routing
+- Development-client connection through USB/ADB
 
 ---
+
+
+# Authentication Flow
+
+## Implemented
+
+- Email/password account creation through Supabase Auth.
+- Email/password sign-in.
+- Sign-out from the Profile screen.
+- Auth-state subscription through `AuthContext`.
+- Persisted sessions through AsyncStorage.
+- Session restoration after fully closing and reopening the app.
+- App-state-controlled Supabase token auto-refresh.
+- Loading screen while the stored session is restored.
+- Public sign-in and sign-up routes.
+- Protected application routes using Expo Router `Stack.Protected`.
+- Android Back cannot reopen protected screens after sign-out.
+- Email confirmation screen and resend action.
+- Hosted Development redirect allow-list entry:
+  - `campusclutch://auth/callback`
+- Matching local Supabase redirect configuration.
+- Mobile callback route:
+  - `src/app/auth/callback.tsx`
+- Supabase client configured for PKCE.
+- PKCE `code` exchange with implicit-token fallback.
+- `expo-dev-client` added for stable native-scheme testing.
+- Android development APK built, installed, and connected to Metro over USB/ADB.
+- Minimal `public.profiles` table linked one-to-one with `auth.users`.
+- Automatic profile-row creation through an auth-user trigger.
+- Row Level Security enabled with owner-only authenticated reads.
+- Anonymous access revoked.
+
+## Manually verified
+
+- Existing account sign-in opens the application.
+- Sign-out returns to Sign In.
+- Android Back exits instead of restoring a protected screen.
+- A stored authenticated session restores directly to Home after a full app restart.
+- Hosted email confirmation marks a new account as confirmed.
+- Confirmed accounts can sign in successfully.
+- Android recognizes and opens the `campusclutch://auth/callback` route.
+
+## Remaining before Task 5 completion
+
+- Retest one fresh PKCE confirmation link after the hosted Supabase email limit resets.
+- Confirm that a fresh link exchanges the callback code and opens Home automatically.
+- Implement password-reset request and password-update screens.
+- Test password recovery on the Android development build.
+- Review auth restoration-error presentation.
+- Run final local checks and review the complete staged diff.
+- Push the branch, open a pull request, pass CI, review, and merge.
+
 
 # Completed Roadmap Tasks
 
@@ -900,37 +989,85 @@ Completion condition: Met.
 
 # Task 5 — Add Authentication
 
-**Status: Next**
+**Status: In progress**
 
-Start only from an updated, clean `main` branch.
+Branch:
 
-Before coding:
+```text
+feature/supabase-authentication
+```
 
-- Verify Git status and branches.
-- Create or switch to `feature/supabase-authentication`.
-- Inspect the current Expo Router layouts and navigation.
-- Inspect profile, home, and account-related routes.
-- Inspect existing context providers.
-- Inspect `src/lib/env.ts` and `src/lib/supabase.ts`.
-- Read the approved authentication sections in `docs/backend-plan.md`.
-- Write a focused implementation plan and review it before modifying files.
+Completed implementation:
 
-Requirements:
+- Added `expo-dev-client`.
+- Created an Android EAS development build.
+- Added `AuthContext` with:
+  - Session state
+  - Current user state
+  - Auth-state subscription
+  - Session restoration
+  - App-state token auto-refresh
+  - Sign-up
+  - Sign-in
+  - Resend verification
+  - Sign-out
+- Configured the Supabase client with:
+  - AsyncStorage session persistence
+  - Automatic token refresh
+  - `processLock`
+  - PKCE authentication flow
+- Added public Sign In and Create Account screens.
+- Added loading, disabled, and authentication-error states.
+- Added password visibility controls and Android keyboard handling.
+- Protected application routes with Expo Router `Stack.Protected`.
+- Added a session-restoration loading screen.
+- Connected the Profile Log Out button to Supabase.
+- Added the native callback route:
+  - `src/app/auth/callback.tsx`
+- Added the custom redirect:
+  - `campusclutch://auth/callback`
+- Added the redirect to hosted Development and local Supabase configuration.
+- Added PKCE code exchange with implicit-token fallback.
+- Added migration:
+  - `20260729074002_add_auth_profiles.sql`
+- Added the minimal `public.profiles` table.
+- Added automatic profile initialization for new auth users.
+- Enabled Row Level Security.
+- Revoked anonymous table access.
+- Added owner-only authenticated profile reads.
+- Applied and verified the migration locally.
+- Pushed and verified the migration in hosted Development.
 
-- Sign up
-- Sign in
-- Sign out
-- Session restoration
-- Auth-state subscription
-- Loading state during session restoration
-- Authentication error messages
-- Public authentication routes
-- Protected application routes
-- Email verification based on the approved architecture
-- Password reset
-- Secure token handling through the existing Supabase client
-- Minimal profile initialization only where required by the approved Task 5 design
-- Preservation of current mock feature data
+Manual tests passed:
+
+- Sign-in with a confirmed account.
+- Sign-out from Profile.
+- Android Back does not reopen protected screens.
+- Session restoration after fully closing and reopening the app.
+- Existing mock feature flows remain accessible after authentication.
+- Hosted email confirmation marks accounts as confirmed.
+- Confirmed accounts can sign in.
+- Android opens the custom callback scheme.
+- Development APK runs on a physical Pixel device.
+- Metro connection works over USB with ADB port reversal.
+
+Remaining work:
+
+- Complete one fresh PKCE email-link test after the Supabase hosted email rate limit resets.
+- Confirm automatic callback code exchange and navigation to Home.
+- Implement password-reset request.
+- Implement password-update recovery flow.
+- Test recovery deep linking.
+- Review restoration-error UI behavior.
+- Run final checks and inspect the complete staged diff.
+- Push, open a pull request, pass CI, review, and merge.
+
+Current expected local check:
+
+```text
+0 errors
+2 existing Courses warnings
+```
 
 Out of scope:
 
@@ -948,7 +1085,7 @@ Completion condition:
 - A user can sign in and sign out.
 - Session restoration works.
 - Protected routes cannot be opened without authentication.
-- Verification and password-reset behavior are handled.
+- Verification and password-reset behavior are fully handled.
 - Existing mock feature flows remain usable after sign-in.
 - Manual tests, `npm run check`, GitHub CI, and review pass.
 
@@ -1314,8 +1451,8 @@ Possible work:
 - EAS Preview variables: Configured
 - Production Supabase project: Not created
 - Production EAS variables: Not configured
-- Application database schema: Not created
-- Authentication: Not implemented
+- Application database schema: Minimal auth-linked `profiles` migration created and applied to Development
+- Authentication: In progress; core sign-up, sign-in, sign-out, restoration, protection, and confirmation behavior implemented
 - Production Android build: Not started
 - Production iOS build: Not started
 - Google Play submission: Not started
@@ -1327,12 +1464,10 @@ No secrets, private keys, database passwords, store credentials, or real environ
 
 CampusClutch still needs:
 
-- Authentication
-- Session restoration
-- Protected routes
-- Email verification and password reset
-- Application database schema and migrations
-- Row Level Security policies and explicit grants
+- Final PKCE email-callback validation
+- Password reset and password recovery
+- Feature application schemas and migrations beyond the minimal auth profile
+- Feature Row Level Security policies and explicit grants
 - Persistent request storage
 - Persistent course storage
 - Persistent profile storage
@@ -1350,35 +1485,27 @@ CampusClutch still needs:
 
 # Next Action
 
-Start only:
+Continue only:
 
 ```text
-Task 5 — Add Authentication
+Task 5 — Complete Authentication
 ```
 
-First verify the repository state:
+Current branch:
 
-```powershell
-cd D:\Projects\CampusClutch
-git status
-git branch -vv
-git log -3 --oneline --decorate
+```text
+feature/supabase-authentication
 ```
 
-Do not assume the authentication branch already exists.
+Next implementation steps:
 
-After verifying a clean and current `main`, create the branch if needed:
-
-```powershell
-git switch -c feature/supabase-authentication
-```
-
-Before writing code:
-
-1. Inspect the current source tree.
-2. Inspect relevant layouts, routes, providers, environment modules, and CI files.
-3. Read the approved authentication sections in `docs/backend-plan.md`.
-4. Produce a focused Task 5 plan.
-5. Review the plan before implementation.
+1. Allow the hosted Supabase authentication-email limit to reset.
+2. Retest one fresh PKCE verification link without reloading the callback route.
+3. Implement password-reset request and password-update recovery.
+4. Test recovery on the Android development build.
+5. Run `npm run check` and `git diff --check`.
+6. Inspect and stage only Task 5 files.
+7. Commit and push the feature branch.
+8. Open a pull request and wait for CI and review.
 
 Do not begin Task 6 until Task 5 has passed manual testing, local checks, CI, review, and merge.
