@@ -107,7 +107,21 @@ export default function SignInScreen() {
             returnKeyType="next"
           />
 
-          <Text style={[styles.label, styles.passwordLabel]}>Password</Text>
+          <View style={styles.passwordHeader}>
+            <Text style={[styles.label, styles.passwordHeaderLabel]}>
+              Password
+            </Text>
+
+            <Pressable
+              onPress={() => router.push("/forgot-password" as never)}
+              disabled={isSubmitting}
+              hitSlop={8}
+            >
+              <Text style={styles.forgotPasswordText}>
+                Forgot password?
+              </Text>
+            </Pressable>
+          </View>
 
           <View style={styles.passwordInputContainer}>
             <TextInput
@@ -125,6 +139,8 @@ export default function SignInScreen() {
                 void handleSignIn();
               }}
             />
+
+
 
             <Pressable
               style={styles.visibilityButton}
@@ -245,9 +261,7 @@ const styles = StyleSheet.create({
     color: COLORS.textDark,
   },
 
-  passwordLabel: {
-    marginTop: 18,
-  },
+
 
   input: {
     height: 54,
@@ -335,4 +349,31 @@ const styles = StyleSheet.create({
     color: COLORS.primary,
     textAlign: "center",
   },
+
+
+
+
+
+  passwordHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: 18,
+    marginBottom: 8,
+  },
+
+  passwordHeaderLabel: {
+    marginBottom: 0,
+  },
+
+  forgotPasswordText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: COLORS.primary,
+  },
+
+
+
+
+
 });

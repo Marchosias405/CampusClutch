@@ -28,7 +28,11 @@ export default function RootLayout() {
 }
 
 function RootNavigator() {
-  const { session, isRestoringSession } = useAuth();
+  const {
+    session,
+    isRestoringSession,
+    isPasswordRecovery,
+  } = useAuth();
 
   if (isRestoringSession) {
     return (
@@ -43,8 +47,9 @@ function RootNavigator() {
   return (
     <>
       <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="auth/callback" />
-        <Stack.Protected guard={Boolean(session)}>
+        <Stack.Protected
+          guard={Boolean(session) && !isPasswordRecovery}
+        >
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="courses/add" />
           <Stack.Screen name="courses/classmates" />
@@ -58,6 +63,9 @@ function RootNavigator() {
         <Stack.Protected guard={!session}>
           <Stack.Screen name="(auth)" />
         </Stack.Protected>
+
+        <Stack.Screen name="auth/callback" />
+        <Stack.Screen name="auth/reset-password" />
       </Stack>
 
       <StatusBar style={session ? "light" : "dark"} />
