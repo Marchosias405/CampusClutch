@@ -25,11 +25,18 @@ type AuthContextValue = {
   user: User | null;
   isRestoringSession: boolean;
   restorationError: string | null;
+  isPasswordRecovery: boolean;
   signIn: (email: string, password: string) => Promise<AuthError | null>;
   signUp: (email: string, password: string) => Promise<SignUpResult>;
   resendVerification: (email: string) => Promise<AuthError | null>;
+  requestPasswordReset: (email: string) => Promise<AuthError | null>;
+  updatePassword: (password: string) => Promise<AuthError | null>;
+  beginPasswordRecovery: () => void;
+  endPasswordRecovery: () => void;
   signOut: () => Promise<AuthError | null>;
 };
+
+
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
@@ -38,6 +45,7 @@ function normalizeEmail(email: string) {
 }
 
 const AUTH_CALLBACK_URL = "campusclutch://auth/callback";
+const PASSWORD_RESET_URL = "campusclutch://auth/reset-password";
 
 export function AuthProvider({
   children,
@@ -46,6 +54,7 @@ export function AuthProvider({
 }) {
   const [session, setSession] = useState<Session | null>(null);
   const [isRestoringSession, setIsRestoringSession] = useState(true);
+  const [isPasswordRecovery, setIsPasswordRecovery] = useState(false);
   const [restorationError, setRestorationError] = useState<string | null>(
     null
   );
@@ -71,9 +80,17 @@ export function AuthProvider({
 
     const {
       data: { subscription: authSubscription },
-    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+    } = supabase.auth.onAuthStateChange((event, nextSession) => {
       if (!isMounted) {
         return;
+      }
+
+      if (event === "PASSWORD_RECOVERY") {
+        setIsPasswordRecovery(true);
+      }
+
+      if (event === "SIGNED_OUT") {
+        setIsPasswordRecovery(false);
       }
 
       setSession(nextSession);
@@ -145,6 +162,43 @@ export function AuthProvider({
     return error;
   }, []);
 
+
+  const requestPasswordReset = useCallback(async (email: string) => {
+    const { error } = await supabase.auth.resetPasswordForEmail(
+      normalizeEmail(email),
+      {
+        redirectTo: PASSWORD_RESET_URL,
+      }
+    );
+
+    return error;
+  }, []);
+
+
+
+  const beginPasswordRecovery = useCallback(() => {
+    setIsPasswordRecovery(true);
+  }, []);
+
+  const endPasswordRecovery = useCallback(() => {
+    setIsPasswordRecovery(false);
+  }, []);
+
+
+
+
+  const updatePassword = useCallback(async (password: string) => {
+    const { error } = await supabase.auth.updateUser({
+      password,
+    });
+
+    if (!error) {
+      setIsPasswordRecovery(false);
+    }
+
+    return error;
+  }, []);
+
   const signOut = useCallback(async () => {
     const { error } = await supabase.auth.signOut();
 
@@ -160,16 +214,26 @@ export function AuthProvider({
       signIn,
       signUp,
       resendVerification,
+      requestPasswordReset,
+      updatePassword,
       signOut,
+      beginPasswordRecovery,
+      endPasswordRecovery,
+      isPasswordRecovery,
     }),
     [
       isRestoringSession,
+      requestPasswordReset,
       resendVerification,
       restorationError,
       session,
       signIn,
       signOut,
       signUp,
+      updatePassword,
+      isPasswordRecovery,
+      beginPasswordRecovery,
+      endPasswordRecovery,
     ]
   );
 

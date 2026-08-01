@@ -1,6 +1,8 @@
 import { Ionicons } from "@expo/vector-icons";
-import * as Linking from "expo-linking";
-import { useRouter } from "expo-router";
+import {
+  useLocalSearchParams,
+  useRouter,
+} from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -10,6 +12,7 @@ import {
   View,
 } from "react-native";
 
+import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
 
 const COLORS = {
@@ -21,98 +24,55 @@ const COLORS = {
   errorText: "#8F1428",
 };
 
-function getCallbackParameters(url: string) {
-  const hashStart = url.indexOf("#");
-  const queryStart = url.indexOf("?");
-
-  const hashParameters = new URLSearchParams(
-    hashStart >= 0 ? url.slice(hashStart + 1) : ""
-  );
-
-  const queryEnd = hashStart >= 0 ? hashStart : url.length;
-
-  const queryParameters = new URLSearchParams(
-    queryStart >= 0 ? url.slice(queryStart + 1, queryEnd) : ""
-  );
-
-  const getParameter = (name: string) =>
-    hashParameters.get(name) ?? queryParameters.get(name);
-
-  return {
-    code: getParameter("code"),
-    accessToken: getParameter("access_token"),
-    refreshToken: getParameter("refresh_token"),
-    errorDescription: getParameter("error_description"),
-  };
-}
-
 export default function AuthCallbackScreen() {
   const router = useRouter();
-  const url = Linking.useLinkingURL();
 
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const {
+    code,
+    error_description: errorDescription,
+  } = useLocalSearchParams<{
+    code?: string;
+    error_description?: string;
+  }>();
+
+  const {
+    session,
+    isRestoringSession,
+  } = useAuth();
+
+  const [errorMessage, setErrorMessage] = useState<string | null>(
+    null
+  );
 
   useEffect(() => {
-    if (!url) {
+    if (isRestoringSession) {
+      return;
+    }
+
+    if (errorDescription) {
+      setErrorMessage(errorDescription);
+      return;
+    }
+
+    // Android/Expo may restore this route after the original
+    // authentication link has already been consumed.
+    //
+    // If there is no fresh PKCE code, leave the stale callback
+    // route instead of displaying an endless/error verification state.
+    if (!code) {
+      router.replace(
+        session ? ("/" as never) : ("/sign-in" as never)
+      );
       return;
     }
 
     let isCancelled = false;
 
     const completeAuthentication = async () => {
-      const {
-        code,
-        accessToken,
-        refreshToken,
-        errorDescription,
-      } = getCallbackParameters(url);
+      setErrorMessage(null);
 
-      if (errorDescription) {
-        if (!isCancelled) {
-          setErrorMessage(errorDescription);
-        }
-
-        return;
-      }
-
-
-      if (code) {
-        const { error } = await supabase.auth.exchangeCodeForSession(code);
-
-        if (isCancelled) {
-          return;
-        }
-
-        if (error) {
-          setErrorMessage(
-            "CampusClutch could not complete email verification."
-          );
-          return;
-        }
-
-        router.replace("/" as never);
-        return;
-      }
-
-
-
-
-
-
-      if (!accessToken || !refreshToken) {
-        if (!isCancelled) {
-          setErrorMessage(
-            "The verification link is invalid or has expired."
-          );
-        }
-
-        return;
-      }
-
-      const { error } = await supabase.auth.setSession({
-        access_token: accessToken,
-        refresh_token: refreshToken,
-      });
+      const { error } =
+        await supabase.auth.exchangeCodeForSession(code);
 
       if (isCancelled) {
         return;
@@ -133,33 +93,51 @@ export default function AuthCallbackScreen() {
     return () => {
       isCancelled = true;
     };
-  }, [router, url]);
+  }, [
+    code,
+    errorDescription,
+    isRestoringSession,
+    router,
+    session,
+  ]);
 
   return (
     <View style={styles.screen}>
       <View style={styles.brandIcon}>
         <Ionicons
-          name={errorMessage ? "alert-outline" : "shield-checkmark-outline"}
+          name={
+            errorMessage
+              ? "alert-outline"
+              : "shield-checkmark-outline"
+          }
           size={36}
           color="#FFFFFF"
         />
       </View>
 
       <Text style={styles.title}>
-        {errorMessage ? "Verification failed" : "Verifying your email"}
+        {errorMessage
+          ? "Verification failed"
+          : "Verifying your email"}
       </Text>
 
       {errorMessage ? (
         <>
           <View style={styles.errorBox}>
-            <Text style={styles.errorText}>{errorMessage}</Text>
+            <Text style={styles.errorText}>
+              {errorMessage}
+            </Text>
           </View>
 
           <Pressable
             style={styles.button}
-            onPress={() => router.replace("/sign-in" as never)}
+            onPress={() =>
+              router.replace("/sign-in" as never)
+            }
           >
-            <Text style={styles.buttonText}>Return to Sign In</Text>
+            <Text style={styles.buttonText}>
+              Return to Sign In
+            </Text>
           </Pressable>
         </>
       ) : (
@@ -171,7 +149,8 @@ export default function AuthCallbackScreen() {
           />
 
           <Text style={styles.subtitle}>
-            Please wait while CampusClutch completes authentication.
+            Please wait while CampusClutch completes
+            authentication.
           </Text>
         </>
       )}
