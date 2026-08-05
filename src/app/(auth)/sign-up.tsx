@@ -88,7 +88,6 @@ export default function SignUpScreen() {
       return;
     }
 
-    router.replace("/" as never);
   };
 
   const handleResendVerification = async () => {

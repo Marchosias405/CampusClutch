@@ -1,10 +1,12 @@
 import { useAuth } from "@/context/AuthContext";
-import { FontAwesome5, Ionicons, MaterialIcons } from "@expo/vector-icons";
+import { useProfile } from "@/context/ProfileContext";
+import { getProfileAvatarSignedUrl } from "@/lib/avatars";
+import { FontAwesome5, Ionicons } from "@expo/vector-icons";
+import { Image } from "expo-image";
 import { useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Image,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -51,6 +53,63 @@ const activities = [
 export default function ProfileScreen() {
   const router = useRouter();
   const { signOut } = useAuth();
+  const { profile } = useProfile();
+  const [avatarSignedUrl, setAvatarSignedUrl] = useState<string | null>(null);
+  const [isLoadingAvatar, setIsLoadingAvatar] = useState(
+    Boolean(profile?.avatarPath)
+  );
+
+  const displayName = profile?.displayName ?? "Student";
+  const major = profile?.major ?? "Major not added";
+
+  const initials = displayName
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("");
+
+  useEffect(() => {
+    let isActive = true;
+
+    const loadAvatar = async () => {
+      if (!profile?.avatarPath) {
+        if (isActive) {
+          setAvatarSignedUrl(null);
+          setIsLoadingAvatar(false);
+        }
+
+        return;
+      }
+
+      setIsLoadingAvatar(true);
+
+      try {
+        const signedUrl = await getProfileAvatarSignedUrl(
+          profile.avatarPath
+        );
+
+        if (isActive) {
+          setAvatarSignedUrl(signedUrl);
+        }
+      } catch {
+        if (isActive) {
+          setAvatarSignedUrl(null);
+        }
+      } finally {
+        if (isActive) {
+          setIsLoadingAvatar(false);
+        }
+      }
+    };
+
+    void loadAvatar();
+
+    return () => {
+      isActive = false;
+    };
+  }, [profile?.avatarPath]);
+
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [signOutError, setSignOutError] = useState<string | null>(null);
 
@@ -84,28 +143,35 @@ export default function ProfileScreen() {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
+
           <View style={styles.profileSection}>
             <View style={styles.avatarOuter}>
-              <Image
-                source={{
-                  uri: "https://api.dicebear.com/7.x/personas/png?seed=Alex",
-                }}
-                style={styles.avatar}
-              />
+              {avatarSignedUrl ? (
+                <Image
+                  source={{ uri: avatarSignedUrl }}
+                  style={styles.avatarImage}
+                  contentFit="cover"
+                />
+              ) : isLoadingAvatar ? (
+                <ActivityIndicator color={COLORS.primary} />
+              ) : (
+                <View style={styles.avatarFallback}>
+                  <Text style={styles.avatarInitials}>
+                    {initials || "S"}
+                  </Text>
+                </View>
+              )}
             </View>
 
             <View style={styles.profileInfo}>
-              <Text style={styles.profileName}>Alex Rivera</Text>
-              <Text style={styles.profileMajor}>Computer Science</Text>
+              <Text style={styles.profileName}>{displayName}</Text>
+              <Text style={styles.profileMajor}>{major}</Text>
 
-              <View style={styles.badgeRow}>
-                <MaterialIcons
-                  name="verified"
-                  size={14}
-                  color={COLORS.primary}
-                />
-                <Text style={styles.badgeText}>Student Ambassador</Text>
-              </View>
+              <Text style={styles.visibilityText}>
+                {profile?.isDiscoverable
+                  ? "Visible to other students"
+                  : "Profile is private"}
+              </Text>
             </View>
           </View>
 
@@ -269,10 +335,25 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.cardWhite,
   },
 
-  avatar: {
+  avatarImage: {
     width: 70,
     height: 70,
     borderRadius: 35,
+  },
+
+  avatarFallback: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#F7E7EA",
+  },
+
+  avatarInitials: {
+    fontSize: 23,
+    fontWeight: "900",
+    color: COLORS.primary,
   },
 
   profileInfo: {
@@ -292,16 +373,10 @@ const styles = StyleSheet.create({
     color: COLORS.mutedText,
   },
 
-  badgeRow: {
+  visibilityText: {
     marginTop: 5,
-    flexDirection: "row",
-    alignItems: "center",
-  },
-
-  badgeText: {
-    marginLeft: 5,
     fontSize: 12,
-    fontWeight: "800",
+    fontWeight: "700",
     color: COLORS.primary,
   },
 

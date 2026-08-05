@@ -70,3 +70,14 @@ export type CampusRequest = {
 
   isUrgent?: boolean;
 };
+
+export type {
+  Campus,
+  Interest,
+  Profile,
+  ProfileSocialLink,
+  ProfileSocialLinks,
+  ProfileSocialLinksInput,
+  ProfileUpdateInput,
+  SocialPlatform
+} from "./profile";

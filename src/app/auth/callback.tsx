@@ -35,10 +35,7 @@ export default function AuthCallbackScreen() {
     error_description?: string;
   }>();
 
-  const {
-    session,
-    isRestoringSession,
-  } = useAuth();
+  const { isRestoringSession } = useAuth();
 
   const [errorMessage, setErrorMessage] = useState<string | null>(
     null
@@ -60,9 +57,7 @@ export default function AuthCallbackScreen() {
     // If there is no fresh PKCE code, leave the stale callback
     // route instead of displaying an endless/error verification state.
     if (!code) {
-      router.replace(
-        session ? ("/" as never) : ("/sign-in" as never)
-      );
+      router.replace("/sign-in" as never);
       return;
     }
 
@@ -84,8 +79,6 @@ export default function AuthCallbackScreen() {
         );
         return;
       }
-
-      router.replace("/" as never);
     };
 
     void completeAuthentication();
@@ -98,7 +91,6 @@ export default function AuthCallbackScreen() {
     errorDescription,
     isRestoringSession,
     router,
-    session,
   ]);
 
   return (
