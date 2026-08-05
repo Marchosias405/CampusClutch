@@ -75,5 +75,9 @@ export type {
   Campus,
   Interest,
   Profile,
-  ProfileUpdateInput
+  ProfileSocialLink,
+  ProfileSocialLinks,
+  ProfileSocialLinksInput,
+  ProfileUpdateInput,
+  SocialPlatform
 } from "./profile";

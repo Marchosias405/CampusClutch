@@ -32,3 +32,26 @@ export type ProfileUpdateInput = {
   avatarPath?: string | null;
   isDiscoverable?: boolean;
 };
+
+export type SocialPlatform = "linkedin" | "instagram";
+
+export type ProfileSocialLink = {
+  profileId: string;
+  platform: SocialPlatform;
+  value: string;
+  isVisible: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ProfileSocialLinks = {
+  linkedin: ProfileSocialLink | null;
+  instagram: ProfileSocialLink | null;
+};
+
+export type ProfileSocialLinksInput = {
+  linkedinValue: string;
+  linkedinVisible: boolean;
+  instagramValue: string;
+  instagramVisible: boolean;
+};

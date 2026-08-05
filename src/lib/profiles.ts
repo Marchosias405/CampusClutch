@@ -3,7 +3,11 @@ import type {
   Campus,
   Interest,
   Profile,
+  ProfileSocialLink,
+  ProfileSocialLinks,
+  ProfileSocialLinksInput,
   ProfileUpdateInput,
+  SocialPlatform,
 } from "@/types";
 
 type ProfileRow = {
@@ -30,6 +34,15 @@ type InterestRow = {
   slug: string;
   display_name: string;
   is_active: boolean;
+};
+
+type ProfileSocialLinkRow = {
+  profile_id: string;
+  platform: SocialPlatform;
+  value: string;
+  is_visible: boolean;
+  created_at: string;
+  updated_at: string;
 };
 
 const PROFILE_SELECT = `
@@ -75,6 +88,19 @@ function mapInterest(row: InterestRow): Interest {
     slug: row.slug,
     displayName: row.display_name,
     isActive: row.is_active,
+  };
+}
+
+function mapProfileSocialLink(
+  row: ProfileSocialLinkRow
+): ProfileSocialLink {
+  return {
+    profileId: row.profile_id,
+    platform: row.platform,
+    value: row.value,
+    isVisible: row.is_visible,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
   };
 }
 
@@ -219,6 +245,77 @@ export async function replaceProfileInterests(
   const { error } = await supabase.rpc("replace_my_profile_interests", {
     p_interest_ids: uniqueInterestIds,
   });
+
+  if (error) {
+    throw error;
+  }
+}
+
+export async function getProfileSocialLinks(
+  profileId: string
+): Promise<ProfileSocialLinks> {
+  const { data, error } = await supabase
+    .from("profile_social_links")
+    .select(
+      `
+        profile_id,
+        platform,
+        value,
+        is_visible,
+        created_at,
+        updated_at
+      `
+    )
+    .eq("profile_id", profileId);
+
+  if (error) {
+    throw error;
+  }
+
+  const result: ProfileSocialLinks = {
+    linkedin: null,
+    instagram: null,
+  };
+
+  for (const row of data as ProfileSocialLinkRow[]) {
+    const socialLink = mapProfileSocialLink(row);
+
+    if (socialLink.platform === "linkedin") {
+      result.linkedin = socialLink;
+    } else if (socialLink.platform === "instagram") {
+      result.instagram = socialLink;
+    }
+  }
+
+  return result;
+}
+
+export async function replaceProfileSocialLinks(
+  profileId: string,
+  input: ProfileSocialLinksInput
+): Promise<void> {
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
+
+  if (userError) {
+    throw userError;
+  }
+
+  if (!user || user.id !== profileId) {
+    throw new Error("You can only update your own social links.");
+  }
+
+  const { error } = await supabase.rpc(
+    "replace_my_profile_social_links",
+    {
+      p_linkedin_value: input.linkedinValue,
+      p_linkedin_visible: input.linkedinVisible,
+      p_instagram_value: input.instagramValue,
+      p_instagram_visible: input.instagramVisible,
+    }
+  );
 
   if (error) {
     throw error;

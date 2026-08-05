@@ -20,7 +20,9 @@ import {
   getCampuses,
   getInterests,
   getProfileInterests,
+  getProfileSocialLinks,
   replaceProfileInterests,
+  replaceProfileSocialLinks,
 } from "@/lib/profiles";
 import type { Campus, Interest } from "@/types";
 
@@ -38,6 +40,11 @@ const COLORS = {
 };
 
 const YEARS = [1, 2, 3, 4, 5, 6, 7, 8];
+
+const LINKEDIN_PROFILE_URL_PATTERN =
+  /^https:\/\/([a-z0-9-]+\.)?linkedin\.com\/in\/[^\s]+$/i;
+
+const INSTAGRAM_USERNAME_PATTERN = /^[A-Za-z0-9._]+$/;
 
 function getErrorMessage(error: unknown) {
   if (
@@ -78,6 +85,13 @@ export default function ProfileSettingsScreen() {
   const [selectedInterestIds, setSelectedInterestIds] = useState<string[]>([]);
   const [isLoadingInterests, setIsLoadingInterests] = useState(true);
   const [interestError, setInterestError] = useState<string | null>(null);
+
+  const [linkedinValue, setLinkedinValue] = useState("");
+  const [linkedinVisible, setLinkedinVisible] = useState(false);
+  const [instagramValue, setInstagramValue] = useState("");
+  const [instagramVisible, setInstagramVisible] = useState(false);
+  const [isLoadingSocialLinks, setIsLoadingSocialLinks] = useState(true);
+  const [socialLinksError, setSocialLinksError] = useState<string | null>(null);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -126,6 +140,35 @@ export default function ProfileSettingsScreen() {
     }
   }, [profile]);
 
+  const loadSocialLinks = useCallback(async () => {
+    if (!profile) {
+      setLinkedinValue("");
+      setLinkedinVisible(false);
+      setInstagramValue("");
+      setInstagramVisible(false);
+      setSocialLinksError("Profile unavailable.");
+      setIsLoadingSocialLinks(false);
+      return;
+    }
+
+    setIsLoadingSocialLinks(true);
+    setSocialLinksError(null);
+
+    try {
+      const socialLinks = await getProfileSocialLinks(profile.id);
+
+      setLinkedinValue(socialLinks.linkedin?.value ?? "");
+      setLinkedinVisible(socialLinks.linkedin?.isVisible ?? false);
+
+      setInstagramValue(socialLinks.instagram?.value ?? "");
+      setInstagramVisible(socialLinks.instagram?.isVisible ?? false);
+    } catch {
+      setSocialLinksError("Unable to load social profiles.");
+    } finally {
+      setIsLoadingSocialLinks(false);
+    }
+  }, [profile]);
+
   useEffect(() => {
     void loadCampuses();
   }, []);
@@ -133,6 +176,10 @@ export default function ProfileSettingsScreen() {
   useEffect(() => {
     void loadInterests();
   }, [loadInterests]);
+
+  useEffect(() => {
+    void loadSocialLinks();
+  }, [loadSocialLinks]);
 
   const toggleInterest = (interestId: string) => {
     setSelectedInterestIds((current) => {
@@ -149,6 +196,8 @@ export default function ProfileSettingsScreen() {
   const handleSave = async () => {
     const normalizedName = displayName.trim();
     const normalizedMajor = major.trim();
+    const normalizedLinkedin = linkedinValue.trim();
+    const normalizedInstagram = instagramValue.trim();
 
     if (!normalizedName) {
       setErrorMessage("Enter your display name.");
@@ -168,14 +217,36 @@ export default function ProfileSettingsScreen() {
       return;
     }
 
+    if (
+      normalizedLinkedin &&
+      !LINKEDIN_PROFILE_URL_PATTERN.test(normalizedLinkedin)
+    ) {
+      setErrorMessage(
+        "Enter a valid LinkedIn profile URL, such as https://www.linkedin.com/in/username."
+      );
+      setSuccessMessage(null);
+      return;
+    }
+
+    if (
+      normalizedInstagram &&
+      !INSTAGRAM_USERNAME_PATTERN.test(normalizedInstagram)
+    ) {
+      setErrorMessage(
+        "Instagram usernames can contain only letters, numbers, periods, and underscores."
+      );
+      setSuccessMessage(null);
+      return;
+    }
+
     if (!profile) {
       setErrorMessage("Profile unavailable. Try again.");
       setSuccessMessage(null);
       return;
     }
 
-    if (isLoadingInterests) {
-      setErrorMessage("Wait for interests to finish loading.");
+    if (isLoadingInterests || isLoadingSocialLinks) {
+      setErrorMessage("Wait for your profile details to finish loading.");
       setSuccessMessage(null);
       return;
     }
@@ -186,12 +257,27 @@ export default function ProfileSettingsScreen() {
       return;
     }
 
+    if (socialLinksError) {
+      setErrorMessage("Retry loading social profiles before saving.");
+      setSuccessMessage(null);
+      return;
+    }
+
     setIsSubmitting(true);
     setErrorMessage(null);
     setSuccessMessage(null);
 
     try {
       await replaceProfileInterests(profile.id, selectedInterestIds);
+
+      await replaceProfileSocialLinks(profile.id, {
+        linkedinValue: normalizedLinkedin,
+        linkedinVisible:
+          Boolean(normalizedLinkedin) && linkedinVisible,
+        instagramValue: normalizedInstagram,
+        instagramVisible:
+          Boolean(normalizedInstagram) && instagramVisible,
+      });
 
       await saveProfile({
         displayName: normalizedName,
@@ -311,7 +397,6 @@ export default function ProfileSettingsScreen() {
                 size={18}
                 color={COLORS.errorText}
               />
-
               <Text style={styles.errorText}>{campusError}</Text>
             </View>
 
@@ -388,7 +473,6 @@ export default function ProfileSettingsScreen() {
                 size={18}
                 color={COLORS.errorText}
               />
-
               <Text style={styles.errorText}>{interestError}</Text>
             </View>
 
@@ -436,6 +520,152 @@ export default function ProfileSettingsScreen() {
               );
             })}
           </View>
+        )}
+
+        <Text style={[styles.label, styles.spacedLabel]}>
+          Social profiles
+        </Text>
+
+        <Text style={styles.helperText}>
+          Optional. Choose whether other students can see each account.
+        </Text>
+
+        {isLoadingSocialLinks ? (
+          <View style={styles.inlineLoading}>
+            <ActivityIndicator color={COLORS.primary} />
+            <Text style={styles.inlineLoadingText}>
+              Loading social profiles...
+            </Text>
+          </View>
+        ) : socialLinksError ? (
+          <View>
+            <View style={styles.errorBox}>
+              <Ionicons
+                name="alert-circle-outline"
+                size={18}
+                color={COLORS.errorText}
+              />
+              <Text style={styles.errorText}>
+                {socialLinksError}
+              </Text>
+            </View>
+
+            <Pressable
+              style={styles.retryButton}
+              onPress={() => {
+                void loadSocialLinks();
+              }}
+            >
+              <Text style={styles.retryText}>Retry</Text>
+            </Pressable>
+          </View>
+        ) : (
+          <>
+            <Text style={styles.socialLabel}>LinkedIn URL</Text>
+
+            <TextInput
+              style={styles.input}
+              value={linkedinValue}
+              onChangeText={(value) => {
+                setLinkedinValue(value);
+                setSuccessMessage(null);
+
+                if (!value.trim()) {
+                  setLinkedinVisible(false);
+                }
+              }}
+              placeholder="https://www.linkedin.com/in/username"
+              placeholderTextColor={COLORS.mutedText}
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType="url"
+              maxLength={255}
+              editable={!isSubmitting}
+            />
+
+            <View style={styles.socialVisibilityRow}>
+              <View style={styles.socialVisibilityText}>
+                <Text style={styles.socialVisibilityTitle}>
+                  Show my LinkedIn
+                </Text>
+                <Text style={styles.socialVisibilitySubtitle}>
+                  Visible only when your overall profile is discoverable.
+                </Text>
+              </View>
+
+              <Switch
+                value={
+                  Boolean(linkedinValue.trim()) && linkedinVisible
+                }
+                onValueChange={setLinkedinVisible}
+                disabled={
+                  isSubmitting || !linkedinValue.trim()
+                }
+                trackColor={{
+                  false: "#D8D0D1",
+                  true: "#C98B95",
+                }}
+                thumbColor={
+                  linkedinVisible
+                    ? COLORS.primary
+                    : "#FFFFFF"
+                }
+              />
+            </View>
+
+            <Text style={[styles.socialLabel, styles.socialLabelSpaced]}>
+              Instagram username
+            </Text>
+
+            <TextInput
+              style={styles.input}
+              value={instagramValue}
+              onChangeText={(value) => {
+                setInstagramValue(value);
+                setSuccessMessage(null);
+
+                if (!value.trim()) {
+                  setInstagramVisible(false);
+                }
+              }}
+              placeholder="username"
+              placeholderTextColor={COLORS.mutedText}
+              autoCapitalize="none"
+              autoCorrect={false}
+              maxLength={30}
+              editable={!isSubmitting}
+            />
+
+            <View style={styles.socialVisibilityRow}>
+              <View style={styles.socialVisibilityText}>
+                <Text style={styles.socialVisibilityTitle}>
+                  Show my Instagram
+                </Text>
+                <Text style={styles.socialVisibilitySubtitle}>
+                  Visible only when your overall profile is discoverable.
+                </Text>
+              </View>
+
+              <Switch
+                value={
+                  Boolean(instagramValue.trim()) && instagramVisible
+                }
+                onValueChange={setInstagramVisible}
+                disabled={
+                  isSubmitting || !instagramValue.trim()
+                }
+                trackColor={{
+                  false: "#D8D0D1",
+                  true: "#C98B95",
+                }}
+                thumbColor={
+                  instagramVisible
+                    ? COLORS.primary
+                    : "#FFFFFF"
+                }
+              />
+            </View>
+          </>
         )}
 
         <View style={styles.discoverabilityRow}>
@@ -661,6 +891,44 @@ const styles = StyleSheet.create({
 
   interestTextSelected: {
     color: COLORS.primary,
+  },
+
+  socialLabel: {
+    marginTop: 4,
+    marginBottom: 8,
+    fontSize: 13,
+    fontWeight: "800",
+    color: COLORS.textDark,
+  },
+
+  socialLabelSpaced: {
+    marginTop: 18,
+  },
+
+  socialVisibilityRow: {
+    minHeight: 62,
+    marginTop: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    paddingHorizontal: 4,
+  },
+
+  socialVisibilityText: {
+    flex: 1,
+  },
+
+  socialVisibilityTitle: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: COLORS.textDark,
+  },
+
+  socialVisibilitySubtitle: {
+    marginTop: 2,
+    fontSize: 11,
+    lineHeight: 16,
+    color: COLORS.mutedText,
   },
 
   inlineLoading: {
