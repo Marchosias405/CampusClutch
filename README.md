@@ -2,9 +2,9 @@
 
 CampusClutch is an Expo React Native mobile app for university students to connect through courses, classmates, student profiles, campus help requests, direct messages, group conversations, notifications, and user profiles.
 
-The app still uses mock data and in-memory React context for its feature flows, but Supabase authentication is now connected to the hosted Development environment and a minimal authenticated profile schema has been introduced.
+The app still uses mock data and in-memory React context for several feature flows, but Supabase authentication and the signed-in user profile flow are now connected to the hosted Development environment. Task 6 is actively replacing mock profile identity data with persistent Supabase profile, campus, interest, discoverability, and avatar-storage foundations.
 
-> **Current status:** Tasks 1–4 are complete and Task 5—Authentication—is in finalization. Email/password sign-up and sign-in, sign-out, session restoration, protected Expo Router navigation, auth loading states, hosted PKCE email confirmation, password reset, recovery deep linking, minimal profile creation, and Android development-build testing are implemented. The core Task 5 acceptance flows have passed manual testing. Remaining work is final branch review, any last hosted recovery recheck after the Supabase email quota allows it, commit/push, pull request, CI, review, and merge. The app is not production-ready because persistent feature tables, complete authorization policies, moderation, production infrastructure, and release work are still outstanding.
+> **Current status:** Tasks 1–5 are complete. Task 6—Persist User Profiles—is in progress on `feature/persist-user-profiles` with draft pull request #22. The Task 6 profile foundation and atomic-interest migrations are applied locally and to hosted Development. Profile RLS/storage policies have passed focused local security tests; onboarding, profile editing, discoverability, campuses, and profile-interest selection are backend-backed and persistent; the signed-in Profile tab reads real Supabase identity data; and the fresh-account auth/onboarding navigation race has been fixed and manually verified. Remaining Task 6 work includes the missing social-profile fields from the target design, avatar picker/upload/rendering, public student-profile backend migration where appropriate, deleted/stale-account recovery UX, final regression testing, Preview validation, CI/review, and merge. The app is not production-ready because courses, requests, offers, messages, notifications, moderation, production infrastructure, and release work are still outstanding.
 
 ---
 
@@ -12,6 +12,7 @@ The app still uses mock data and in-memory React context for its feature flows, 
 
 - Expo SDK 54
 - Expo Dev Client
+- Expo Image Picker
 - React Native
 - TypeScript
 - Expo Router
@@ -71,28 +72,63 @@ Completed major milestones:
 - Protected Expo Router navigation
 - Sign-out integration on the Profile screen
 - Email confirmation and resend flow
-- Minimal `profiles` migration with owner-only read access
-- Android development build with `expo-dev-client`
-- USB/ADB Metro testing on a physical Pixel device
-- PKCE callback route for mobile authentication links
-- Hosted PKCE email-confirmation callback verified end to end
 - Password-reset request and recovery flow
-- Local Mailpit-based recovery testing without hosted email quota usage
-- Recovery-mode protection during temporary password-reset sessions
-- Stale callback-route handling after reload, app restoration, and sign-out
-- Final authenticated smoke tests across Courses, Requests, Messages, and Profile
+- Hosted PKCE email-confirmation callback verified end to end
+- Protected-route auth transition updated so sign-in/sign-up/callback no longer manually replace `/` after session creation
+- Local Mailpit-based recovery testing
+- Recovery-mode protection during password-reset sessions
+- Final Task 5 authenticated smoke tests
+- Task 5 merged into `main`
+- Task 6 profile schema migration created and applied locally
+- Task 6 profile schema migration applied to hosted Development
+- Shared `campuses` reference table added
+- Normalized `interests` and `profile_interests` tables added
+- Private `avatars` Storage bucket added with MIME and size restrictions
+- Profile owner/discoverability RLS and restricted update grants added
+- Local RLS/security validation for profiles, interests, and avatar Storage
+- `ProfileContext` and typed profile data-access layer added
+- Profile loading, missing-profile, error, and retry states added
+- Backend-backed profile onboarding added and manually verified
+- Onboarding completion persists across app restarts
+- Signed-in Profile tab now loads real Supabase name, major, and discoverability
+- Edit Profile screen added and manually verified
+- Profile edits persist across app restarts
+- Atomic profile-interest replacement RPC added and verified locally
+- Profile-interest selection added to onboarding and Edit Profile
+- Interest add/remove selections persist across hosted Development app restarts
+- Onboarding interests persist and reload in Edit Profile after restart
+- Fresh incomplete accounts now transition through protected routing without the previous `REPLACE "(tabs)"` warning
 
 Current milestone:
 
 ```text
-Task 5 — Finalize Authentication
+Task 6 — Persist User Profiles
 ```
 
-The core authentication implementation and manual functional testing are complete. Remaining Task 5 work is final branch review, optional hosted password-recovery recheck when the hosted email quota allows it, commit/push, pull request, CI, review, and merge.
+Task 6 is partially implemented and intentionally remains unmerged. Current branch:
+
+```text
+feature/persist-user-profiles
+```
+
+Current draft pull request:
+
+```text
+#22 — wip: checkpoint Task 6 profile persistence foundation
+```
+
+Checkpoints already pushed:
+
+```text
+d1a7091 — wip: checkpoint Task 6 profile persistence foundation
+28b9b39 — feat: add persistent profile onboarding and editing
+```
+
+Additional interests and auth-routing work is currently being prepared for the next Task 6 checkpoint. Do not merge pull request #22 until the remaining Task 6 profile, interests, avatar, public student-profile, testing, and environment-validation work is complete.
 
 ## Important Current Limitations
 
-CampusClutch now has a backend foundation, but its application features still use mock and in-memory data.
+CampusClutch now has working authentication and a partially migrated persistent profile domain, but several feature flows still use mock or in-memory data.
 
 This means:
 
@@ -100,20 +136,24 @@ This means:
 - Locally sent messages reset when the conversation is reopened or the app reloads.
 - Offer Help state is local UI state and resets when the request details screen is reopened.
 - Course membership is not persisted.
-- Student profile content is still loaded from shared mock data.
-- Real Development-environment user accounts now exist, but feature data is not yet associated with them.
-- Email/password sign-up, sign-in, sign-out, session restoration, and protected routes are implemented.
-- Hosted PKCE email confirmation has passed end-to-end testing.
-- Password-reset request and password-update recovery are implemented and passed end-to-end testing against local Supabase/Mailpit.
-- The hosted Development reset email was also delivered successfully; the final post-fix hosted recovery recheck can be repeated when the hosted email quota allows it.
-- Only the minimal authentication-linked `profiles` table exists.
-- Feature tables and their Row Level Security policies are not implemented yet.
-- The authentication migration has been applied to Development; Preview validation is still pending.
+- Classmates are still derived from `mockStudents`.
+- `src/app/students/[id].tsx` still uses mock student fixtures for the currently unmigrated classmate flow.
+- `src/app/messages/[id].tsx` still understands mock/classmate IDs and local threads; real profile messaging is deferred to Task 10.
+- Signed-in user profile identity now loads from hosted Supabase.
+- Profile onboarding and profile editing now persist to hosted Development.
+- Profile discoverability is persisted and enforced by RLS.
+- Profile campuses are stored by shared campus reference ID.
+- Interests are normalized in the database and are now editable in onboarding and Profile Settings. The replacement flow uses an atomic RPC so a failed update does not erase the previous selections.
+- A private avatar Storage bucket and RLS policies exist, but the app-side picker/upload/rendering flow is not implemented yet.
+- `expo-image-picker` is installed for the upcoming avatar UI.
+- Avatar object paths are stored privately; the current signed-in Profile tab intentionally uses initials until authenticated avatar loading is implemented.
+- Task 6 has been applied to hosted Development, but Preview validation/deployment is still pending.
+- Courses, requests, offers, conversations, messages, and notifications do not yet use persistent feature tables.
 - There are no real push notifications.
 - There is no production reporting or moderation workflow.
 - The production Supabase project and production EAS variables are not configured.
 
-An installable EAS build and configured Supabase projects do not make the app a complete production service.
+An installable EAS build and partially persistent backend do not make the app a complete production service.
 
 ## Team Working Method
 
@@ -332,6 +372,9 @@ CampusClutch/
 │   │   │   └── classmates.tsx
 │   │   ├── messages/
 │   │   │   └── [id].tsx
+│   │   ├── profile/
+│   │   │   ├── onboarding.tsx
+│   │   │   └── settings.tsx
 │   │   ├── requests/
 │   │   │   ├── [id].tsx
 │   │   │   └── create.tsx
@@ -346,16 +389,21 @@ CampusClutch/
 │   │   └── mockData.ts
 │   ├── context/
 │   │   ├── AuthContext.tsx
+│   │   ├── ProfileContext.tsx
 │   │   └── RequestsContext.tsx
 │   ├── lib/
 │   │   ├── env.ts
+│   │   ├── profiles.ts
 │   │   └── supabase.ts
 │   └── types/
-│       └── index.ts
+│       ├── index.ts
+│       └── profile.ts
 ├── supabase/
 │   ├── .gitignore
 │   ├── migrations/
-│   │   └── 20260729074002_add_auth_profiles.sql
+│   │   ├── 20260729074002_add_auth_profiles.sql
+│   │   ├── 20260803061327_persist_user_profiles.sql
+│   │   └── 20260805042701_replace_profile_interests_atomically.sql
 │   ├── config.toml
 │   └── seed.sql
 ├── .env.example
@@ -453,6 +501,96 @@ Tested students:
 - Aisha R.
 - Mei L.
 - Jordan T.
+
+---
+
+## Persisted Signed-In User Profile — Task 6 In Progress
+
+The signed-in user's profile now uses hosted Supabase data rather than hardcoded identity values.
+
+Implemented so far:
+
+- `public.profiles` extended with `display_name`, `major`, `year_of_study`, `campus_id`, `avatar_path`, `is_discoverable`, onboarding, and timestamp fields.
+- Shared `public.campuses` table with Burnaby, Surrey, and Vancouver campuses.
+- Normalized `public.interests` catalog and `public.profile_interests` many-to-many relation.
+- Private `avatars` Storage bucket with a 5 MiB limit and JPEG/PNG/WebP MIME restrictions.
+- Profile owner update restrictions enforced with RLS and column-level grants.
+- Signed-out profile reads denied.
+- Other authenticated users can read only completed discoverable profiles.
+- `ProfileContext` loads the authenticated user's profile separately from `AuthContext`.
+- Root navigation distinguishes auth/profile loading, query failure, missing profile, incomplete onboarding, and completed profile states.
+- Incomplete authenticated profiles are routed to `/profile/onboarding`.
+- Onboarding supports display name, major, year of study, campus, interests, and discoverability.
+- Completing onboarding persists `onboarding_completed_at` and survives a full app restart.
+- The Profile tab now displays persisted name, major, discoverability, and initials fallback.
+- `/profile/settings` edits display name, major, year, campus, interests, and discoverability.
+- Profile edits update immediately and survive a full app restart.
+- Loading, error, missing-profile, retry, validation, submitting, and success states are implemented for the current profile flow.
+- `public.replace_my_profile_interests(uuid[])` atomically replaces the signed-in user's interest set.
+- The client interest helper validates that it is updating the current authenticated profile and calls the atomic RPC.
+- Explicit post-auth `router.replace("/")` calls were removed from sign-in/sign-up/callback flows so `Stack.Protected` controls whether a signed-in user lands in onboarding or the main tabs.
+
+Focused local backend tests completed:
+
+- Fresh Auth user creates exactly one profile row.
+- New profile begins incomplete and non-discoverable.
+- Owner can update approved profile fields.
+- `onboarding_completed_at` is populated after valid completion.
+- `updated_at` is backend-maintained.
+- Protected fields such as `created_at` cannot be changed by the client.
+- One authenticated user cannot update another profile.
+- Private profile is hidden from other authenticated users.
+- Discoverable completed profile is readable by other authenticated users.
+- Anonymous profile reads are denied.
+- Duplicate profile interests are rejected.
+- Atomic replacement deduplicates repeated selected-interest IDs.
+- Invalid/inactive-interest replacement fails without deleting the user's previous selections.
+- An empty atomic replacement correctly clears all selected interests.
+- Users cannot add interests to another user's profile.
+- Discoverable profile interests can be read by another authenticated user.
+- Owner avatar upload to the owner-scoped folder succeeds.
+- Cross-user avatar upload is rejected.
+- Discoverable avatar read succeeds for another authenticated user.
+- Private avatar read is hidden from another authenticated user.
+- Owner can read a private avatar.
+- Invalid avatar MIME type is rejected.
+- Avatar files above 5 MiB are rejected.
+- Owner avatar deletion succeeds.
+- Database constraints reject whitespace-only/oversized display names and invalid year values.
+- Valid major/year/campus updates persist and normalize correctly.
+- `npx supabase db reset` passes.
+- `npx supabase db lint --local` reports no schema errors.
+- `20260805042701_replace_profile_interests_atomically.sql` applies locally and passes schema linting.
+
+Hosted Development validation completed:
+
+- `20260803061327_persist_user_profiles.sql` is recorded in remote migration history.
+- `20260805042701_replace_profile_interests_atomically.sql` is recorded in hosted Development migration history.
+- Hosted campuses load in the Android development build.
+- Existing incomplete hosted profile routes to onboarding.
+- Onboarding saves and routes automatically into the normal app.
+- Onboarding completion survives app restart.
+- Profile edits save successfully and survive app restart.
+- All 9 active interests load in Edit Profile.
+- Interest additions/removals save successfully and survive full app restart.
+- Fresh-account onboarding interest selections persist and reload in Edit Profile after restart.
+- Fresh incomplete accounts enter onboarding without the previous unhandled `REPLACE "(tabs)"` navigation warning.
+
+Still remaining in Task 6:
+
+- Add the target-design social profile fields and controls: LinkedIn URL, Instagram username, `show_linkedin`, and `show_instagram`, with appropriate validation/visibility behavior.
+- Add avatar picker UI using `expo-image-picker`.
+- Implement authenticated private avatar upload/download rendering.
+- Implement safe avatar replacement cleanup: upload new object → update `profiles.avatar_path` → delete old object only after the profile update succeeds.
+- Keep initials fallback when no avatar exists or avatar loading fails.
+- Migrate `/students/[id]` to backend profiles where appropriate while preserving clearly identified mock compatibility for the still-unmigrated Classmates flow.
+- Keep Classmates backend migration in Task 7.
+- Keep persistent messaging/direct-conversation creation in Task 10.
+- Add a safe recovery action (such as Sign Out) to the `Profile unavailable` state so a locally cached session for a server-deleted account cannot trap the user.
+- Complete final local/manual tests.
+- Apply/validate Task 6 migration in Preview.
+- Run final diff/security review.
+- Pass CI/review and merge draft pull request #22.
 
 ---
 
@@ -876,7 +1014,7 @@ The updated preview APK was tested for:
 ## Manually verified
 
 - Hosted Development account creation.
-- Hosted PKCE email confirmation opens CampusClutch and routes automatically to Home.
+- Hosted PKCE email confirmation opens CampusClutch and routes automatically through protected navigation to the appropriate profile state.
 - A corresponding `public.profiles` row is automatically created with the same UUID as the Auth user.
 - Existing confirmed-account sign-in opens the application.
 - Sign-out returns directly to Sign In.
@@ -893,16 +1031,11 @@ The updated preview APK was tested for:
 - Android recognizes the `campusclutch` custom URL scheme.
 - Development-client testing works over USB with ADB port reversal.
 
-## Remaining before Task 5 completion
+## Task 5 completion status
 
-- Optionally repeat the complete hosted Development password-recovery flow after the hosted Supabase auth-email quota allows another email.
-- Review auth restoration-error presentation before merge.
-- Run final local checks and inspect the complete staged diff.
-- Commit and push the remaining Task 5 changes.
-- Open a pull request.
-- Pass GitHub CI.
-- Complete review and merge into `main`.
+Task 5 is complete and merged into `main`.
 
+The final authentication branch passed manual acceptance checks and was merged through pull request #21. Authentication remains the foundation for the active Task 6 profile work.
 
 # Completed Roadmap Tasks
 
@@ -1029,95 +1162,99 @@ Completion condition: Met.
 
 # Task 5 — Add Authentication
 
-**Status: Finalization / manual acceptance passed**
+**Status: Complete**
 
-Branch:
+Completed:
+
+- Added `expo-dev-client` and tested an Android EAS development build.
+- Added `AuthContext` with session restoration, auth-state subscription, token auto-refresh, sign-up, sign-in, email resend, password reset, password update, recovery state, and sign-out.
+- Configured the Supabase client for AsyncStorage persistence, PKCE, `processLock`, and automatic token refresh.
+- Added Sign In, Create Account, Forgot Password, verification callback, and reset-password routes.
+- Added protected Expo Router navigation with `Stack.Protected`.
+- Added hosted/local mobile redirects for auth callback and password recovery.
+- Added PKCE email-confirmation handling, recovery-session protection, and stale callback-route handling.
+- Added `20260729074002_add_auth_profiles.sql` with one-to-one Auth profile initialization and RLS foundation.
+- Applied and verified the migration locally and in hosted Development.
+- Verified hosted sign-up/sign-in/sign-out/session restoration and hosted PKCE email confirmation.
+- Verified local Mailpit password recovery and password update.
+- Verified Android Back cannot reopen protected screens after sign-out.
+- Verified authenticated Courses, Requests, Messages, and Profile smoke tests.
+- Passed local quality checks and GitHub CI.
+- Merged the final authentication work into `main` through pull request #21.
+
+Completion condition: Met.
+
+# Task 6 — Persist User Profiles
+
+**Status: In progress**
+
+Current branch:
 
 ```text
-feature/supabase-authentication
+feature/persist-user-profiles
 ```
 
-Completed implementation:
+Current pull request:
 
-- Added `expo-dev-client`.
-- Created an Android EAS development build.
-- Added `AuthContext` with:
-  - Session state
-  - Current user state
-  - Auth-state subscription
-  - Session restoration
-  - App-state token auto-refresh
-  - Sign-up
-  - Sign-in
-  - Resend verification
-  - Password-reset request
-  - Password update
-  - Password-recovery state
-  - Sign-out
-- Configured the Supabase client with:
-  - AsyncStorage session persistence
-  - Automatic token refresh
-  - `processLock`
-  - PKCE authentication flow
-- Added public Sign In, Create Account, and Forgot Password screens.
-- Added password visibility controls, loading states, disabled states, rate-limit handling, and Android keyboard behavior.
-- Improved the Sign In password row so `Forgot password?` sits cleanly beside the Password label.
-- Protected application routes with Expo Router `Stack.Protected`.
-- Added a session-restoration loading screen.
-- Connected the Profile Log Out button to Supabase.
-- Added the native verification callback route:
-  - `src/app/auth/callback.tsx`
-- Added the native password-recovery route:
-  - `src/app/auth/reset-password.tsx`
-- Added custom redirects:
-  - `campusclutch://auth/callback`
-  - `campusclutch://auth/reset-password`
-- Added both redirects to hosted Development and local Supabase configuration.
-- Added PKCE code exchange for email verification.
-- Added `PASSWORD_RECOVERY` handling so temporary recovery sessions do not prematurely open the Home stack.
-- Added stale callback-route handling so reloads, app restoration, and sign-out do not reopen an invalid verification state.
-- Added migration:
-  - `20260729074002_add_auth_profiles.sql`
-- Added the minimal `public.profiles` table.
-- Added automatic profile initialization for new auth users.
-- Enabled Row Level Security.
-- Revoked anonymous table access.
-- Added owner-only authenticated profile reads.
-- Applied and verified the migration locally.
-- Pushed and verified the migration in hosted Development.
-- Used local Supabase and Mailpit for password-recovery testing without consuming the hosted auth-email quota.
-- Restored `.env.local` back to the hosted Development project after local recovery testing.
+```text
+#22 — Draft
+```
 
-Manual tests passed:
+Checkpoint already pushed:
 
-- Hosted sign-up with a fresh account.
-- Hosted PKCE email-confirmation deep link opens CampusClutch and routes to Home automatically.
-- Auth user creation automatically creates the matching `public.profiles` row.
-- Sign-in with a confirmed hosted account.
-- Sign-out from Profile.
-- Sign-out returns directly to Sign In instead of a stale callback screen.
-- Android Back does not reopen protected screens.
-- Session restoration after fully closing and reopening the app.
-- Stale callback routes no longer trap the app on `Verifying your email`.
-- Existing mock feature flows remain accessible after authentication.
-- Hosted password-reset email delivery.
-- Local Mailpit recovery deep link opens the reset-password route.
-- New password update succeeds.
-- Old password is rejected after reset.
-- New password signs in successfully.
-- Courses, Requests, Messages, and Profile pass a post-auth smoke test.
-- Development APK runs on a physical Pixel device.
-- Metro connection works over USB with ADB port reversal.
+```text
+d1a7091 — wip: checkpoint Task 6 profile persistence foundation
+```
 
-Remaining work:
+Completed so far:
 
-- Optionally repeat the complete hosted Development password-recovery flow after the hosted Supabase auth-email quota allows another recovery email.
-- Review restoration-error UI behavior before merge.
-- Run final checks and inspect the complete staged diff.
-- Commit and push the remaining Task 5 changes.
-- Open a pull request.
-- Pass GitHub CI.
-- Review and merge into `main`.
+- Added `expo-image-picker` dependency for the upcoming avatar UI.
+- Added typed profile/campus/interest models.
+- Added `20260803061327_persist_user_profiles.sql`.
+- Added `20260805042701_replace_profile_interests_atomically.sql`.
+- Added shared campus reference data.
+- Extended `public.profiles`.
+- Added normalized interests and profile-interest relationships.
+- Added private avatar Storage bucket and RLS.
+- Added profile/discoverability RLS and restricted update grants.
+- Passed local migration reset/schema linting and focused profile/interest/avatar security tests.
+- Applied the migration to hosted Development and confirmed local/remote migration history sync.
+- Added `src/lib/profiles.ts` as the typed Supabase profile data-access boundary.
+- Added `ProfileContext`.
+- Added profile loading, retry, error, missing-profile, and completion routing states.
+- Added `/profile/onboarding` and verified hosted Development onboarding on Android.
+- Verified onboarding completion survives app restart.
+- Migrated the signed-in Profile tab identity away from hardcoded profile data.
+- Added initials avatar fallback.
+- Added `/profile/settings`.
+- Verified profile editing and discoverability updates.
+- Verified edited profile values survive app restart.
+- Replaced the fragile delete-then-insert interest update with an authenticated atomic PostgreSQL RPC.
+- Verified atomic interest replacement, duplicate-ID handling, invalid-ID rollback, and clearing all interests locally.
+- Applied and verified the atomic-interest migration in hosted Development.
+- Added active-interest loading and selection UI to onboarding and Edit Profile.
+- Verified interest add/remove persistence and full-restart persistence in hosted Development.
+- Verified onboarding interests persist after completing onboarding and reloading the app.
+- Fixed the fresh-account auth navigation race by relying on `Stack.Protected` instead of explicit post-auth root replacements.
+- Verified the previous unhandled `REPLACE "(tabs)"` warning is gone.
+- Preserved mock points/activity because they belong to later roadmap work.
+
+Remaining:
+
+- Add LinkedIn/Instagram profile fields and per-field visibility controls from the target onboarding design.
+- Add avatar picker/upload/download/rendering flow.
+- Add safe avatar replacement/orphan cleanup behavior.
+- Add avatar loading/failure fallback behavior.
+- Migrate public student profile loading to backend data where appropriate.
+- Preserve explicit mock compatibility for Classmates until Task 7.
+- Keep direct-message persistence for Task 10.
+- Add a Sign Out/recovery path to the missing-profile state for stale sessions after a server-side account deletion.
+- Complete final Task 6 manual/regression tests.
+- Apply/validate the migration in Preview.
+- Run final `npm run check`, `git diff --check`, and staged review.
+- Push remaining branch work.
+- Pass GitHub CI/review.
+- Merge draft pull request #22 only after Task 6 is complete.
 
 Current expected local check:
 
@@ -1126,53 +1263,16 @@ Current expected local check:
 2 existing Courses warnings
 ```
 
-Out of scope:
-
-- Persistent courses
-- Persistent requests
-- Real offers
-- Persistent conversations and messages
-- Notifications
-- Production environment configuration
-- Unrelated UI redesigns
-
-Completion condition:
-
-- A user can create an account.
-- A user can sign in and sign out.
-- Session restoration works.
-- Protected routes cannot be opened without authentication.
-- Verification and password-reset behavior are handled.
-- Existing mock feature flows remain usable after sign-in.
-- Manual acceptance tests pass.
-- `npm run check` and `git diff --check` pass.
-- GitHub CI and review pass.
-- The branch is merged into `main`.
-
-# Task 6 — Persist User Profiles
-
-Start only after authentication is complete.
-
-Requirements:
-
-- Profile belongs to authenticated user.
-- Name
-- Major
-- Year
-- Campus
-- Avatar strategy
-- Interests
-- Profile editing
-- Loading state
-- Error state
-- Safe validation
-- Public versus private profile fields
-
 Completion condition:
 
 - Profile data loads from the backend.
 - Profile changes persist.
-- Student profile screens use backend data where appropriate.
+- Interests and avatars work securely.
+- Discoverability is enforced.
+- Public student profile screens use backend data where appropriate without breaking unmigrated flows.
+- Loading, error, retry, validation, and fallback states are covered.
+- Development and Preview backend migrations are validated.
+- Manual tests, local checks, CI, review, and merge pass.
 
 ---
 
@@ -1511,8 +1611,10 @@ Possible work:
 - EAS Preview variables: Configured
 - Production Supabase project: Not created
 - Production EAS variables: Not configured
-- Application database schema: Minimal auth-linked `profiles` migration created and applied to Development
-- Authentication: Task 5 implementation and manual acceptance substantially complete; final branch review, optional hosted recovery recheck, CI, review, and merge remain
+- Application database schema: Auth foundation plus Task 6 profiles/campuses/interests/avatar-storage migration and atomic-interest RPC migration applied to Development
+- Authentication: Task 5 complete and merged
+- User profiles: Task 6 in progress; onboarding, signed-in profile editing, campuses, discoverability, and profile interests are persistent in hosted Development
+- Task 6 pull request: #22 open as Draft
 - Production Android build: Not started
 - Production iOS build: Not started
 - Google Play submission: Not started
@@ -1524,18 +1626,17 @@ No secrets, private keys, database passwords, store credentials, or real environ
 
 CampusClutch still needs:
 
-- Final Task 5 branch review, CI, review, and merge
-- Optional hosted Development password-recovery recheck after the built-in auth-email quota allows another recovery email
+- Completion and merge of Task 6 profile persistence
+- LinkedIn/Instagram profile fields and per-field visibility controls
+- Avatar picker/upload/rendering integration
+- Public student-profile backend migration where appropriate
+- Task 6 Preview validation
 - Production-ready authentication email delivery/SMTP strategy
-- Feature application schemas and migrations beyond the minimal auth profile
-- Feature Row Level Security policies and explicit grants
+- Persistent course storage and memberships
 - Persistent request storage
-- Persistent course storage
-- Persistent profile storage
-- Persistent message storage
 - Real request offers
+- Persistent conversations and messages
 - Real notifications
-- User ownership enforcement
 - Production Supabase and EAS environments
 - Privacy policy
 - Content moderation and reporting
@@ -1546,37 +1647,41 @@ CampusClutch still needs:
 
 # Next Action
 
-Finish only:
+Continue only:
 
 ```text
-Task 5 — Finalize Authentication
+Task 6 — Persist User Profiles
 ```
 
 Current branch:
 
 ```text
-feature/supabase-authentication
+feature/persist-user-profiles
 ```
 
-Next steps:
+Current draft pull request:
 
-1. Verify the current branch and working tree.
-2. Run `npm run check` and `git diff --check`.
-3. Inspect the complete Task 5 diff.
-4. Confirm no secrets or `.env.local` values are staged.
-5. Stage only Task 5 files and this README update.
-6. Run `git diff --cached --check` and review the staged diff.
-7. Commit the remaining Task 5 work.
-8. Push `feature/supabase-authentication`.
-9. Open a pull request.
-10. Wait for GitHub CI and review.
-11. Merge only after CI and review pass.
-12. Update local `main` and delete the feature branch.
-13. Mark Task 5 complete in this README after the merge.
+```text
+#22
+```
 
-Optional before merge:
+Immediate next steps:
 
-- Repeat the complete hosted Development password-recovery flow after the hosted Supabase auth-email quota allows another recovery email.
-- Review the session-restoration error presentation.
+1. Include this README update in the next Task 6 checkpoint.
+2. Continue on `feature/persist-user-profiles`; do not merge the draft PR yet.
+3. Add LinkedIn URL, Instagram username, and their per-field visibility controls from the target profile design, including backend validation/RLS-safe updates.
+4. Add a Sign Out/recovery action to the missing-profile state for stale sessions after server-side account deletion.
+5. Implement the avatar picker using the installed `expo-image-picker` dependency.
+6. Implement private avatar upload/rendering with owner-scoped paths and initials fallback.
+7. Use safe avatar replacement order: upload new object → update `avatar_path` → delete old object only after the database update succeeds; clean up the new orphan if the database update fails where practical.
+8. Migrate `/students/[id]` to backend profile data where appropriate while preserving explicit mock compatibility for the still-unmigrated Classmates flow.
+9. Keep Courses/Classmates persistence for Task 7 and Messages persistence for Task 10.
+10. Run the remaining Task 6 local/manual regression tests.
+11. Apply and validate all Task 6 migrations in Preview.
+12. Run `npm run check`, `git diff --check`, and staged diff review.
+13. Push the completed Task 6 branch.
+14. Wait for GitHub CI and review.
+15. Convert/merge pull request #22 only after Task 6 is complete.
+16. Update local `main`, delete the feature branch, and mark Task 6 complete in this README.
 
-Do not begin Task 6 until Task 5 has passed CI, review, and merge.
+Do not begin Task 7 until Task 6 has passed final testing, CI, review, and merge.

@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -16,8 +16,13 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useProfile } from "@/context/ProfileContext";
-import { getCampuses } from "@/lib/profiles";
-import type { Campus } from "@/types";
+import {
+  getCampuses,
+  getInterests,
+  getProfileInterests,
+  replaceProfileInterests,
+} from "@/lib/profiles";
+import type { Campus, Interest } from "@/types";
 
 const COLORS = {
   primary: "#9B1C31",
@@ -48,7 +53,7 @@ function getErrorMessage(error: unknown) {
 
 export default function ProfileOnboardingScreen() {
   const insets = useSafeAreaInsets();
-  const { saveProfile } = useProfile();
+  const { profile, saveProfile } = useProfile();
 
   const [displayName, setDisplayName] = useState("");
   const [major, setMajor] = useState("");
@@ -59,6 +64,11 @@ export default function ProfileOnboardingScreen() {
   const [campuses, setCampuses] = useState<Campus[]>([]);
   const [isLoadingCampuses, setIsLoadingCampuses] = useState(true);
   const [campusError, setCampusError] = useState<string | null>(null);
+
+  const [interests, setInterests] = useState<Interest[]>([]);
+  const [selectedInterestIds, setSelectedInterestIds] = useState<string[]>([]);
+  const [isLoadingInterests, setIsLoadingInterests] = useState(true);
+  const [interestError, setInterestError] = useState<string | null>(null);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -77,9 +87,52 @@ export default function ProfileOnboardingScreen() {
     }
   };
 
+  const loadInterests = useCallback(async () => {
+    if (!profile) {
+      setInterests([]);
+      setSelectedInterestIds([]);
+      setInterestError("Profile unavailable.");
+      setIsLoadingInterests(false);
+      return;
+    }
+
+    setIsLoadingInterests(true);
+    setInterestError(null);
+
+    try {
+      const [nextInterests, currentInterests] = await Promise.all([
+        getInterests(),
+        getProfileInterests(profile.id),
+      ]);
+
+      setInterests(nextInterests);
+      setSelectedInterestIds(
+        currentInterests.map((interest) => interest.id)
+      );
+    } catch {
+      setInterestError("Unable to load interests.");
+    } finally {
+      setIsLoadingInterests(false);
+    }
+  }, [profile]);
+
   useEffect(() => {
     void loadCampuses();
   }, []);
+
+  useEffect(() => {
+    void loadInterests();
+  }, [loadInterests]);
+
+  const toggleInterest = (interestId: string) => {
+    setSelectedInterestIds((current) => {
+      if (current.includes(interestId)) {
+        return current.filter((id) => id !== interestId);
+      }
+
+      return [...current, interestId];
+    });
+  };
 
   const handleSubmit = async () => {
     const normalizedName = displayName.trim();
@@ -101,10 +154,29 @@ export default function ProfileOnboardingScreen() {
       return;
     }
 
+    if (!profile) {
+      setErrorMessage("Profile unavailable. Try again.");
+      return;
+    }
+
+    if (isLoadingInterests) {
+      setErrorMessage("Wait for interests to finish loading.");
+      return;
+    }
+
+    if (interestError) {
+      setErrorMessage("Retry loading interests before continuing.");
+      return;
+    }
+
     setIsSubmitting(true);
     setErrorMessage(null);
 
     try {
+      // Save interests first. saveProfile() completes onboarding and causes
+      // Stack.Protected to remove this route once the profile becomes complete.
+      await replaceProfileInterests(profile.id, selectedInterestIds);
+
       await saveProfile({
         displayName: normalizedName,
         major: normalizedMajor || null,
@@ -147,6 +219,7 @@ export default function ProfileOnboardingScreen() {
         </Text>
 
         <Text style={styles.label}>Display name *</Text>
+
         <TextInput
           style={styles.input}
           value={displayName}
@@ -160,6 +233,7 @@ export default function ProfileOnboardingScreen() {
         />
 
         <Text style={[styles.label, styles.spacedLabel]}>Major</Text>
+
         <TextInput
           style={styles.input}
           value={major}
@@ -211,7 +285,9 @@ export default function ProfileOnboardingScreen() {
         {isLoadingCampuses ? (
           <View style={styles.inlineLoading}>
             <ActivityIndicator color={COLORS.primary} />
-            <Text style={styles.inlineLoadingText}>Loading campuses...</Text>
+            <Text style={styles.inlineLoadingText}>
+              Loading campuses...
+            </Text>
           </View>
         ) : campusError ? (
           <View>
@@ -274,11 +350,82 @@ export default function ProfileOnboardingScreen() {
           </View>
         )}
 
+        <Text style={[styles.label, styles.spacedLabel]}>Interests</Text>
+
+        <Text style={styles.helperText}>
+          Choose the things you are interested in. You can change these later.
+        </Text>
+
+        {isLoadingInterests ? (
+          <View style={styles.inlineLoading}>
+            <ActivityIndicator color={COLORS.primary} />
+            <Text style={styles.inlineLoadingText}>
+              Loading interests...
+            </Text>
+          </View>
+        ) : interestError ? (
+          <View>
+            <View style={styles.errorBox}>
+              <Ionicons
+                name="alert-circle-outline"
+                size={18}
+                color={COLORS.errorText}
+              />
+              <Text style={styles.errorText}>{interestError}</Text>
+            </View>
+
+            <Pressable
+              style={styles.retryButton}
+              onPress={() => {
+                void loadInterests();
+              }}
+            >
+              <Text style={styles.retryText}>Retry</Text>
+            </Pressable>
+          </View>
+        ) : (
+          <View style={styles.interestsWrap}>
+            {interests.map((interest) => {
+              const isSelected = selectedInterestIds.includes(interest.id);
+
+              return (
+                <Pressable
+                  key={interest.id}
+                  style={[
+                    styles.interestButton,
+                    isSelected && styles.interestButtonSelected,
+                  ]}
+                  onPress={() => toggleInterest(interest.id)}
+                  disabled={isSubmitting}
+                >
+                  {isSelected ? (
+                    <Ionicons
+                      name="checkmark"
+                      size={15}
+                      color={COLORS.primary}
+                    />
+                  ) : null}
+
+                  <Text
+                    style={[
+                      styles.interestText,
+                      isSelected && styles.interestTextSelected,
+                    ]}
+                  >
+                    {interest.displayName}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        )}
+
         <View style={styles.discoverabilityRow}>
           <View style={styles.discoverabilityText}>
             <Text style={styles.discoverabilityTitle}>
               Show me to other students
             </Text>
+
             <Text style={styles.discoverabilitySubtitle}>
               You can change this setting later.
             </Text>
@@ -377,6 +524,14 @@ const styles = StyleSheet.create({
     marginTop: 19,
   },
 
+  helperText: {
+    marginTop: -2,
+    marginBottom: 11,
+    fontSize: 12,
+    lineHeight: 17,
+    color: COLORS.mutedText,
+  },
+
   input: {
     height: 54,
     borderWidth: 1,
@@ -448,6 +603,41 @@ const styles = StyleSheet.create({
   },
 
   campusTextSelected: {
+    color: COLORS.primary,
+  },
+
+  interestsWrap: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 9,
+  },
+
+  interestButton: {
+    minHeight: 40,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 5,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    backgroundColor: COLORS.inputBackground,
+  },
+
+  interestButtonSelected: {
+    borderColor: COLORS.primary,
+    backgroundColor: COLORS.selectedBackground,
+  },
+
+  interestText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: COLORS.textDark,
+  },
+
+  interestTextSelected: {
     color: COLORS.primary,
   },
 

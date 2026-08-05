@@ -160,9 +160,9 @@ function RootNavigator() {
 
         <Stack.Protected guard={!session}>
           <Stack.Screen name="(auth)" />
+          <Stack.Screen name="auth/callback" />
         </Stack.Protected>
 
-        <Stack.Screen name="auth/callback" />
         <Stack.Screen name="auth/reset-password" />
       </Stack>
 

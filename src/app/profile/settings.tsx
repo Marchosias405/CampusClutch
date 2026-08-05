@@ -1,23 +1,28 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
-    ActivityIndicator,
-    KeyboardAvoidingView,
-    Platform,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Switch,
-    Text,
-    TextInput,
-    View,
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  TextInput,
+  View,
 } from "react-native";
 
 import ScreenHeader from "@/components/ScreenHeader";
 import { useProfile } from "@/context/ProfileContext";
-import { getCampuses } from "@/lib/profiles";
-import type { Campus } from "@/types";
+import {
+  getCampuses,
+  getInterests,
+  getProfileInterests,
+  replaceProfileInterests,
+} from "@/lib/profiles";
+import type { Campus, Interest } from "@/types";
 
 const COLORS = {
   primary: "#9B1C31",
@@ -69,6 +74,11 @@ export default function ProfileSettingsScreen() {
   const [isLoadingCampuses, setIsLoadingCampuses] = useState(true);
   const [campusError, setCampusError] = useState<string | null>(null);
 
+  const [interests, setInterests] = useState<Interest[]>([]);
+  const [selectedInterestIds, setSelectedInterestIds] = useState<string[]>([]);
+  const [isLoadingInterests, setIsLoadingInterests] = useState(true);
+  const [interestError, setInterestError] = useState<string | null>(null);
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -87,9 +97,54 @@ export default function ProfileSettingsScreen() {
     }
   };
 
+  const loadInterests = useCallback(async () => {
+    if (!profile) {
+      setInterests([]);
+      setSelectedInterestIds([]);
+      setInterestError("Profile unavailable.");
+      setIsLoadingInterests(false);
+      return;
+    }
+
+    setIsLoadingInterests(true);
+    setInterestError(null);
+
+    try {
+      const [nextInterests, currentInterests] = await Promise.all([
+        getInterests(),
+        getProfileInterests(profile.id),
+      ]);
+
+      setInterests(nextInterests);
+      setSelectedInterestIds(
+        currentInterests.map((interest) => interest.id)
+      );
+    } catch {
+      setInterestError("Unable to load interests.");
+    } finally {
+      setIsLoadingInterests(false);
+    }
+  }, [profile]);
+
   useEffect(() => {
     void loadCampuses();
   }, []);
+
+  useEffect(() => {
+    void loadInterests();
+  }, [loadInterests]);
+
+  const toggleInterest = (interestId: string) => {
+    setSelectedInterestIds((current) => {
+      if (current.includes(interestId)) {
+        return current.filter((id) => id !== interestId);
+      }
+
+      return [...current, interestId];
+    });
+
+    setSuccessMessage(null);
+  };
 
   const handleSave = async () => {
     const normalizedName = displayName.trim();
@@ -113,11 +168,31 @@ export default function ProfileSettingsScreen() {
       return;
     }
 
+    if (!profile) {
+      setErrorMessage("Profile unavailable. Try again.");
+      setSuccessMessage(null);
+      return;
+    }
+
+    if (isLoadingInterests) {
+      setErrorMessage("Wait for interests to finish loading.");
+      setSuccessMessage(null);
+      return;
+    }
+
+    if (interestError) {
+      setErrorMessage("Retry loading interests before saving.");
+      setSuccessMessage(null);
+      return;
+    }
+
     setIsSubmitting(true);
     setErrorMessage(null);
     setSuccessMessage(null);
 
     try {
+      await replaceProfileInterests(profile.id, selectedInterestIds);
+
       await saveProfile({
         displayName: normalizedName,
         major: normalizedMajor || null,
@@ -292,6 +367,77 @@ export default function ProfileSettingsScreen() {
           </View>
         )}
 
+        <Text style={[styles.label, styles.spacedLabel]}>Interests</Text>
+
+        <Text style={styles.helperText}>
+          Choose the things you are interested in.
+        </Text>
+
+        {isLoadingInterests ? (
+          <View style={styles.inlineLoading}>
+            <ActivityIndicator color={COLORS.primary} />
+            <Text style={styles.inlineLoadingText}>
+              Loading interests...
+            </Text>
+          </View>
+        ) : interestError ? (
+          <View>
+            <View style={styles.errorBox}>
+              <Ionicons
+                name="alert-circle-outline"
+                size={18}
+                color={COLORS.errorText}
+              />
+
+              <Text style={styles.errorText}>{interestError}</Text>
+            </View>
+
+            <Pressable
+              style={styles.retryButton}
+              onPress={() => {
+                void loadInterests();
+              }}
+            >
+              <Text style={styles.retryText}>Retry</Text>
+            </Pressable>
+          </View>
+        ) : (
+          <View style={styles.interestsWrap}>
+            {interests.map((interest) => {
+              const isSelected = selectedInterestIds.includes(interest.id);
+
+              return (
+                <Pressable
+                  key={interest.id}
+                  style={[
+                    styles.interestButton,
+                    isSelected && styles.interestButtonSelected,
+                  ]}
+                  onPress={() => toggleInterest(interest.id)}
+                  disabled={isSubmitting}
+                >
+                  {isSelected ? (
+                    <Ionicons
+                      name="checkmark"
+                      size={15}
+                      color={COLORS.primary}
+                    />
+                  ) : null}
+
+                  <Text
+                    style={[
+                      styles.interestText,
+                      isSelected && styles.interestTextSelected,
+                    ]}
+                  >
+                    {interest.displayName}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        )}
+
         <View style={styles.discoverabilityRow}>
           <View style={styles.discoverabilityText}>
             <Text style={styles.discoverabilityTitle}>
@@ -400,6 +546,14 @@ const styles = StyleSheet.create({
     marginTop: 19,
   },
 
+  helperText: {
+    marginTop: -2,
+    marginBottom: 11,
+    fontSize: 12,
+    lineHeight: 17,
+    color: COLORS.mutedText,
+  },
+
   input: {
     height: 54,
     borderWidth: 1,
@@ -471,6 +625,41 @@ const styles = StyleSheet.create({
   },
 
   campusTextSelected: {
+    color: COLORS.primary,
+  },
+
+  interestsWrap: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 9,
+  },
+
+  interestButton: {
+    minHeight: 40,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 5,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    backgroundColor: COLORS.inputBackground,
+  },
+
+  interestButtonSelected: {
+    borderColor: COLORS.primary,
+    backgroundColor: COLORS.selectedBackground,
+  },
+
+  interestText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: COLORS.textDark,
+  },
+
+  interestTextSelected: {
     color: COLORS.primary,
   },
 

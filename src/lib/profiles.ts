@@ -1,9 +1,9 @@
 import { supabase } from "@/lib/supabase";
 import type {
-    Campus,
-    Interest,
-    Profile,
-    ProfileUpdateInput,
+  Campus,
+  Interest,
+  Profile,
+  ProfileUpdateInput,
 } from "@/types";
 
 type ProfileRow = {
@@ -201,31 +201,26 @@ export async function replaceProfileInterests(
   profileId: string,
   interestIds: string[]
 ): Promise<void> {
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
+
+  if (userError) {
+    throw userError;
+  }
+
+  if (!user || user.id !== profileId) {
+    throw new Error("You can only update your own profile interests.");
+  }
+
   const uniqueInterestIds = [...new Set(interestIds)];
 
-  const { error: deleteError } = await supabase
-    .from("profile_interests")
-    .delete()
-    .eq("profile_id", profileId);
+  const { error } = await supabase.rpc("replace_my_profile_interests", {
+    p_interest_ids: uniqueInterestIds,
+  });
 
-  if (deleteError) {
-    throw deleteError;
-  }
-
-  if (uniqueInterestIds.length === 0) {
-    return;
-  }
-
-  const { error: insertError } = await supabase
-    .from("profile_interests")
-    .insert(
-      uniqueInterestIds.map((interestId) => ({
-        profile_id: profileId,
-        interest_id: interestId,
-      }))
-    );
-
-  if (insertError) {
-    throw insertError;
+  if (error) {
+    throw error;
   }
 }

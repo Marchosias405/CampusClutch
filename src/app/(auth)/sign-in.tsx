@@ -61,7 +61,6 @@ export default function SignInScreen() {
       return;
     }
 
-    router.replace("/" as never);
   };
 
   return (
