@@ -1,8 +1,10 @@
 import { useAuth } from "@/context/AuthContext";
 import { useProfile } from "@/context/ProfileContext";
+import { getProfileAvatarSignedUrl } from "@/lib/avatars";
 import { FontAwesome5, Ionicons } from "@expo/vector-icons";
+import { Image } from "expo-image";
 import { useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -52,6 +54,10 @@ export default function ProfileScreen() {
   const router = useRouter();
   const { signOut } = useAuth();
   const { profile } = useProfile();
+  const [avatarSignedUrl, setAvatarSignedUrl] = useState<string | null>(null);
+  const [isLoadingAvatar, setIsLoadingAvatar] = useState(
+    Boolean(profile?.avatarPath)
+  );
 
   const displayName = profile?.displayName ?? "Student";
   const major = profile?.major ?? "Major not added";
@@ -63,6 +69,46 @@ export default function ProfileScreen() {
     .map((part) => part[0]?.toUpperCase())
     .join("");
 
+  useEffect(() => {
+    let isActive = true;
+
+    const loadAvatar = async () => {
+      if (!profile?.avatarPath) {
+        if (isActive) {
+          setAvatarSignedUrl(null);
+          setIsLoadingAvatar(false);
+        }
+
+        return;
+      }
+
+      setIsLoadingAvatar(true);
+
+      try {
+        const signedUrl = await getProfileAvatarSignedUrl(
+          profile.avatarPath
+        );
+
+        if (isActive) {
+          setAvatarSignedUrl(signedUrl);
+        }
+      } catch {
+        if (isActive) {
+          setAvatarSignedUrl(null);
+        }
+      } finally {
+        if (isActive) {
+          setIsLoadingAvatar(false);
+        }
+      }
+    };
+
+    void loadAvatar();
+
+    return () => {
+      isActive = false;
+    };
+  }, [profile?.avatarPath]);
 
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [signOutError, setSignOutError] = useState<string | null>(null);
@@ -100,11 +146,21 @@ export default function ProfileScreen() {
 
           <View style={styles.profileSection}>
             <View style={styles.avatarOuter}>
-              <View style={styles.avatarFallback}>
-                <Text style={styles.avatarInitials}>
-                  {initials || "S"}
-                </Text>
-              </View>
+              {avatarSignedUrl ? (
+                <Image
+                  source={{ uri: avatarSignedUrl }}
+                  style={styles.avatarImage}
+                  contentFit="cover"
+                />
+              ) : isLoadingAvatar ? (
+                <ActivityIndicator color={COLORS.primary} />
+              ) : (
+                <View style={styles.avatarFallback}>
+                  <Text style={styles.avatarInitials}>
+                    {initials || "S"}
+                  </Text>
+                </View>
+              )}
             </View>
 
             <View style={styles.profileInfo}>
@@ -277,6 +333,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: COLORS.cardWhite,
+  },
+
+  avatarImage: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
   },
 
   avatarFallback: {

@@ -1,4 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
+import { Image } from "expo-image";
+import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
@@ -16,6 +18,10 @@ import {
 
 import ScreenHeader from "@/components/ScreenHeader";
 import { useProfile } from "@/context/ProfileContext";
+import {
+  getProfileAvatarSignedUrl,
+  replaceProfileAvatar,
+} from "@/lib/avatars";
 import {
   getCampuses,
   getInterests,
@@ -62,6 +68,13 @@ function getErrorMessage(error: unknown) {
 export default function ProfileSettingsScreen() {
   const router = useRouter();
   const { profile, saveProfile } = useProfile();
+  const [avatarSignedUrl, setAvatarSignedUrl] = useState<string | null>(null);
+  const [selectedAvatar, setSelectedAvatar] =
+    useState<ImagePicker.ImagePickerAsset | null>(null);
+  const [isLoadingAvatar, setIsLoadingAvatar] = useState(
+    Boolean(profile?.avatarPath)
+  );
+  const [avatarError, setAvatarError] = useState<string | null>(null);
 
   const [displayName, setDisplayName] = useState(
     profile?.displayName ?? ""
@@ -170,6 +183,50 @@ export default function ProfileSettingsScreen() {
   }, [profile]);
 
   useEffect(() => {
+    let isActive = true;
+
+    const loadAvatar = async () => {
+      if (!profile?.avatarPath) {
+        if (isActive) {
+          setAvatarSignedUrl(null);
+          setAvatarError(null);
+          setIsLoadingAvatar(false);
+        }
+
+        return;
+      }
+
+      setIsLoadingAvatar(true);
+      setAvatarError(null);
+
+      try {
+        const signedUrl = await getProfileAvatarSignedUrl(
+          profile.avatarPath
+        );
+
+        if (isActive) {
+          setAvatarSignedUrl(signedUrl);
+        }
+      } catch {
+        if (isActive) {
+          setAvatarSignedUrl(null);
+          setAvatarError("Unable to load your profile photo.");
+        }
+      } finally {
+        if (isActive) {
+          setIsLoadingAvatar(false);
+        }
+      }
+    };
+
+    void loadAvatar();
+
+    return () => {
+      isActive = false;
+    };
+  }, [profile?.avatarPath]);
+
+  useEffect(() => {
     void loadCampuses();
   }, []);
 
@@ -192,6 +249,53 @@ export default function ProfileSettingsScreen() {
 
     setSuccessMessage(null);
   };
+
+  const handleChooseAvatar = async () => {
+    setErrorMessage(null);
+    setSuccessMessage(null);
+
+    try {
+      const permission =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+      if (!permission.granted) {
+        setErrorMessage(
+          "Allow photo access to choose a profile picture."
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.85,
+      });
+
+      if (result.canceled) {
+        return;
+      }
+
+      const asset = result.assets[0];
+
+      if (!asset) {
+        return;
+      }
+
+      if (!asset.mimeType) {
+        setErrorMessage(
+          "The image type could not be determined. Choose a JPEG, PNG, or WebP image."
+        );
+        return;
+      }
+
+      setSelectedAvatar(asset);
+      setAvatarError(null);
+    } catch (error) {
+      setErrorMessage(getErrorMessage(error));
+    }
+  };
+
 
   const handleSave = async () => {
     const normalizedName = displayName.trim();
@@ -279,6 +383,20 @@ export default function ProfileSettingsScreen() {
           Boolean(normalizedInstagram) && instagramVisible,
       });
 
+      let oldAvatarCleanupFailed = false;
+
+      if (selectedAvatar) {
+        const avatarResult = await replaceProfileAvatar(
+          profile.id,
+          profile.avatarPath,
+          selectedAvatar.uri,
+          selectedAvatar.mimeType
+        );
+
+        oldAvatarCleanupFailed =
+          avatarResult.oldAvatarCleanupFailed;
+      }
+
       await saveProfile({
         displayName: normalizedName,
         major: normalizedMajor || null,
@@ -287,7 +405,13 @@ export default function ProfileSettingsScreen() {
         isDiscoverable,
       });
 
-      setSuccessMessage("Profile updated.");
+      setSelectedAvatar(null);
+
+      setSuccessMessage(
+        oldAvatarCleanupFailed
+          ? "Profile updated. The old profile photo could not be cleaned up."
+          : "Profile updated."
+      );
     } catch (error) {
       setErrorMessage(getErrorMessage(error));
     } finally {
@@ -318,6 +442,59 @@ export default function ProfileSettingsScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
+
+
+        <View style={styles.avatarSection}>
+          <View style={styles.avatarPreview}>
+            {selectedAvatar?.uri || avatarSignedUrl ? (
+              <Image
+                source={{
+                  uri: selectedAvatar?.uri ?? avatarSignedUrl ?? "",
+                }}
+                style={styles.avatarImage}
+                contentFit="cover"
+              />
+            ) : isLoadingAvatar ? (
+              <ActivityIndicator color={COLORS.primary} />
+            ) : (
+              <Ionicons
+                name="person"
+                size={42}
+                color={COLORS.mutedText}
+              />
+            )}
+          </View>
+
+          <Pressable
+            style={styles.avatarButton}
+            onPress={() => {
+              void handleChooseAvatar();
+            }}
+            disabled={isSubmitting}
+          >
+            <Ionicons
+              name="image-outline"
+              size={18}
+              color={COLORS.primary}
+            />
+            <Text style={styles.avatarButtonText}>
+              {profile?.avatarPath || selectedAvatar
+                ? "Change profile photo"
+                : "Choose profile photo"}
+            </Text>
+          </Pressable>
+
+          <Text style={styles.avatarHelperText}>
+            JPEG, PNG, or WebP. Maximum 5 MB.
+          </Text>
+
+          {avatarError ? (
+            <Text style={styles.avatarErrorText}>
+              {avatarError}
+            </Text>
+          ) : null}
+        </View>
+
         <Text style={styles.label}>Display name *</Text>
 
         <TextInput
@@ -763,6 +940,62 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingTop: 28,
     paddingBottom: 40,
+  },
+
+  avatarSection: {
+    alignItems: "center",
+    marginBottom: 28,
+  },
+
+  avatarPreview: {
+    width: 112,
+    height: 112,
+    borderRadius: 56,
+    overflow: "hidden",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.inputBackground,
+  },
+
+  avatarImage: {
+    width: "100%",
+    height: "100%",
+  },
+
+  avatarButton: {
+    marginTop: 14,
+    minHeight: 42,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 7,
+    borderWidth: 1,
+    borderColor: COLORS.primary,
+    borderRadius: 10,
+    paddingHorizontal: 15,
+    paddingVertical: 9,
+  },
+
+  avatarButtonText: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: COLORS.primary,
+  },
+
+  avatarHelperText: {
+    marginTop: 8,
+    fontSize: 11,
+    color: COLORS.mutedText,
+  },
+
+  avatarErrorText: {
+    marginTop: 7,
+    fontSize: 12,
+    fontWeight: "600",
+    color: COLORS.errorText,
+    textAlign: "center",
   },
 
   label: {

@@ -1,4 +1,12 @@
 import { Ionicons } from "@expo/vector-icons";
+import { Image } from "expo-image";
+import * as ImagePicker from "expo-image-picker";
+
+import {
+  deleteProfileAvatar,
+  getProfileAvatarSignedUrl,
+  uploadProfileAvatar,
+} from "@/lib/avatars";
 
 import React, { useCallback, useEffect, useState } from "react";
 import {
@@ -60,6 +68,13 @@ function getErrorMessage(error: unknown) {
 export default function ProfileOnboardingScreen() {
   const insets = useSafeAreaInsets();
   const { profile, saveProfile } = useProfile();
+  const [avatarSignedUrl, setAvatarSignedUrl] = useState<string | null>(null);
+  const [selectedAvatar, setSelectedAvatar] =
+    useState<ImagePicker.ImagePickerAsset | null>(null);
+  const [isLoadingAvatar, setIsLoadingAvatar] = useState(
+    Boolean(profile?.avatarPath)
+  );
+  const [avatarError, setAvatarError] = useState<string | null>(null);
 
   const [displayName, setDisplayName] = useState("");
   const [major, setMajor] = useState("");
@@ -157,6 +172,56 @@ export default function ProfileOnboardingScreen() {
     }
   }, [profile]);
 
+
+
+
+
+  useEffect(() => {
+    let isActive = true;
+
+    const loadAvatar = async () => {
+      if (!profile?.avatarPath) {
+        if (isActive) {
+          setAvatarSignedUrl(null);
+          setAvatarError(null);
+          setIsLoadingAvatar(false);
+        }
+
+        return;
+      }
+
+      setIsLoadingAvatar(true);
+      setAvatarError(null);
+
+      try {
+        const signedUrl = await getProfileAvatarSignedUrl(
+          profile.avatarPath
+        );
+
+        if (isActive) {
+          setAvatarSignedUrl(signedUrl);
+        }
+      } catch {
+        if (isActive) {
+          setAvatarSignedUrl(null);
+          setAvatarError("Unable to load your profile photo.");
+        }
+      } finally {
+        if (isActive) {
+          setIsLoadingAvatar(false);
+        }
+      }
+    };
+
+    void loadAvatar();
+
+    return () => {
+      isActive = false;
+    };
+  }, [profile?.avatarPath]);
+
+
+
   useEffect(() => {
     void loadCampuses();
   }, []);
@@ -178,6 +243,60 @@ export default function ProfileOnboardingScreen() {
       return [...current, interestId];
     });
   };
+
+
+
+
+  const handleChooseAvatar = async () => {
+    setErrorMessage(null);
+
+    try {
+      const permission =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+      if (!permission.granted) {
+        setErrorMessage(
+          "Allow photo access to choose a profile picture."
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.85,
+      });
+
+      if (result.canceled) {
+        return;
+      }
+
+      const asset = result.assets[0];
+
+      if (!asset) {
+        return;
+      }
+
+      if (!asset.mimeType) {
+        setErrorMessage(
+          "The image type could not be determined. Choose a JPEG, PNG, or WebP image."
+        );
+        return;
+      }
+
+      setSelectedAvatar(asset);
+      setAvatarError(null);
+    } catch (error) {
+      setErrorMessage(getErrorMessage(error));
+    }
+  };
+
+
+
+
+
+
 
   const handleSubmit = async () => {
     const normalizedName = displayName.trim();
@@ -249,6 +368,8 @@ export default function ProfileOnboardingScreen() {
     setIsSubmitting(true);
     setErrorMessage(null);
 
+    let uploadedAvatarPath: string | null = null;
+
     try {
       // Save related profile data before saveProfile(). Completing the core
       // profile causes Stack.Protected to remove the onboarding route.
@@ -263,14 +384,53 @@ export default function ProfileOnboardingScreen() {
           Boolean(normalizedInstagram) && instagramVisible,
       });
 
+      if (selectedAvatar) {
+        uploadedAvatarPath = await uploadProfileAvatar(
+          profile.id,
+          selectedAvatar.uri,
+          selectedAvatar.mimeType
+        );
+      }
+
+      const oldAvatarPath = profile.avatarPath;
+
       await saveProfile({
         displayName: normalizedName,
         major: normalizedMajor || null,
         yearOfStudy,
         campusId,
+        avatarPath: uploadedAvatarPath ?? oldAvatarPath,
         isDiscoverable,
       });
+
+      // At this point the new avatar path is confirmed in the profile row.
+      // Cleanup failure should not undo a successfully completed profile.
+      if (
+        uploadedAvatarPath &&
+        oldAvatarPath &&
+        oldAvatarPath !== uploadedAvatarPath
+      ) {
+        try {
+          await deleteProfileAvatar(profile.id, oldAvatarPath);
+        } catch {
+          // A private old object remaining behind is safer than reverting
+          // a profile that has already completed onboarding.
+        }
+      }
     } catch (error) {
+      // If the new upload was created but the final profile update failed,
+      // remove the orphan and preserve the previous avatar.
+      if (uploadedAvatarPath) {
+        try {
+          await deleteProfileAvatar(
+            profile.id,
+            uploadedAvatarPath
+          );
+        } catch {
+          // Preserve the original error shown to the user.
+        }
+      }
+
       setErrorMessage(getErrorMessage(error));
     } finally {
       setIsSubmitting(false);
@@ -303,7 +463,57 @@ export default function ProfileOnboardingScreen() {
           Tell other students a little about yourself. You can change these
           details later.
         </Text>
+        <View style={styles.avatarSection}>
+          <View style={styles.avatarPreview}>
+            {selectedAvatar?.uri || avatarSignedUrl ? (
+              <Image
+                source={{
+                  uri: selectedAvatar?.uri ?? avatarSignedUrl ?? "",
+                }}
+                style={styles.avatarImage}
+                contentFit="cover"
+              />
+            ) : isLoadingAvatar ? (
+              <ActivityIndicator color={COLORS.primary} />
+            ) : (
+              <Ionicons
+                name="person"
+                size={42}
+                color={COLORS.mutedText}
+              />
+            )}
+          </View>
 
+          <Pressable
+            style={styles.avatarButton}
+            onPress={() => {
+              void handleChooseAvatar();
+            }}
+            disabled={isSubmitting}
+          >
+            <Ionicons
+              name="image-outline"
+              size={18}
+              color={COLORS.primary}
+            />
+
+            <Text style={styles.avatarButtonText}>
+              {profile?.avatarPath || selectedAvatar
+                ? "Change profile photo"
+                : "Choose profile photo"}
+            </Text>
+          </Pressable>
+
+          <Text style={styles.avatarHelperText}>
+            JPEG, PNG, or WebP. Maximum 5 MB.
+          </Text>
+
+          {avatarError ? (
+            <Text style={styles.avatarErrorText}>
+              {avatarError}
+            </Text>
+          ) : null}
+        </View>
         <Text style={styles.label}>Display name *</Text>
 
         <TextInput
@@ -742,6 +952,62 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 22,
     color: COLORS.mutedText,
+    textAlign: "center",
+  },
+
+  avatarSection: {
+    alignItems: "center",
+    marginBottom: 28,
+  },
+
+  avatarPreview: {
+    width: 112,
+    height: 112,
+    borderRadius: 56,
+    overflow: "hidden",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.inputBackground,
+  },
+
+  avatarImage: {
+    width: "100%",
+    height: "100%",
+  },
+
+  avatarButton: {
+    marginTop: 14,
+    minHeight: 42,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 7,
+    borderWidth: 1,
+    borderColor: COLORS.primary,
+    borderRadius: 10,
+    paddingHorizontal: 15,
+    paddingVertical: 9,
+  },
+
+  avatarButtonText: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: COLORS.primary,
+  },
+
+  avatarHelperText: {
+    marginTop: 8,
+    fontSize: 11,
+    color: COLORS.mutedText,
+  },
+
+  avatarErrorText: {
+    marginTop: 7,
+    fontSize: 12,
+    fontWeight: "600",
+    color: COLORS.errorText,
     textAlign: "center",
   },
 
