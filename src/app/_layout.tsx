@@ -1,6 +1,7 @@
 import { DefaultTheme, ThemeProvider } from "@react-navigation/native";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
+import { useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -36,6 +37,7 @@ function RootNavigator() {
     session,
     isRestoringSession,
     isPasswordRecovery,
+    signOut,
   } = useAuth();
 
   const {
@@ -46,8 +48,25 @@ function RootNavigator() {
     refreshProfile,
   } = useProfile();
 
+  const [isSigningOut, setIsSigningOut] = useState(false);
+  const [signOutError, setSignOutError] = useState<string | null>(null);
+
   const shouldLoadProfile =
     Boolean(session) && !isPasswordRecovery;
+
+  const handleMissingProfileSignOut = async () => {
+    setIsSigningOut(true);
+    setSignOutError(null);
+
+    const error = await signOut();
+
+    if (error) {
+      setSignOutError(
+        "Unable to sign out. Please try again."
+      );
+      setIsSigningOut(false);
+    }
+  };
 
   if (
     isRestoringSession ||
@@ -56,7 +75,11 @@ function RootNavigator() {
     return (
       <View style={styles.loadingScreen}>
         <StatusBar style="dark" />
-        <ActivityIndicator size="large" color="#9B1C31" />
+
+        <ActivityIndicator
+          size="large"
+          color="#9B1C31"
+        />
 
         <Text style={styles.loadingText}>
           {isRestoringSession
@@ -117,11 +140,37 @@ function RootNavigator() {
           onPress={() => {
             void refreshProfile();
           }}
+          disabled={isSigningOut}
         >
           <Text style={styles.retryButtonText}>
             Retry
           </Text>
         </Pressable>
+
+        <Pressable
+          style={[
+            styles.signOutButton,
+            isSigningOut && styles.buttonDisabled,
+          ]}
+          onPress={() => {
+            void handleMissingProfileSignOut();
+          }}
+          disabled={isSigningOut}
+        >
+          {isSigningOut ? (
+            <ActivityIndicator color="#9B1C31" />
+          ) : (
+            <Text style={styles.signOutButtonText}>
+              Sign Out
+            </Text>
+          )}
+        </Pressable>
+
+        {signOutError ? (
+          <Text style={styles.signOutError}>
+            {signOutError}
+          </Text>
+        ) : null}
       </View>
     );
   }
@@ -225,5 +274,36 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "900",
     color: "#FFFFFF",
+  },
+
+  signOutButton: {
+    minWidth: 120,
+    minHeight: 46,
+    paddingHorizontal: 18,
+    borderWidth: 1,
+    borderColor: "#9B1C31",
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#FFFFFF",
+  },
+
+  signOutButtonText: {
+    fontSize: 15,
+    fontWeight: "900",
+    color: "#9B1C31",
+  },
+
+  buttonDisabled: {
+    opacity: 0.6,
+  },
+
+  signOutError: {
+    maxWidth: 320,
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: "700",
+    color: "#9B1C31",
+    textAlign: "center",
   },
 });
