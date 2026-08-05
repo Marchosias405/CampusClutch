@@ -4,7 +4,7 @@ CampusClutch is an Expo React Native mobile app for university students to conne
 
 The app still uses mock data and in-memory React context for several feature flows, but Supabase authentication and the user-profile domain are now connected to persistent backend data. Task 6 has implemented persistent profiles, onboarding, editing, interests, social links, discoverability, avatars, public student-profile loading, and stale-session recovery across the hosted Development and Preview environments.
 
-> **Current status:** Tasks 1–5 are complete and merged. Task 6—Persist User Profiles—has completed its main implementation and manual backend/device validation on `feature/persist-user-profiles`. All Task 6 migrations are synchronized in hosted Development and Preview. The remaining Task 6 work is final documentation, local quality review, GitHub CI/review, pull request #22 completion, merge, and `main` synchronization. Do not begin Task 7 until Task 6 is merged.
+> **Current status:** Tasks 1–6 are complete and merged. Task 6—Persist User Profiles—was merged through pull request #22 at merge commit `870b6a7`. All Task 6 migrations are synchronized in hosted Development and Preview, the completed feature branch was cleaned up locally and remotely, and the repository was synchronized back to `main`. This README is being finalized on the documentation-only `docs/complete-task-6` branch. Task 7—Persist Courses and Course Membership—is the next roadmap task and must not begin until this documentation-only closure update is merged back into `main`.
 
 ---
 
@@ -99,38 +99,29 @@ Completed major milestones:
 - Task 6 migrations applied to Preview
 - Physical Android testing of the Task 6 profile flows
 
-Current milestone:
+Current roadmap position:
 
 ```text
-Task 6 — Persist User Profiles
+Task 6 — Complete
+Task 7 — Next
 ```
 
-Current branch:
+Task 6 completion record:
 
 ```text
-feature/persist-user-profiles
+Pull request #22 — Merged
+Merge commit — 870b6a7
 ```
 
-Current pull request:
+Task 6 implementation, backend validation, Preview deployment, manual testing, CI, review, merge, branch cleanup, and `main` synchronization are complete.
+
+Current documentation-only closure branch:
 
 ```text
-#22 — Draft
+docs/complete-task-6
 ```
 
-Recent Task 6 checkpoints:
-
-```text
-d1a7091 — wip: checkpoint Task 6 profile persistence foundation
-28b9b39 — feat: add persistent profile onboarding and editing
-61decec — feat: persist profile interests and fix auth routing
-1762dad — feat: persist profile social links
-ca52cf4 — feat: persist profile avatars
-bf5e731 — fix: allow sign out from unavailable profile
-e0aaa99 — feat: load persisted public student profiles
-```
-
-The main Task 6 implementation is complete. Pull request #22 must still pass final checks, CI/review, and merge before Task 6 is formally complete.
-
+After this README-only branch is merged, Task 7 can begin from a fresh branch created from updated `main`.
 ---
 
 # Important Current Limitations
@@ -232,7 +223,7 @@ Current team expectations:
 22. Do not assume `src/app/messages/new.tsx` exists.
 23. Keep Supabase temporary CLI state under `supabase/.temp/` uncommitted.
 24. Keep hosted Development as the normal linked Supabase project after Preview validation.
-25. Do not begin Task 7 until Task 6 has passed CI, review, merge, and `main` synchronization.
+25. Do not begin Task 8 until Task 7 has passed implementation, backend validation, manual testing, CI, review, merge, documentation, and `main` synchronization.
 
 ---
 
@@ -317,9 +308,9 @@ src/app/(tabs)/courses.tsx
 
 They are React Hook `useMemo` dependency warnings involving `matchesQuery`.
 
-Do not modify the Courses screen only to remove these warnings while completing Task 6.
+These warnings are intentionally deferred to Task 7 because they are in the Courses flow that Task 7 will migrate to persistent backend data.
 
-They should be addressed as part of the Courses persistence work in Task 7.
+Do not make a separate unrelated warning-only change before Task 7.
 
 ---
 
@@ -1321,19 +1312,16 @@ Completion condition: Met.
 
 # Task 6 — Persist User Profiles
 
-**Status: Implementation and manual validation complete — final PR/merge pending**
+**Status: Complete**
 
-Current branch:
-
-```text
-feature/persist-user-profiles
-```
-
-Current pull request:
+Merged through:
 
 ```text
-#22 — Draft
+Pull request #22
+Merge commit 870b6a7
 ```
+
+The completed `feature/persist-user-profiles` branch was deleted locally and remotely after merge.
 
 Completed:
 
@@ -1378,23 +1366,20 @@ Current expected local quality result:
 2 existing Courses warnings
 ```
 
-Remaining before formal Task 6 completion:
+Final completion record:
 
-1. Commit this final README update.
-2. Push the documentation checkpoint.
-3. Run final `npm run check`.
-4. Run `git diff --check`.
-5. Review the complete Task 6 branch diff.
-6. Confirm GitHub CI passes.
-7. Review pull request #22.
-8. Mark the PR ready when appropriate.
-9. Merge pull request #22.
-10. Switch to `main`.
-11. Pull updated `origin/main`.
-12. Delete the merged local feature branch.
-13. Prune remote refs.
-14. Verify a clean synchronized `main`.
-15. Update Task 6 status to Complete if another documentation-only update is needed after merge.
+- Final local quality checks passed.
+- Full Task 6 branch diff review passed.
+- GitHub CI passed.
+- Pull request #22 was marked ready for review.
+- Pull request #22 merged successfully into `main`.
+- Merge commit `870b6a7` is present on local and remote `main`.
+- Local `main` was synchronized with `origin/main`.
+- The local Task 6 feature branch was deleted.
+- The remote Task 6 feature branch was deleted.
+- Stale remote references were pruned.
+- Development and Preview migration histories were verified synchronized.
+- The Supabase CLI was relinked to Development after Preview validation.
 
 Completion condition:
 
@@ -1415,15 +1400,17 @@ Completion condition:
 - PR review passes.
 - PR is merged.
 
-All implementation, backend, Preview, and manual-test conditions are currently met.
+All Task 6 implementation, backend, Preview, manual-test, local-check, CI, review, and merge conditions are met.
 
-CI/review/merge remain.
+**Completion condition: Met.**
 
 ---
 
 # Task 7 — Persist Courses and Course Membership
 
-**Do not start until Task 6 is merged.**
+**Status: Next roadmap task — not started**
+
+Start only after the documentation-only `docs/complete-task-6` closure update is merged and local `main` is synchronized.
 
 Requirements:
 
@@ -1683,8 +1670,8 @@ Possible work:
 - Production Supabase project: Not created
 - Production EAS variables: Not configured
 - Authentication: Task 5 complete and merged
-- User profiles: Task 6 implementation complete; final CI/review/merge pending
-- Task 6 pull request: #22 open as Draft
+- User profiles: Task 6 complete and merged through pull request #22
+- Task 6 pull request: #22 merged into `main` at merge commit `870b6a7`
 - Courses/Classmates persistence: Task 7
 - Requests persistence: Task 8
 - Offer Help persistence: Task 9
@@ -1702,7 +1689,6 @@ No secrets, private keys, database passwords, store credentials, or real environ
 
 CampusClutch still needs:
 
-- Final Task 6 CI/review/merge
 - Persistent course storage and memberships
 - Backend classmate discovery
 - Persistent request storage
@@ -1724,27 +1710,15 @@ CampusClutch still needs:
 
 # Next Action
 
-Continue only:
+Finish the documentation-only Task 6 closure branch:
 
 ```text
-Task 6 — Persist User Profiles
+docs/complete-task-6
 ```
 
-Current branch:
+Immediate steps:
 
-```text
-feature/persist-user-profiles
-```
-
-Current pull request:
-
-```text
-#22
-```
-
-Immediate next steps:
-
-1. Replace the README with this Task 6 status update.
+1. Replace `README.md` with this updated file.
 2. Run:
    ```powershell
    npm run check
@@ -1753,18 +1727,46 @@ Immediate next steps:
    git --no-pager diff --stat
    ```
 3. Stage only `README.md`.
-4. Verify the staged documentation diff.
-5. Commit the README update.
-6. Push `feature/persist-user-profiles`.
-7. Confirm GitHub CI passes on the full Task 6 branch.
-8. Review pull request #22.
-9. Mark the Draft PR ready for review when appropriate.
-10. Merge only after required checks/review pass.
-11. Switch to `main`.
-12. Pull `origin/main`.
-13. Delete the merged feature branch.
-14. Prune remote references.
+4. Verify the staged diff.
+5. Commit the documentation update.
+6. Push `docs/complete-task-6`.
+7. Open a small documentation-only pull request.
+8. Confirm CI passes.
+9. Merge the documentation PR into `main`.
+10. Switch back to `main`.
+11. Pull `origin/main`.
+12. Delete the local documentation branch.
+13. Delete the remote documentation branch.
+14. Run `git fetch --prune`.
 15. Verify a clean synchronized `main`.
-16. Only then mark Task 6 complete and begin Task 7.
 
-Do not begin Task 7 until Task 6 has passed final CI, review, and merge.
+After that, begin:
+
+```text
+Task 7 — Persist Courses and Course Membership
+```
+
+Create Task 7 from updated `main`:
+
+```powershell
+git switch main
+git pull origin main
+git switch -c feature/persist-courses
+```
+
+Task 7 should begin with inspection rather than immediate implementation.
+
+Initial Task 7 work should:
+
+1. Verify the new branch and clean working tree.
+2. Inspect the current Courses and Classmates screens.
+3. Inspect the current course types and mock data.
+4. Review `docs/backend-plan.md` for the approved course/membership architecture.
+5. Inspect existing Supabase migrations before designing new schema changes.
+6. Define the persistent course and membership model before writing application code.
+7. Preserve existing Expo Router navigation and the CampusClutch red/white UI.
+8. Keep Requests, Offers, Messages, and Notifications out of Task 7.
+9. Resolve the two existing `matchesQuery` warnings as part of the Courses migration.
+10. Implement and test Task 7 sequentially before moving to Task 8.
+
+Do not begin Task 8 until Task 7 has passed implementation, backend validation, manual testing, local checks, CI, review, merge, documentation, and `main` synchronization.
