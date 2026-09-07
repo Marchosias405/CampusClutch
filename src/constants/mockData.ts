@@ -1,91 +1,4 @@
-import type { CampusRequest, Course, Student } from "../types";
-
-export const mockCourses: Course[] = [
-  {
-    id: "cmpt-276",
-    code: "CMPT 276",
-    title: "Introduction to Software Engineering",
-    term: "Fall 2024",
-    status: "current",
-    studentCount: 18,
-    icon: "terminal",
-  },
-  {
-    id: "cmpt-361",
-    code: "CMPT 361",
-    title: "Introduction to Computer Graphics",
-    term: "Fall 2024",
-    status: "current",
-    studentCount: 12,
-    icon: "paint-brush",
-  },
-  {
-    id: "bus-237",
-    code: "BUS 237",
-    title: "Information Systems in Business",
-    term: "Fall 2024",
-    status: "current",
-    studentCount: 9,
-    icon: "chart-bar",
-  },
-  {
-    id: "cmpt-225",
-    code: "CMPT 225",
-    title: "Data Structures",
-    term: "Summer 2024",
-    status: "previous",
-    studentCount: 0,
-    icon: "code",
-  },
-  {
-    id: "macm-101",
-    code: "MACM 101",
-    title: "Discrete Math",
-    term: "Fall 2024",
-    status: "previous",
-    studentCount: 0,
-    icon: "calculator",
-  },
-];
-
-export const addCourseOptions: Course[] = [
-  {
-    id: "cmpt-361",
-    code: "CMPT 361",
-    title: "Computer Graphics",
-    term: "Summer 2026",
-    status: "current",
-    studentCount: 12,
-    icon: "paint-brush",
-  },
-  {
-    id: "cmpt-276",
-    code: "CMPT 276",
-    title: "Intro to Software Engineering",
-    term: "Summer 2026",
-    status: "current",
-    studentCount: 18,
-    icon: "terminal",
-  },
-  {
-    id: "cmpt-371",
-    code: "CMPT 371",
-    title: "Data Communications",
-    term: "Summer 2026",
-    status: "current",
-    studentCount: 14,
-    icon: "network-wired",
-  },
-  {
-    id: "bus-237",
-    code: "BUS 237",
-    title: "Information Systems",
-    term: "Summer 2026",
-    status: "current",
-    studentCount: 9,
-    icon: "chart-bar",
-  },
-];
+import type { CampusRequest, Student } from "../types";
 
 export const mockStudents: Student[] = [
   {
@@ -125,7 +38,6 @@ export const mockStudents: Student[] = [
     isRecentlyActive: true,
   },
 ];
-
 
 export const mockRequests: CampusRequest[] = [
   {

@@ -1,15 +1,26 @@
 import { FontAwesome5, Ionicons } from "@expo/vector-icons";
+import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
-import React from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import React, {
+  useCallback,
+  useState,
+} from "react";
+import {
+  ActivityIndicator,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
+
 import ScreenHeader from "../../components/ScreenHeader";
 
-type Course = {
-  id: string;
-  code: string;
-  number: string;
-  title: string;
-};
+import {
+  getMyCourses,
+  isCurrentCourse,
+} from "@/lib/courses";
+import type { MyCourse } from "@/types";
 
 const COLORS = {
   primary: "#9B1C31",
@@ -22,66 +33,122 @@ const COLORS = {
   track: "#F0E7E8",
 };
 
-const currentCourses: Course[] = [
-  {
-    id: "cmpt-276",
-    code: "CMPT 276",
-    number: "276",
-    title: "Introduction to Software Engineering",
-  },
-  {
-    id: "cmpt-361",
-    code: "CMPT 361",
-    number: "361",
-    title: "Introduction to Computer Graphics",
-  },
-  {
-    id: "cmpt-371",
-    code: "CMPT 371",
-    number: "371",
-    title: "Data Communications and Networking",
-  },
-];
+function getCourseNumber(code: string) {
+  const parts = code.trim().split(/\s+/);
+
+  return parts.length > 1
+    ? parts.slice(1).join(" ")
+    : code;
+}
 
 export default function HomeDashboardScreen() {
   const router = useRouter();
 
-  const handleOpenCourse = (courseId: string) => {
+  const [currentCourses, setCurrentCourses] =
+    useState<MyCourse[]>([]);
+
+  const [isLoadingCourses, setIsLoadingCourses] =
+    useState(true);
+
+  const [courseError, setCourseError] =
+    useState<string | null>(null);
+
+  const loadCurrentCourses = useCallback(
+    async () => {
+      setIsLoadingCourses(true);
+      setCourseError(null);
+
+      try {
+        const courses = await getMyCourses();
+
+        setCurrentCourses(
+          courses.filter(isCurrentCourse)
+        );
+      } catch (error) {
+        console.error(
+          "Failed to load home courses:",
+          error
+        );
+
+        setCurrentCourses([]);
+
+        setCourseError(
+          "Unable to load your courses."
+        );
+      } finally {
+        setIsLoadingCourses(false);
+      }
+    },
+    []
+  );
+
+  useFocusEffect(
+    useCallback(() => {
+      void loadCurrentCourses();
+    }, [loadCurrentCourses])
+  );
+
+  const handleOpenCourse = (
+    courseId: string
+  ) => {
     router.push({
       pathname: "/courses/classmates",
-      params: { courseId },
+      params: {
+        courseId,
+      },
     } as any);
   };
 
   return (
     <View style={styles.screen}>
       <ScreenHeader>
-        <Text style={styles.brandText}>CampusClutch</Text>
+        <Text style={styles.brandText}>
+          CampusClutch
+        </Text>
 
         <Pressable
           hitSlop={10}
-          onPress={() => router.push("/notifications" as any)}
+          onPress={() =>
+            router.push("/notifications" as any)
+          }
         >
-          <Ionicons name="notifications-outline" size={23} color="#FFFFFF" />
+          <Ionicons
+            name="notifications-outline"
+            size={23}
+            color="#FFFFFF"
+          />
         </Pressable>
       </ScreenHeader>
 
       <ScrollView
         style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={
+          styles.scrollContent
+        }
         showsVerticalScrollIndicator={false}
       >
         {/* Combined greeting + balance hero */}
         <View style={styles.heroCard}>
           <View style={styles.heroTopRow}>
             <View style={styles.heroTextBlock}>
-              <Text style={styles.heroHello}>Welcome back,</Text>
-              <Text style={styles.heroName}>Hi, Kazi</Text>
+              <Text style={styles.heroHello}>
+                Welcome back,
+              </Text>
+              <Text style={styles.heroName}>
+                Hi, Kazi
+              </Text>
             </View>
 
             <View style={styles.pointsPill}>
-              <FontAwesome5 name="star" size={11} color="#FFFFFF" solid />
-              <Text style={styles.pointsPillText}>120 pts</Text>
+              <FontAwesome5
+                name="star"
+                size={11}
+                color="#FFFFFF"
+                solid
+              />
+              <Text style={styles.pointsPillText}>
+                120 pts
+              </Text>
             </View>
           </View>
 
@@ -89,33 +156,79 @@ export default function HomeDashboardScreen() {
             <View style={styles.progressFill} />
           </View>
 
-          <Text style={styles.heroSub}>80 points to your next reward</Text>
+          <Text style={styles.heroSub}>
+            80 points to your next reward
+          </Text>
         </View>
 
         {/* Current courses */}
         <View style={styles.sectionHeaderRow}>
-          <Text style={styles.sectionTitle}>Current Courses</Text>
+          <Text style={styles.sectionTitle}>
+            Current Courses
+          </Text>
 
-          <Pressable onPress={() => router.push("/courses" as any)}>
-            <Text style={styles.viewAllText}>View All</Text>
+          <Pressable
+            onPress={() =>
+              router.push("/courses" as any)
+            }
+          >
+            <Text style={styles.viewAllText}>
+              View All
+            </Text>
           </Pressable>
         </View>
 
         <View style={styles.courseList}>
-          {currentCourses.map((course) => (
+          {isLoadingCourses ? (
+            <View style={styles.courseState}>
+              <ActivityIndicator
+                size="small"
+                color={COLORS.primary}
+              />
+
+              <Text style={styles.courseStateText}>
+                Loading courses...
+              </Text>
+            </View>
+          ) : courseError ? (
+            <View style={styles.courseState}>
+              <Text style={styles.courseStateText}>
+                {courseError}
+              </Text>
+
+              <Pressable
+                onPress={() =>
+                  void loadCurrentCourses()
+                }
+              >
+                <Text style={styles.retryText}>
+                  Try Again
+                </Text>
+              </Pressable>
+            </View>
+          ) : currentCourses.length === 0 ? (
             <Pressable
-              key={course.id}
-              style={styles.courseCard}
-              onPress={() => handleOpenCourse(course.id)}
+              style={styles.emptyCourseCard}
+              onPress={() =>
+                router.push("/courses/add" as any)
+              }
             >
               <View style={styles.courseBadge}>
-                <Text style={styles.courseBadgeText}>{course.number}</Text>
+                <Ionicons
+                  name="add"
+                  size={22}
+                  color={COLORS.primary}
+                />
               </View>
 
               <View style={styles.courseInfo}>
-                <Text style={styles.courseCode}>{course.code}</Text>
-                <Text style={styles.courseTitle} numberOfLines={1}>
-                  {course.title}
+                <Text style={styles.courseCode}>
+                  Add a course
+                </Text>
+
+                <Text style={styles.courseTitle}>
+                  Your current courses will appear
+                  here.
                 </Text>
               </View>
 
@@ -125,30 +238,91 @@ export default function HomeDashboardScreen() {
                 color={COLORS.mutedText}
               />
             </Pressable>
-          ))}
+          ) : (
+            currentCourses.map((course) => (
+              <Pressable
+                key={course.id}
+                style={styles.courseCard}
+                onPress={() =>
+                  handleOpenCourse(course.id)
+                }
+              >
+                <View style={styles.courseBadge}>
+                  <Text
+                    style={
+                      styles.courseBadgeText
+                    }
+                  >
+                    {getCourseNumber(
+                      course.code
+                    )}
+                  </Text>
+                </View>
+
+                <View style={styles.courseInfo}>
+                  <Text style={styles.courseCode}>
+                    {course.code}
+                  </Text>
+
+                  <Text
+                    style={styles.courseTitle}
+                    numberOfLines={1}
+                  >
+                    {course.title}
+                  </Text>
+                </View>
+
+                <Ionicons
+                  name="chevron-forward"
+                  size={20}
+                  color={COLORS.mutedText}
+                />
+              </Pressable>
+            ))
+          )}
         </View>
 
         {/* Active requests - compact banner */}
-        <Text style={styles.sectionTitle}>Active Requests</Text>
+        <Text style={styles.sectionTitle}>
+          Active Requests
+        </Text>
 
         <Pressable
           style={styles.requestBanner}
-          onPress={() => router.push("/requests" as any)}
+          onPress={() =>
+            router.push("/requests" as any)
+          }
         >
           <View style={styles.requestIcon}>
-            <FontAwesome5 name="route" size={15} color="#FFFFFF" solid />
+            <FontAwesome5
+              name="route"
+              size={15}
+              color="#FFFFFF"
+              solid
+            />
           </View>
 
           <View style={styles.requestText}>
-            <Text style={styles.requestTitle} numberOfLines={1}>
+            <Text
+              style={styles.requestTitle}
+              numberOfLines={1}
+            >
               2 deliveries to Burnaby today
             </Text>
-            <Text style={styles.requestSub} numberOfLines={1}>
-              Join a route Â· earn up to 40 pts
+
+            <Text
+              style={styles.requestSub}
+              numberOfLines={1}
+            >
+              Join a route · earn up to 40 pts
             </Text>
           </View>
 
-          <Ionicons name="chevron-forward" size={20} color={COLORS.primary} />
+          <Ionicons
+            name="chevron-forward"
+            size={20}
+            color={COLORS.primary}
+          />
         </Pressable>
       </ScrollView>
     </View>
@@ -188,7 +362,10 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
     marginBottom: 28,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 3 },
+    shadowOffset: {
+      width: 0,
+      height: 3,
+    },
     shadowOpacity: 0.05,
     shadowRadius: 9,
     elevation: 2,
@@ -290,10 +467,24 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
     shadowOpacity: 0.04,
     shadowRadius: 7,
     elevation: 1,
+  },
+
+  emptyCourseCard: {
+    minHeight: 72,
+    borderRadius: 14,
+    backgroundColor: COLORS.cardWhite,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    paddingHorizontal: 14,
+    flexDirection: "row",
+    alignItems: "center",
   },
 
   courseBadge: {
@@ -327,6 +518,32 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "600",
     color: COLORS.mutedText,
+  },
+
+  courseState: {
+    minHeight: 72,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 18,
+    paddingVertical: 14,
+  },
+
+  courseStateText: {
+    marginTop: 7,
+    fontSize: 12,
+    fontWeight: "700",
+    color: COLORS.mutedText,
+    textAlign: "center",
+  },
+
+  retryText: {
+    marginTop: 7,
+    fontSize: 12,
+    fontWeight: "900",
+    color: COLORS.primary,
   },
 
   requestBanner: {

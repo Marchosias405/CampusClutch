@@ -1,16 +1,3 @@
-export type CourseStatus = "current" | "previous";
-
-export type Course = {
-  id: string;
-  code: string;
-  title: string;
-  term: string;
-  status: CourseStatus;
-  studentCount: number;
-  icon: string;
-  classmates?: string[];
-};
-
 export type Student = {
   id: string;
   name: string;
@@ -81,3 +68,16 @@ export type {
   ProfileUpdateInput,
   SocialPlatform
 } from "./profile";
+
+export type {
+  AcademicTerm,
+  AcademicTermSeason,
+  AcademicTermStatus,
+  CourseCatalogItem,
+  CourseCatalogStatus,
+  CourseClassmate,
+  CourseJoinResult,
+  CourseLeaveResult,
+  CourseMembershipStatus,
+  MyCourse
+} from "./course";
