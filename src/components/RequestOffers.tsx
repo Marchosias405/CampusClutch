@@ -1,0 +1,154 @@
+import React, { useCallback, useRef, useState } from 'react';
+import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useAuth } from '../context/AuthContext';
+import { useRequests } from '../context/RequestsContext';
+import { decideOffer, loadOfferPage, offerError, submitOffer, type OfferAction, type RequestOffer } from '../lib/offers';
+import type { CampusRequest } from '../types';
+
+type Props = { request?: CampusRequest; requestId?: string; onChanged?: () => Promise<void> };
+const labels = { pending: 'Pending', accepted: 'Accepted', rejected: 'Not selected', withdrawn: 'Withdrawn' };
+
+export default function RequestOffers({ request, requestId, onChanged }: Props) {
+  const { user } = useAuth();
+  const router = useRouter();
+  const { invalidate } = useRequests();
+  const userId = user?.id;
+  const scope = `${userId}:${requestId ?? 'history'}`;
+  const [loadedScope, setLoadedScope] = useState('');
+  const [items, setItems] = useState<RequestOffer[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [hasMore, setHasMore] = useState(false);
+  const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+  const [message, setMessage] = useState('');
+  const [saving, setSaving] = useState(false);
+  const generation = useRef(0);
+  const busy = useRef(false);
+  const mutation = useRef(false);
+  const active = useRef(false);
+  const currentScope = useRef(scope);
+  currentScope.current = scope;
+  const offset = useRef(0);
+  const changed = useRef(onChanged);
+  changed.current = onChanged;
+
+  const fetchPage = useCallback(async (append = false): Promise<boolean> => {
+    if (!userId || busy.current || mutation.current) return false;
+    const ticket = ++generation.current;
+    busy.current = true; setLoading(true);
+    try {
+      const result = await loadOfferPage(userId, requestId ?? null, append ? offset.current : 0);
+      if (ticket !== generation.current || currentScope.current !== scope || !active.current) return false;
+      setLoadedScope(scope);
+      setItems(previous => append ? [...previous, ...result.items.filter(row => !previous.some(old => old.id === row.id))] : result.items);
+      offset.current = result.nextOffset; setHasMore(result.hasMore); setError('');
+      return true;
+    } catch (failure) {
+      if (ticket === generation.current && currentScope.current === scope && active.current) setError(offerError(failure));
+      return false;
+    } finally {
+      if (ticket === generation.current) { busy.current = false; setLoading(false); }
+    }
+  }, [userId, requestId, scope]);
+
+  useFocusEffect(useCallback(() => {
+    active.current = true;
+    setMessage(''); setNotice(''); setItems([]); setLoadedScope(''); setHasMore(false);
+    void fetchPage();
+    const timer = setInterval(() => { void fetchPage(); }, 60000);
+    return () => { active.current = false; ++generation.current; busy.current = false; clearInterval(timer); };
+  }, [fetchPage]));
+
+  const visible = loadedScope === scope ? items : [];
+  const owner = !!request && request.ownerId === userId;
+  const ready = loadedScope === scope && !loading && !saving && !error;
+  const canOffer = !!request && request.status === 'open' && Date.parse(request.deadlineAt ?? '') > Date.now();
+
+  const perform = async (action?: OfferAction, offer?: RequestOffer) => {
+    if (!userId || mutation.current || busy.current || !active.current || currentScope.current !== scope) return;
+    mutation.current = true; setSaving(true); setNotice(''); setError('');
+    let committed = false;
+    try {
+      if (action && offer) await decideOffer(userId, offer.id, action);
+      else if (requestId) await submitOffer(userId, requestId, message);
+      else return;
+      committed = true;
+      invalidate();
+      if (active.current && currentScope.current === scope) {
+        setMessage('');
+        setNotice(action ? 'Your decision was saved.' : 'Your offer was saved. Its current status is shown below.');
+      }
+    } catch (failure) {
+      if (active.current && currentScope.current === scope) setError(offerError(failure));
+    } finally {
+      mutation.current = false;
+      if (active.current && currentScope.current === scope) {
+        setSaving(false);
+        if (committed) { await fetchPage(); await changed.current?.(); }
+      }
+    }
+  };
+
+  const confirm = (action: OfferAction, offer: RequestOffer) => {
+    const text = action === 'accepted'
+      ? 'Accept this helper? Other pending offers will be declined. You cannot undo acceptance here.'
+      : action === 'rejected' ? 'Decline this offer? This helper cannot submit another offer for this request.'
+      : 'Withdraw your offer? You cannot submit another offer for this request.';
+    Alert.alert(action === 'accepted' ? 'Accept helper?' : action === 'rejected' ? 'Decline offer?' : 'Withdraw offer?', text, [
+      { text: 'Keep as is', style: 'cancel' },
+      { text: action === 'accepted' ? 'Accept' : action === 'rejected' ? 'Decline' : 'Withdraw', style: action === 'accepted' ? 'default' : 'destructive', onPress: () => { void perform(action, offer); } },
+    ]);
+  };
+
+  return <View style={styles.section}>
+    <Text style={styles.heading}>{requestId ? owner ? 'Offers to help' : 'Your offer' : 'My offers'}</Text>
+    <Pressable accessibilityRole="button" style={styles.secondary} disabled={loading || saving} onPress={() => { void fetchPage().then(ok => { if (ok) void changed.current?.(); }); }}>
+      <Text style={styles.secondaryText}>{loading ? 'Refreshing offers…' : 'Refresh offers'}</Text>
+    </Pressable>
+    {loading && <ActivityIndicator color="#9B1C31" />}
+    {!!notice && <Text accessibilityRole="alert" style={styles.text}>{notice}</Text>}
+    {!!error && <Text accessibilityRole="alert" style={styles.error}>{error}</Text>}
+    {saving && <Text accessibilityRole="alert" style={styles.text}>Saving…</Text>}
+    {!loading && !error && !visible.length && <Text style={styles.text}>{owner ? 'No offers yet.' : requestId ? 'You have not offered help for this request.' : 'Your offers will appear here, including accepted and closed requests.'}</Text>}
+    {requestId && request && !owner && visible.length === 0 && <View style={styles.card}>
+      {canOffer ? <>
+        <Text style={styles.text}>Offer to help with this request. The owner will see your name, major, year and campus, even if your profile is hidden from discovery.</Text>
+        <Text style={styles.label}>Message (optional)</Text>
+        <TextInput accessibilityLabel="Optional offer message" style={styles.input} multiline maxLength={1000} value={message} editable={!saving} onChangeText={setMessage} placeholder="Let the owner know how you can help" textAlignVertical="top" />
+        <Text style={styles.text}>{message.length}/1000</Text>
+        <Pressable accessibilityRole="button" disabled={!ready} style={[styles.primary, !ready && styles.disabled]} onPress={() => { void perform(); }}><Text style={styles.primaryText}>Offer Help</Text></Pressable>
+      </> : <Text style={styles.text}>This request is no longer accepting offers.</Text>}
+    </View>}
+    {visible.map(offer => {
+      const open = offer.request_status === 'open' && Date.parse(offer.request_deadline_at) > Date.now();
+      const actionable = ready && open && offer.status === 'pending';
+      return <View key={offer.id} style={styles.card}>
+        <Text style={styles.title}>{requestId ? owner ? offer.helper_display_name || 'Campus helper' : 'Your offer' : offer.request_title}</Text>
+        <Text style={styles.status}>{labels[offer.status]}</Text>
+        {!open && <Text style={styles.text}>Request {offer.request_status === 'open' ? 'expired' : offer.request_status}.</Text>}
+        {owner && <Text style={styles.text}>{[offer.helper_major, offer.helper_year ? `Year ${offer.helper_year}` : null, offer.helper_campus].filter(Boolean).join(' • ')}</Text>}
+        {!!offer.message && <Text style={styles.text}>{offer.message}</Text>}
+        <Text style={styles.text}>{new Date(offer.created_at).toLocaleString()}</Text>
+        {owner && offer.status === 'pending' && open && <>
+          <Pressable accessibilityRole="button" disabled={!actionable} style={[styles.primary, !actionable && styles.disabled]} onPress={() => confirm('accepted', offer)}><Text style={styles.primaryText}>Accept helper</Text></Pressable>
+          <Pressable accessibilityRole="button" disabled={!actionable} style={[styles.secondary, !actionable && styles.disabled]} onPress={() => confirm('rejected', offer)}><Text style={styles.secondaryText}>Decline offer</Text></Pressable>
+        </>}
+        {offer.offering_user_id === userId && offer.status === 'pending' && open && <Pressable accessibilityRole="button" disabled={!actionable} style={[styles.secondary, !actionable && styles.disabled]} onPress={() => confirm('withdrawn', offer)}><Text style={styles.secondaryText}>Withdraw offer</Text></Pressable>}
+        {!requestId && (open || offer.status === 'accepted') && <Pressable accessibilityRole="button" style={styles.secondary} onPress={() => router.push({ pathname: '/requests/[id]', params: { id: offer.request_id } })}><Text style={styles.secondaryText}>View request</Text></Pressable>}
+        {offer.status === 'accepted' && <Text style={styles.text}>Help confirmed. Messaging and completion will be added in later updates.</Text>}
+      </View>;
+    })}
+    {hasMore && <Pressable accessibilityRole="button" disabled={loading || saving} style={styles.secondary} onPress={() => { void fetchPage(true); }}><Text style={styles.secondaryText}>Load more offers</Text></Pressable>}
+  </View>;
+}
+
+const styles = StyleSheet.create({
+  section: { gap: 14, marginTop: 20 }, heading: { fontSize: 22, fontWeight: '800', color: '#2B2525' },
+  card: { padding: 16, borderWidth: 1, borderColor: '#ECE3E3', borderRadius: 18, gap: 12 },
+  title: { fontSize: 18, fontWeight: '800', color: '#2B2525' }, status: { color: '#9B1C31', fontWeight: '800', fontSize: 16 },
+  text: { fontSize: 15, lineHeight: 22, color: '#635C5C' }, label: { fontSize: 15, color: '#2B2525', fontWeight: '700' },
+  error: { color: '#9B1C31', lineHeight: 22 }, input: { minHeight: 100, padding: 12, borderWidth: 1, borderColor: '#BDB3B3', borderRadius: 12, color: '#2B2525', fontSize: 16 },
+  primary: { minHeight: 48, padding: 14, borderRadius: 16, backgroundColor: '#9B1C31', alignItems: 'center' }, primaryText: { color: 'white', fontWeight: '800', fontSize: 16 },
+  secondary: { minHeight: 44, padding: 12, borderWidth: 1, borderColor: '#9B1C31', borderRadius: 14, alignItems: 'center' }, secondaryText: { color: '#9B1C31', fontWeight: '700', fontSize: 15 }, disabled: { opacity: .45 },
+});

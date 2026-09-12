@@ -14,6 +14,7 @@ import { useAuth } from "../../context/AuthContext";
 import { loadRequest, cancelRequest, requestError } from "../../lib/requests";
 import type { CampusRequest } from "../../types";
 import ScreenHeader from "../../components/ScreenHeader";
+import RequestOffers from "../../components/RequestOffers";
 import { useRequests } from "../../context/RequestsContext";
 
 const COLORS = {
@@ -44,7 +45,7 @@ export default function RequestDetailsScreen() {
   const sequence = useRef(0);
   const refresh = useCallback(async () => {
     const ticket = ++sequence.current;
-    setLoading(true); setError(''); setRequest(null);
+    setLoading(true); setError('');
     try {
       const row = user && requestId ? await loadRequest(requestId) : null;
       if (ticket === sequence.current) { setLoadedFor(user?.id); setRequest(row); }
@@ -89,6 +90,7 @@ export default function RequestDetailsScreen() {
             {error || "This request may be closed, expired, or unavailable to your account."}
           </Text>
 
+          {!loading && !error && requestId && <ScrollView><RequestOffers key={`${user?.id}:${requestId}`} requestId={requestId} onChanged={refresh} /></ScrollView>}
           {!loading && <Pressable style={styles.backButton} onPress={() => { void refresh(); }}><Text style={styles.backButtonText}>Retry</Text></Pressable>}
           <Pressable style={styles.backButton} onPress={() => router.back()}>
             <Text style={styles.backButtonText}>Back to Requests</Text>
@@ -147,6 +149,8 @@ export default function RequestDetailsScreen() {
       </ScreenHeader>
 
       <ScrollView
+        keyboardShouldPersistTaps="handled"
+        automaticallyAdjustKeyboardInsets
         refreshControl={<RefreshControl refreshing={loading} onRefresh={() => { void refresh(); }} />}
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
@@ -333,7 +337,7 @@ export default function RequestDetailsScreen() {
               <Text style={styles.backButtonText}>{cancelling ? 'Cancelling…' : 'Cancel Request'}</Text>
             </Pressable>
           </View>}
-          {request.ownerId !== user?.id && <Text style={styles.confirmationText}>Offers will be available in a future update.</Text>}
+          <RequestOffers key={`${user?.id}:${requestId}`} request={request} requestId={requestId} onChanged={refresh} />
         </View>
       </ScrollView>
     </View>

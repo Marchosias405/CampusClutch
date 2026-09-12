@@ -121,6 +121,9 @@ const filters: RequestCategory[] = [
           <Pressable style={[styles.filterPill, styles.feedToggle]} onPress={() => setMine(value => !value)}>
             <Text style={styles.filterText}>{mine ? "My requests • Show campus feed" : "Campus feed • Show my requests"}</Text>
           </Pressable>
+          <Pressable accessibilityRole="button" style={[styles.filterPill, styles.feedToggle]} onPress={() => router.push('/requests/offers')}>
+            <Text style={styles.filterText}>My offers</Text>
+          </Pressable>
           {loading && <View style={styles.refreshStatus}><ActivityIndicator color={COLORS.primary} /><Text>Refreshing requests…</Text></View>}
           {!!error && <Pressable onPress={() => { void fetchPage(); }}><Text accessibilityRole="alert">{error} Tap to retry.</Text></Pressable>}
           <ScrollView
