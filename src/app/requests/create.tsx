@@ -2,7 +2,7 @@ import { FontAwesome5, Ionicons } from "@expo/vector-icons";
 import DateTimePicker, {
   DateTimePickerEvent,
 } from "@react-native-community/datetimepicker";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
   KeyboardAvoidingView,
@@ -14,6 +14,8 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { useAuth } from "../../context/AuthContext";
+import { loadRequest, requestError } from "../../lib/requests";
 import ScreenHeader from "../../components/ScreenHeader";
 import { useRequests } from "../../context/RequestsContext";
 import type {
@@ -111,6 +113,18 @@ const weekDayLabels = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 export default function CreateRequestScreen() {
   const router = useRouter();
   const { addRequest } = useRequests();
+  const { user } = useAuth();
+  const { edit } = useLocalSearchParams<{ edit?: string }>();
+  const editId = typeof edit === 'string' ? edit : undefined;
+  const [editReady, setEditReady] = useState(!editId);
+  const [editRetry, setEditRetry] = useState(0);
+  const [urgent, setUrgent] = useState(false);
+  const originalDeadline = useRef<string | undefined>(undefined);
+  const sessionUser = useRef(user?.id);
+  sessionUser.current = user?.id;
+  const mounted = useRef(true);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+
 
   const [selectedRequestType, setSelectedRequestType] =
     useState<RequestType>("Delivery");
@@ -153,6 +167,27 @@ export default function CreateRequestScreen() {
 
 
 
+  useEffect(() => {
+    if (!editId) return;
+    let active = true;
+    setEditReady(false);
+    loadRequest(editId).then(row => {
+      if (!active) return;
+      if (!row || row.ownerId !== user?.id || row.status !== 'open') throw new Error('This request is no longer editable.');
+      const labels = { DELIVERY: 'Delivery', PICKUP: 'Pickup', 'EVENT HELP': 'Event Help', 'STUDY HELP': 'Study Help' } as const;
+      setSelectedRequestType(labels[row.category]); setRequestTitle(row.title);
+      setCampus(row.campus as CampusName); setRoomLocation(row.roomLocation ?? '');
+      setPickupLocation(row.pickupLocation ?? ''); setDropoffLocation(row.dropoffLocation ?? '');
+      setEventName(row.eventName ?? ''); setEventTask(row.eventTask ?? '');
+      setCourseOrSubject(row.courseOrSubject ?? ''); setStudyTopic(row.studyTopic ?? '');
+      setItemSize(row.itemSize ?? 'Medium'); setDescription(row.description); setPointsOffered(String(row.points));
+      originalDeadline.current = row.deadlineAt;
+      const date = new Date(row.deadlineAt!); setDeadlineDate(date); setDeadline(date.toLocaleDateString('en-CA', {month:'short',day:'numeric',year:'numeric'}));
+      setUrgent(row.isUrgent ?? false); setEditReady(true);
+    }).catch(error => { if (active) setValidationError(requestError(error)); });
+    return () => { active = false; };
+  }, [editId, user?.id, editRetry]);
+
   const handleBack = () => {
     router.back();
   };
@@ -188,6 +223,7 @@ export default function CreateRequestScreen() {
 
 
   const handleRequestTypeChange = (type: RequestType) => {
+    if (editId) return;
     setSelectedRequestType(type);
     clearValidationError();
   };
@@ -199,7 +235,7 @@ export default function CreateRequestScreen() {
 
 
   const handlePointsOfferedChange = (value: string) => {
-    const numbersOnly = value.replace(/[^0-9]/g, "");
+    const numbersOnly = value;
 
     setPointsOffered(numbersOnly);
     clearValidationError();
@@ -377,10 +413,10 @@ const formatCalendarMonthLabel = (date: Date) => {
       const validateForm = (): ValidationResult => {
         const pointsNumber = Number(pointsOffered.trim());
 
-        if (!requestTitle.trim()) {
+        if (!requestTitle.trim() || requestTitle.trim().length > 120) {
           return {
             field: "requestTitle",
-            message: "Please enter a request title.",
+            message: "Enter a title of 1–120 characters.",
           };
         }
 
@@ -462,10 +498,10 @@ const formatCalendarMonthLabel = (date: Date) => {
           }
         }
 
-        if (!description.trim()) {
+        if (description.trim().length < 10 || description.trim().length > 4000) {
           return {
             field: "description",
-            message: "Please enter a description.",
+            message: "Description must contain 10–4000 characters.",
           };
         }
 
@@ -483,7 +519,7 @@ const formatCalendarMonthLabel = (date: Date) => {
           };
         }
 
-        if (!Number.isInteger(pointsNumber) || pointsNumber <= 0) {
+        if (!Number.isInteger(pointsNumber) || pointsNumber <= 0 || pointsNumber > 2147483647) {
           return {
             field: "pointsOffered",
             message: "Points offered must be a whole number greater than 0.",
@@ -506,8 +542,8 @@ const formatCalendarMonthLabel = (date: Date) => {
 
 
 
-  const handleSubmit = () => {
-    if (submitLockRef.current) {
+  const handleSubmit = async () => {
+    if (submitLockRef.current || !editReady) {
       return;
     }
 
@@ -523,36 +559,13 @@ const formatCalendarMonthLabel = (date: Date) => {
       return;
     }
 
+    const submittingUser = user?.id;
     submitLockRef.current = true;
     setValidationError("");
     setInvalidField(null);
     setSubmissionState("submitting");
 
     try {
-      const formData = {
-        selectedRequestType,
-        requestTitle: requestTitle.trim(),
-        campus: campus.trim(),
-        roomLocation: roomLocation.trim(),
-
-        pickupLocation: pickupLocation.trim(),
-        dropoffLocation: dropoffLocation.trim(),
-
-        eventName: eventName.trim(),
-        eventTask: eventTask.trim(),
-
-        courseOrSubject: courseOrSubject.trim(),
-        studyTopic: studyTopic.trim(),
-
-        itemSize,
-        description: description.trim(),
-        deadline: deadline.trim(),
-        pointsOffered: Number(pointsOffered.trim()),
-      };
-
-
-
-
         const requestDetails: Partial<CampusRequest> = {};
 
         if (
@@ -579,7 +592,10 @@ const formatCalendarMonthLabel = (date: Date) => {
 
 
 
-      const newRequest = addRequest({
+      const expires = new Date(deadlineDate!);
+      if (!originalDeadline.current || expires.getTime() !== Date.parse(originalDeadline.current)) expires.setHours(23, 59, 59, 999);
+      if (expires.getTime() <= Date.now()) throw new Error("Select a future deadline.");
+      const newRequest = await addRequest({
         category: mapRequestTypeToCategory(selectedRequestType),
         title: requestTitle.trim(),
         description: description.trim(),
@@ -588,34 +604,31 @@ const formatCalendarMonthLabel = (date: Date) => {
         campus: campus.trim(),
         roomLocation: roomLocation.trim(),
 
+        deadlineAt: expires.toISOString(),
         timeLabel: deadline.trim(),
         points: Number(pointsOffered.trim()),
         itemSize,
 
         status: "open",
         createdAt: new Date().toISOString(),
-        isUrgent: false,
+        isUrgent: urgent,
 
         ...requestDetails,
-      });
+      }, editId);
 
-      console.log("New request submitted:", {
-        formData,
-        createdRequest: newRequest,
-      });
-
+      if (!mounted.current || sessionUser.current !== submittingUser) return;
       setSubmissionState("success");
 
       navigationTimeoutRef.current = setTimeout(() => {
-        router.back();
-      }, 1000);
+        router.replace({ pathname: "/requests/[id]", params: { id: newRequest } });
+      }, 500);
     } catch (error) {
-      console.error("Unable to submit request:", error);
+      if (!mounted.current || sessionUser.current !== submittingUser) return;
 
       submitLockRef.current = false;
       setSubmissionState("idle");
       setValidationError(
-        "Unable to post your request. Please try again."
+        requestError(error)
       );
     }
   };
@@ -623,7 +636,7 @@ const formatCalendarMonthLabel = (date: Date) => {
 
   const isSubmitting = submissionState === "submitting";
   const isSubmissionSuccessful = submissionState === "success";
-  const isSubmitDisabled = submissionState !== "idle";
+  const isSubmitDisabled = submissionState !== "idle" || !editReady;
 
 
   
@@ -632,11 +645,11 @@ const formatCalendarMonthLabel = (date: Date) => {
     <View style={styles.safeArea}>
       <View style={styles.screen}>
         <ScreenHeader>
-          <Pressable hitSlop={10} onPress={handleBack}>
+          <Pressable hitSlop={10} onPress={handleBack} disabled={submissionState !== 'idle'}>
             <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
           </Pressable>
 
-          <Text style={styles.headerTitle}>New Request</Text>
+          <Text style={styles.headerTitle}>{editId ? "Edit Request" : "New Request"}</Text>
 
           <View style={styles.headerSpacer} />
         </ScreenHeader>
@@ -1089,7 +1102,7 @@ const formatCalendarMonthLabel = (date: Date) => {
 
             
             <View style={styles.columnField}>
-              <Text style={styles.inputLabel}>Deadline</Text>
+              <Text style={styles.inputLabel}>Deadline (end of day)</Text>
 
               <Pressable
                 style={[
@@ -1266,13 +1279,14 @@ const formatCalendarMonthLabel = (date: Date) => {
 
 
 
+          {editId && !editReady && <Pressable onPress={() => setEditRetry(value => value + 1)}><Text style={styles.validationText}>{validationError || 'Loading request…'} Tap to retry.</Text></Pressable>}
           {validationError ? (
             <Text style={styles.validationText}>{validationError}</Text>
           ) : null}
 
           {isSubmissionSuccessful ? (
             <Text style={styles.successText}>
-              Request posted successfully.
+              {editId ? 'Changes saved successfully.' : 'Request posted successfully.'}
             </Text>
           ) : null}
 
@@ -1295,7 +1309,7 @@ const formatCalendarMonthLabel = (date: Date) => {
                 ? "Posting..."
                 : isSubmissionSuccessful
                   ? "Request Posted"
-                  : "Post Request"}
+                  : editId ? "Save Changes" : "Post Request"}
             </Text>
 
             <Ionicons

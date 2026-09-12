@@ -1,7 +1,9 @@
-import { FontAwesome5, Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
-import React, { useMemo, useState } from "react";
+import { Ionicons } from "@expo/vector-icons";
+import { useRouter, useFocusEffect } from "expo-router";
+import React, { useCallback, useRef, useState } from "react";
 import {
+  ActivityIndicator,
+  RefreshControl,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -9,8 +11,9 @@ import {
   View,
 } from "react-native";
 import ScreenHeader from "../../components/ScreenHeader";
-import { useRequests } from "../../context/RequestsContext";
-import type { RequestCategory } from "../../types";
+import { useAuth } from "../../context/AuthContext";
+import { loadRequests, requestError } from "../../lib/requests";
+import type { CampusRequest, RequestCategory } from "../../types";
 
 
 
@@ -40,17 +43,38 @@ const filters: RequestCategory[] = [
 
   export default function RequestsFeedScreen() {
     const router = useRouter();
-    const { requests } = useRequests();
-
+    const { user } = useAuth();
     const [selectedFilter, setSelectedFilter] = useState<RequestCategory>("ALL");
-
-    const visibleRequests = useMemo(() => {
-      if (selectedFilter === "ALL") {
-        return requests;
-      }
-
-      return requests.filter((request) => request.category === selectedFilter);
-    }, [selectedFilter, requests]);
+    const [mine, setMine] = useState(false);
+    const [requests, setRequests] = useState<CampusRequest[]>([]);
+    const [loadedFor, setLoadedFor] = useState<string>();
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState("");
+    const [hasMore, setHasMore] = useState(false);
+    const offset = useRef(0);
+    const generation = useRef(0);
+    const busy = useRef(false);
+    const fetchPage = useCallback(async (append = false) => {
+      if (!user || (append && busy.current)) return;
+      const ticket = ++generation.current;
+      busy.current = true;
+      setLoading(true); setError("");
+      if (!append) { setRequests([]); offset.current = 0; setHasMore(false); }
+      try {
+        const result = await loadRequests(selectedFilter, mine ? user.id : null, append ? offset.current : 0);
+        if (ticket !== generation.current) return;
+        setLoadedFor(user.id);
+        setRequests(previous => append ? [...previous, ...result.items.filter(item => !previous.some(old => old.id === item.id))] : result.items);
+        offset.current = result.nextOffset; setHasMore(result.hasMore);
+      } catch (failure) { if (ticket === generation.current) setError(requestError(failure)); }
+      finally { if (ticket === generation.current) { setLoading(false); busy.current = false; } }
+    }, [user, selectedFilter, mine]);
+    useFocusEffect(useCallback(() => {
+      void fetchPage();
+      const timer = setInterval(() => { void fetchPage(); }, 60000);
+      return () => { clearInterval(timer); ++generation.current; busy.current = false; setRequests([]); };
+    }, [fetchPage]));
+    const visibleRequests = user?.id === loadedFor ? requests : [];
 
   const handleFilterChange = (filter: RequestCategory) => {
     setSelectedFilter(filter);
@@ -89,26 +113,16 @@ const filters: RequestCategory[] = [
         </ScreenHeader>
 
         <ScrollView
+          refreshControl={<RefreshControl refreshing={loading} onRefresh={() => { void fetchPage(); }} />}
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          <View style={styles.balanceBar}>
-            <View style={styles.balanceIcon}>
-              <FontAwesome5 name="star" size={14} color="#FFFFFF" solid />
-            </View>
-
-            <View style={styles.balanceTextBlock}>
-              <Text style={styles.balanceLabel}>Your balance</Text>
-              <Text style={styles.balanceAmount}>1,250 points</Text>
-            </View>
-
-            <View style={styles.balanceTrend}>
-              <Ionicons name="trending-up" size={14} color={COLORS.primary} />
-              <Text style={styles.balanceTrendText}>+95 this week</Text>
-            </View>
-          </View>
-
+          <Pressable style={[styles.filterPill, styles.feedToggle]} onPress={() => setMine(value => !value)}>
+            <Text style={styles.filterText}>{mine ? "My requests • Show campus feed" : "Campus feed • Show my requests"}</Text>
+          </Pressable>
+          {loading && <View style={styles.refreshStatus}><ActivityIndicator color={COLORS.primary} /><Text>Refreshing requests…</Text></View>}
+          {!!error && <Pressable onPress={() => { void fetchPage(); }}><Text accessibilityRole="alert">{error} Tap to retry.</Text></Pressable>}
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -144,7 +158,7 @@ const filters: RequestCategory[] = [
 
 
           <View style={styles.requestList}>
-            {visibleRequests.length === 0 ? (
+            {visibleRequests.length === 0 && !loading && !error ? (
               <View style={styles.emptyState}>
                 <View style={styles.emptyStateIcon}>
                   <Ionicons
@@ -226,7 +240,7 @@ const filters: RequestCategory[] = [
                           color="#747474"
                         />
 
-                        <Text style={styles.metaText} numberOfLines={1}>
+                        <Text style={styles.metaText}>
                           {item.location}
                         </Text>
                       </View>
@@ -238,7 +252,7 @@ const filters: RequestCategory[] = [
                           color="#747474"
                         />
 
-                        <Text style={styles.metaText} numberOfLines={1}>
+                        <Text style={styles.metaText}>
                           {item.timeLabel}
                         </Text>
                       </View>
@@ -251,10 +265,10 @@ const filters: RequestCategory[] = [
                         handleOfferHelp(item.id);
                       }}
                       accessibilityRole="button"
-                      accessibilityLabel={`Offer help for ${item.title}`}
+                      accessibilityLabel={`View ${item.title}`}
                     >
                       <Text style={styles.offerButtonText}>
-                        Offer Help
+                        View Details
                       </Text>
                     </Pressable>
                   </View>
@@ -273,6 +287,7 @@ const filters: RequestCategory[] = [
 
 
 
+          {hasMore && <Pressable disabled={loading} style={styles.emptyStateButton} onPress={() => { void fetchPage(true); }}><Text style={styles.emptyStateButtonText}>Load more</Text></Pressable>}
         </ScrollView>
 
         <Pressable style={styles.fab} onPress={handleCreateRequest}>
@@ -361,6 +376,17 @@ const styles = StyleSheet.create({
 
   filtersRow: {
     paddingBottom: 16,
+  },
+  refreshStatus: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 12,
+  },
+
+  feedToggle: {
+    marginBottom: 16,
+    marginRight: 0,
   },
 
   filterPill: {
@@ -468,26 +494,21 @@ const styles = StyleSheet.create({
   },
 
   cardBottomRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+    gap: 12,
   },
 
   metaRow: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    marginRight: 10,
+    gap: 6,
   },
 
   metaItem: {
     flexDirection: "row",
     alignItems: "center",
-    marginRight: 15,
-    maxWidth: 105,
+    minWidth: 0,
   },
 
   metaText: {
+    flex: 1,
     marginLeft: 5,
     fontSize: 11,
     fontWeight: "700",
@@ -495,6 +516,7 @@ const styles = StyleSheet.create({
   },
 
   offerButton: {
+    alignSelf: "flex-end",
     height: 38,
     paddingHorizontal: 20,
     borderRadius: 19,

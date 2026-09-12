@@ -4,7 +4,7 @@ CampusClutch is an Expo React Native mobile app for university students to conne
 
 The app still uses mock data and in-memory React context for several feature flows, but Supabase authentication and the user-profile domain are now connected to persistent backend data. Task 6 has implemented persistent profiles, onboarding, editing, interests, social links, discoverability, avatars, public student-profile loading, and stale-session recovery across the hosted Development and Preview environments.
 
-> **Current status:** Tasks 1–6 are complete and merged. Task 6—Persist User Profiles—was merged through pull request #22 at merge commit `870b6a7`. All Task 6 migrations are synchronized in hosted Development and Preview, the completed feature branch was cleaned up locally and remotely, and the repository was synchronized back to `main`. This README is being finalized on the documentation-only `docs/complete-task-6` branch. Task 7—Persist Courses and Course Membership—is the next roadmap task and must not begin until this documentation-only closure update is merged back into `main`.
+> **Current status:** Tasks 1–7 are complete and merged. Task 7—Persist Courses and Course Membership—merged through PR #24 at `13d2202`. Task 8—Persist Requests—is implemented on `codex/persist-requests`, with database validation in Development and Preview and all five standalone Preview phone tests passed. It is ready for final CI and merge. See [the Task 8 checkpoint](docs/task-8-requests.md) for the validation record.
 
 ---
 
@@ -102,8 +102,8 @@ Completed major milestones:
 Current roadmap position:
 
 ```text
-Task 6 — Complete
-Task 7 — Next
+Task 7 — Complete and merged (PR #24)
+Task 8 — In progress: Android validation checkpoint
 ```
 
 Task 6 completion record:
@@ -115,13 +115,13 @@ Merge commit — 870b6a7
 
 Task 6 implementation, backend validation, Preview deployment, manual testing, CI, review, merge, branch cleanup, and `main` synchronization are complete.
 
-Current documentation-only closure branch:
+Current implementation branch:
 
 ```text
-docs/complete-task-6
+codex/persist-requests
 ```
 
-After this README-only branch is merged, Task 7 can begin from a fresh branch created from updated `main`.
+Task 7's Android tests, including password recovery, passed. Development and Preview validation was recorded before merge. The Task 8 branch starts from synchronized `main` at `13d2202`. Older Task 6 closure and Task 7 startup instructions below are historical; use the Task 8 checkpoint for current work.
 ---
 
 # Important Current Limitations
@@ -130,7 +130,7 @@ CampusClutch now has working authentication and a persistent profile domain, but
 
 This means:
 
-- Newly created requests reset when the app reloads.
+- Requests now persist against local Supabase; Task 8 Android and hosted validation are pending.
 - Locally sent messages reset when the conversation is reopened or the app reloads.
 - Offer Help state is local UI state and resets when the request details screen is reopened.
 - Course membership is not persisted.

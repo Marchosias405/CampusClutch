@@ -1,13 +1,18 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useState } from "react";
+import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
+import React, { useCallback, useRef, useState } from "react";
 import {
+  Alert,
+  RefreshControl,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from "react-native";
+import { useAuth } from "../../context/AuthContext";
+import { loadRequest, cancelRequest, requestError } from "../../lib/requests";
+import type { CampusRequest } from "../../types";
 import ScreenHeader from "../../components/ScreenHeader";
 import { useRequests } from "../../context/RequestsContext";
 
@@ -23,14 +28,47 @@ const COLORS = {
 
 export default function RequestDetailsScreen() {
   const router = useRouter();
-  const { requests } = useRequests();
+  const { invalidate } = useRequests();
+  const { user } = useAuth();
   const { id } = useLocalSearchParams();
 
   const requestId = Array.isArray(id) ? id[0] : id;
 
-  const request = requests.find((item) => item.id === requestId);
-
-  const [offerSent, setOfferSent] = useState(false);
+  const [storedRequest, setRequest] = useState<CampusRequest | null>(null);
+  const [loadedFor, setLoadedFor] = useState<string>();
+  const request = user?.id === loadedFor ? storedRequest : null;
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [cancelling, setCancelling] = useState(false);
+  const lock = useRef(false);
+  const sequence = useRef(0);
+  const refresh = useCallback(async () => {
+    const ticket = ++sequence.current;
+    setLoading(true); setError(''); setRequest(null);
+    try {
+      const row = user && requestId ? await loadRequest(requestId) : null;
+      if (ticket === sequence.current) { setLoadedFor(user?.id); setRequest(row); }
+    } catch (failure) { if (ticket === sequence.current) setError(requestError(failure)); }
+    finally { if (ticket === sequence.current) setLoading(false); }
+  }, [requestId, user]);
+  useFocusEffect(useCallback(() => {
+    void refresh();
+    const timer = setInterval(() => { void refresh(); }, 60000);
+    return () => { clearInterval(timer); ++sequence.current; setRequest(null); };
+  }, [refresh]));
+  const handleCancel = () => {
+    Alert.alert('Cancel request?', 'It will leave the campus feed and remain in your history.', [
+      { text: 'Keep request', style: 'cancel' },
+      { text: 'Cancel request', style: 'destructive', onPress: async () => {
+        if (!requestId || lock.current) return;
+        lock.current = true; setCancelling(true);
+        const ticket = sequence.current;
+        try { await cancelRequest(requestId); invalidate(); if (ticket === sequence.current) await refresh(); }
+        catch (failure) { if (ticket === sequence.current) setError(requestError(failure)); }
+        finally { lock.current = false; setCancelling(false); }
+      } },
+    ]);
+  };
 
   if (!request) {
     return (
@@ -46,11 +84,12 @@ export default function RequestDetailsScreen() {
         </ScreenHeader>
 
         <View style={styles.notFoundContainer}>
-          <Text style={styles.notFoundTitle}>Request not found</Text>
+          <Text style={styles.notFoundTitle}>{loading ? "Loading request…" : error ? "Unable to load request" : "Request unavailable"}</Text>
           <Text style={styles.notFoundText}>
-            This request does not exist or may have been removed.
+            {error || "This request may be closed, expired, or unavailable to your account."}
           </Text>
 
+          {!loading && <Pressable style={styles.backButton} onPress={() => { void refresh(); }}><Text style={styles.backButtonText}>Retry</Text></Pressable>}
           <Pressable style={styles.backButton} onPress={() => router.back()}>
             <Text style={styles.backButtonText}>Back to Requests</Text>
           </Pressable>
@@ -58,12 +97,6 @@ export default function RequestDetailsScreen() {
       </View>
     );
   }
-
-  const handleOfferHelp = () => {
-    setOfferSent(true);
-    console.log("Offer sent for request:", request.id);
-  };
-
 
   const formatCreatedAt = (createdAt?: string) => {
     if (!createdAt) {
@@ -114,6 +147,7 @@ export default function RequestDetailsScreen() {
       </ScreenHeader>
 
       <ScrollView
+        refreshControl={<RefreshControl refreshing={loading} onRefresh={() => { void refresh(); }} />}
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
@@ -290,22 +324,16 @@ export default function RequestDetailsScreen() {
 
 
 
-          <Pressable
-            style={[styles.offerButton, offerSent && styles.offerButtonDisabled]}
-            onPress={handleOfferHelp}
-            disabled={offerSent}
-          >
-            <Text style={styles.offerButtonText}>
-              {offerSent ? "Offer Sent" : "Offer Help"}
-            </Text>
-          </Pressable>
-
-          {offerSent && (
-            <Text style={styles.confirmationText}>
-              Your offer has been sent. The requester can message you if they accept.
-            </Text>
-          )}          
-          
+          {!!error && <Text accessibilityRole="alert" style={styles.notFoundText}>{error}</Text>}
+          {request.ownerId === user?.id && request.status === 'open' && <View style={styles.ownerActions}>
+            <Pressable style={styles.offerButton} disabled={cancelling} onPress={() => router.push({ pathname: '/requests/create', params: { edit: request.id } })}>
+              <Text style={styles.offerButtonText}>Edit Request</Text>
+            </Pressable>
+            <Pressable style={[styles.backButton, styles.cancelButton]} disabled={cancelling} onPress={handleCancel}>
+              <Text style={styles.backButtonText}>{cancelling ? 'Cancelling…' : 'Cancel Request'}</Text>
+            </Pressable>
+          </View>}
+          {request.ownerId !== user?.id && <Text style={styles.confirmationText}>Offers will be available in a future update.</Text>}
         </View>
       </ScrollView>
     </View>
@@ -397,6 +425,12 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.primary,
     borderRadius: 16,
     paddingVertical: 16,
+    alignItems: "center",
+  },
+  ownerActions: {
+    gap: 12,
+  },
+  cancelButton: {
     alignItems: "center",
   },
   offerButtonDisabled: {
