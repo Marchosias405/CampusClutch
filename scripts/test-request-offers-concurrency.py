@@ -1,0 +1,152 @@
+"""Local-only Task 9 races. Requires psql on PATH; creates/removes isolated fixtures.
+
+Run: python scripts/test-request-offers-concurrency.py
+The coordinator holds the request row until both API-equivalent calls are
+observed waiting on a database lock, so these are real overlapping transactions.
+"""
+import concurrent.futures
+import json
+import os
+import shutil
+import subprocess
+import time
+import uuid
+
+PSQL = shutil.which('psql')
+if not PSQL:
+    raise SystemExit('Install PostgreSQL client tools (psql) first.')
+ENV = dict(os.environ, PGPASSWORD='postgres', PGCONNECT_TIMEOUT='5')
+ARGS = [PSQL, '-X', '-qAt', '-v', 'ON_ERROR_STOP=1', '-h', '127.0.0.1',
+        '-p', '54322', '-U', 'postgres', '-d', 'postgres']
+users = [str(uuid.uuid4()) for _ in range(3)]
+requests = []
+
+
+def sql(query, *, check=True, app='task9-fixtures'):
+    result = subprocess.run(ARGS + ['-c', query], env=dict(ENV, PGAPPNAME=app),
+                            capture_output=True, text=True, timeout=30)
+    if check and result.returncode:
+        raise AssertionError(result.stderr)
+    return result
+
+
+def as_user(user, query):
+    return f"begin; set local role authenticated; select set_config('request.jwt.claim.sub','{user}',true); {query}; commit;"
+
+
+def value(query):
+    return sql(query).stdout.strip().splitlines()[-1]
+
+
+def create_request():
+    campus = value("select id from public.campuses where slug='burnaby'")
+    payload = json.dumps(dict(category='delivery', title='Task 9 concurrency',
+        description='Temporary concurrency test request.', campus_id=campus,
+        room_location='Library', points=10, item_size='small',
+        deadline_at='2099-01-01T00:00:00Z',
+        details=dict(pickup_location='Cafe', dropoff_location='Library')))
+    request = value(as_user(users[0], f"select public.save_my_request('{payload}'::jsonb)"))
+    requests.append(request)
+    return request
+
+
+def offer(request, user):
+    return value(as_user(user, f"select public.create_my_request_offer('{request}')"))
+
+
+def race(request, calls, before_release=None):
+    marker = 'task9-' + uuid.uuid4().hex
+    blocker = subprocess.Popen(ARGS, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE, text=True, env=dict(ENV, PGAPPNAME=marker+'-blocker'))
+    pool = concurrent.futures.ThreadPoolExecutor(max_workers=2)
+    try:
+        blocker.stdin.write(f"begin; select id from public.requests where id='{request}' for update;\n")
+        blocker.stdin.flush()
+        assert blocker.stdout.readline().strip() == request, 'Coordinator lock failed'
+        futures = [pool.submit(sql, call, check=False, app=marker+f'-{i}') for i, call in enumerate(calls)]
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline:
+            waiting = value(f"select count(*) from pg_stat_activity where application_name in ('{marker}-0','{marker}-1') and wait_event_type='Lock'")
+            if waiting == '2':
+                break
+            time.sleep(.05)
+        else:
+            raise AssertionError('Both contenders did not reach the request lock')
+        if before_release:
+            before_release(blocker)
+        blocker.stdin.write('commit;\n\\q\n')
+        blocker.stdin.flush()
+        blocker.communicate(timeout=10)
+        return [future.result(timeout=30) for future in futures]
+    finally:
+        if blocker.poll() is None:
+            blocker.kill()
+            blocker.communicate()
+        pool.shutdown(wait=True)
+
+
+def decision(offer_id, action, user=None):
+    return as_user(user or users[0], f"select public.decide_request_offer('{offer_id}','{action}')")
+
+
+try:
+    for user in users:
+        sql(f"insert into auth.users(id,email) values('{user}','{user}@offer-test.local'); "
+            f"update public.profiles set display_name='Race Tester',major='Computing Science',year_of_study=2,"
+            f"campus_id=(select id from public.campuses where slug='burnaby') where id='{user}';")
+
+    request = create_request()
+    call = as_user(users[1], f"select public.create_my_request_offer('{request}')")
+    results = race(request, [call, call])
+    assert all(r.returncode == 0 for r in results)
+    assert results[0].stdout.strip().splitlines()[-1] == results[1].stdout.strip().splitlines()[-1]
+    assert value(f"select count(*) from public.request_offers where request_id='{request}'") == '1'
+    assert value(f"select count(*) from public.offer_notifications where request_id='{request}'") == '1'
+    print('PASS concurrent duplicate create: one offer and one event', flush=True)
+
+    request = create_request()
+    first, second = offer(request, users[1]), offer(request, users[2])
+    results = race(request, [decision(first, 'accepted'), decision(second, 'accepted')])
+    assert sum(r.returncode == 0 for r in results) == 1
+    assert value(f"select count(*) from public.request_offers where request_id='{request}' and status='accepted'") == '1'
+    assert value(f"select count(*) from public.request_offers where request_id='{request}' and status='rejected'") == '1'
+    assert value(f"select status from public.requests where id='{request}'") == 'accepted'
+    print('PASS simultaneous acceptance: exactly one winner', flush=True)
+
+    request = create_request()
+    first = offer(request, users[1])
+    results = race(request, [decision(first, 'accepted'), decision(first, 'withdrawn', users[1])])
+    assert sum(r.returncode == 0 for r in results) == 1
+    state = value(f"select r.status||'/'||o.status from public.requests r join public.request_offers o on o.request_id=r.id where r.id='{request}'")
+    assert state in ('accepted/accepted', 'open/withdrawn'), state
+    print('PASS withdrawal versus acceptance: consistent final state', flush=True)
+
+    request = create_request()
+    first = offer(request, users[1])
+    results = race(request, [decision(first, 'accepted'), as_user(users[0], f"select public.cancel_my_request('{request}')")])
+    assert sum(r.returncode == 0 for r in results) == 1
+    state = value(f"select r.status||'/'||o.status from public.requests r join public.request_offers o on o.request_id=r.id where r.id='{request}'")
+    assert state in ('accepted/accepted', 'cancelled/rejected'), state
+    print('PASS cancellation versus acceptance: consistent final state', flush=True)
+
+    request = create_request()
+    first, second = offer(request, users[1]), offer(request, users[2])
+
+    def expire_while_locked(blocker):
+        # Contenders already began their statements. Change deadline before releasing
+        # the lock to exercise the post-lock row and clock recheck.
+        blocker.stdin.write(f"update public.requests set deadline_at=clock_timestamp()-interval '1 second' where id='{request}';\n")
+        blocker.stdin.flush()
+
+    results = race(request, [decision(first, 'accepted'), decision(second, 'accepted')], expire_while_locked)
+    assert all(r.returncode != 0 for r in results)
+    sql(as_user(users[0], f"select * from public.get_request_offers('{request}')"))
+    assert value(f"select status from public.requests where id='{request}'") == 'expired'
+    assert value(f"select count(*) from public.request_offers where request_id='{request}' and status='pending'") == '0'
+    print('PASS expiry while acceptance waits: neither offer accepted', flush=True)
+finally:
+    if requests:
+        sql('delete from public.requests where id in (' + ','.join(f"'{r}'" for r in requests) + ')')
+    for user in users:
+        sql(f"delete from auth.users where id='{user}'")
+    print('Temporary concurrency fixtures removed.', flush=True)

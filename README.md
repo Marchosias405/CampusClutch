@@ -2,9 +2,9 @@
 
 CampusClutch is an Expo React Native mobile app for university students to connect through courses, classmates, student profiles, campus help requests, direct messages, group conversations, notifications, and user profiles.
 
-Authentication, user profiles, courses, course memberships, classmates, and campus requests now use persistent Supabase data. Tasks 6–8 have been validated in hosted Development and Preview. Messages and notifications still use mock or local state; the real Offer Help workflow is the next roadmap task.
+Authentication, user profiles, courses, course memberships, classmates, and campus requests now use persistent Supabase data. Tasks 6–8 have been validated in hosted Development and Preview. Messages and notifications still use mock or local state; Task 9 has a locally tested offer backend, with phone UI and hosted deployment still pending.
 
-> **Current status:** Tasks 1–8 are complete and merged. Task 7 merged through [PR #24](https://github.com/Marchosias405/CampusClutch/pull/24) at `13d2202`. Task 8 merged through [PR #25](https://github.com/Marchosias405/CampusClutch/pull/25) at `19f3e61`, after backend validation, all five standalone Preview phone tests, final code review, and passing GitHub CI. Local `main` was synchronized and the Task 8 feature branch deleted locally and remotely. Task 9—Implement Real Offer Help Workflow—is next and has not started.
+> **Current status:** Tasks 1–8 are complete and merged. Task 7 merged through [PR #24](https://github.com/Marchosias405/CampusClutch/pull/24) at `13d2202`. Task 8 merged through [PR #25](https://github.com/Marchosias405/CampusClutch/pull/25) at `19f3e61`, after backend validation, all five standalone Preview phone tests, final code review, and passing GitHub CI. Local `main` was synchronized and the Task 8 feature branch deleted locally and remotely. The README closure merged through [PR #26](https://github.com/Marchosias405/CampusClutch/pull/26) at `9a87581`. Task 9—Implement Real Offer Help Workflow—is in progress on `codex/persist-request-offers`; its first backend checkpoint is complete locally.
 
 ---
 
@@ -113,7 +113,7 @@ Current roadmap position:
 Task 6 — Complete and merged (PR #22, 870b6a7)
 Task 7 — Complete and merged (PR #24, 13d2202)
 Task 8 — Complete and merged (PR #25, 19f3e61)
-Task 9 — Next; not started
+Task 9 — In progress; backend checkpoint 1 tested locally
 ```
 
 Task 8 completion record:
@@ -124,7 +124,7 @@ Task 8 completion record:
 - PR #25 merged into `main` on September 11, 2026 (America/Vancouver).
 - Local `main` was synchronized with `origin/main` at `19f3e61` with a clean working tree.
 - `codex/persist-requests` was deleted locally and remotely, and stale references were pruned.
-- This README closure update is on `codex/update-readme-task-8`; pushing it does not itself merge it into protected `main`.
+- The README closure update merged through PR #26 at `9a87581`; Task 9 began from synchronized `main`.
 
 Detailed validation history: [Task 8 checkpoint](docs/task-8-requests.md). Its earlier pending notes describe checkpoints before the completed PR #25 merge.
 
@@ -138,7 +138,7 @@ This means:
 
 - Requests persist in the selected backend environment; local, hosted Development, and hosted Preview accounts/data are separate.
 - Locally sent messages reset when the conversation is reopened or the app reloads.
-- Real offers are not implemented. Task 8 removed the simulated offer confirmation; Task 9 will add persistent offers.
+- The Task 9 offer backend is implemented and tested locally. Offer screens, hosted deployment, and phone validation remain pending; the installed Preview APK still has the Task 8 behavior.
 - Course membership persists; current/previous courses derive from membership and academic-term state.
 - Classmates load from real course membership with backend visibility rules.
 - Legacy classmate profile IDs such as `aisha-r`, `jordan-t`, and `mei-l` remain explicitly supported by the student-profile screen.
@@ -1541,14 +1541,27 @@ This closes the Requests offline/retry test that was previously deferred during 
 
 # Task 9 — Implement Real Offer Help Workflow
 
-**Status: Next roadmap task — not started**
+**Status: In progress — backend checkpoint 1 complete locally**
 
-Requests persistence is complete. Begin after this README closure update has passed the documentation PR workflow and local `main` is synchronized.
+Requests persistence and README closure are merged. Work is on `codex/persist-request-offers`, created from `main` at `9a87581`.
+
+Checkpoint 1 completed:
+
+- Persistent offers with caller-derived ownership and one permanent offer per helper/request.
+- Helper withdrawal and owner rejection/acceptance through authenticated functions.
+- Atomic acceptance, competing-offer rejection, and accepted-helper request access.
+- Cancellation/expiry settlement and recipient-only durable offer notification records.
+- 53 offer assertions, five concurrent-operation tests, 61 request regressions, and 13 course regressions passed locally.
+- ESLint, TypeScript, and exact migration replay passed.
+
+The phone UI, approved helper profile summaries, hosted deployment, and Preview testing are the next checkpoints. Task 9 is not complete or merged.
+
+Detailed contract and validation: [Task 9 checkpoint](docs/task-9-offers.md).
 
 Requirements:
 
 - Persist offers.
-- Prevent duplicate active offers.
+- Enforce one permanent offer per helper/request; retries never reactivate rejected or withdrawn offers.
 - Store offering user.
 - Store request ID.
 - Support:
@@ -1757,7 +1770,7 @@ Possible work:
 - Task 6 pull request: #22 merged into `main` at merge commit `870b6a7`
 - Courses/Classmates persistence: Task 7 complete, PR #24 (`13d2202`)
 - Requests persistence: Task 8 complete, PR #25 (`19f3e61`)
-- Offer Help persistence: Task 9 next; not started
+- Offer Help persistence: Task 9 backend tested locally; UI and hosted validation pending
 - Messaging persistence: Task 10
 - Production Android build: Not started
 - Production iOS build: Not started
@@ -1791,44 +1804,20 @@ CampusClutch still needs:
 
 # Next Action
 
-Finish the documentation-only closure update:
+Continue Task 9 on the existing feature branch:
 
 ```text
-codex/update-readme-task-8
+codex/persist-request-offers
 ```
 
-Immediate steps:
+Next checkpoint:
 
-1. Review and push the README-only commit.
-2. Open a documentation-only pull request into `main`.
-3. Confirm CI passes, review, and merge the documentation update.
-4. Synchronize local `main` and clean up the documentation branch.
+1. Add typed offer loading and mutation functions with authentication/session guards.
+2. Add approved helper profile summaries without broadening private profile access.
+3. Connect Offer Help, existing-offer status, and withdrawal on request details.
+4. Add the owner's offer list, accept/reject confirmation, and committed success states.
+5. Handle loading, offline failures, retry, expiry, and competing decisions without losing input.
+6. Validate locally and stop for Android testing before hosted deployment and Preview packaging.
+7. Complete hosted tests, Preview phone validation, CI, review, merge, and documentation before Task 10.
 
-Then begin:
-
-```text
-Task 9 — Implement Real Offer Help Workflow
-```
-
-Create the next feature branch from updated `main`:
-
-```powershell
-git switch main
-git pull --ff-only origin main
-git switch -c codex/persist-request-offers
-```
-
-Initial Task 9 work should:
-
-1. Inspect the current request details screen, request service, and Task 8 database contract.
-2. Review `docs/backend-plan.md` and existing migrations before designing offer tables.
-3. Define ownership, allowed status transitions, duplicate-active-offer prevention, and request eligibility.
-4. Specify how acceptance updates the request atomically, including concurrent offers and owner decisions.
-5. Define pending, accepted, rejected, and withdrawn behavior and the owner-facing offer list.
-6. Decide the owner notification behavior for this task while keeping the full notification system in Task 11 and persistent messaging in Task 10.
-7. Add backend authorization and lifecycle tests before connecting the UI.
-8. Implement one bounded checkpoint at a time, preserving the existing Expo Router navigation and red/white design.
-9. Stop at a working checkpoint for manual Android testing before advancing.
-10. Complete local/hosted validation, Preview tests, CI, review, merge, and documentation before Task 10.
-
-Task 9 implementation has not started. This update documents completed progress and the next plan only.
+Checkpoint 1 changed the local backend only. No new Preview APK has been built, and no Task 9 migration has been applied to hosted Development or Preview.
