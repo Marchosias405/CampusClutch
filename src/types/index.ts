@@ -25,10 +25,15 @@ export type RequestStatus =
   | "open"
   | "offered"
   | "accepted"
+  | "cancelled"
+  | "expired"
   | "completed";
 
 export type CampusRequest = {
   id: string;
+  ownerId?: string;
+  campusId?: string;
+  deadlineAt?: string;
   category: Exclude<RequestCategory, "ALL">;
   secondaryCategory?: string;
 
