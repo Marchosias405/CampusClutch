@@ -2,9 +2,9 @@
 
 CampusClutch is an Expo React Native mobile app for university students to connect through courses, classmates, student profiles, campus help requests, direct messages, group conversations, notifications, and user profiles.
 
-The app still uses mock data and in-memory React context for several feature flows, but Supabase authentication and the user-profile domain are now connected to persistent backend data. Task 6 has implemented persistent profiles, onboarding, editing, interests, social links, discoverability, avatars, public student-profile loading, and stale-session recovery across the hosted Development and Preview environments.
+Authentication, user profiles, courses, course memberships, classmates, and campus requests now use persistent Supabase data. Tasks 6–8 have been validated in hosted Development and Preview. Messages and notifications still use mock or local state; the real Offer Help workflow is the next roadmap task.
 
-> **Current status:** Tasks 1–7 are complete and merged. Task 7—Persist Courses and Course Membership—merged through PR #24 at `13d2202`. Task 8—Persist Requests—is implemented on `codex/persist-requests`, with database validation in Development and Preview and all five standalone Preview phone tests passed. It is ready for final CI and merge. See [the Task 8 checkpoint](docs/task-8-requests.md) for the validation record.
+> **Current status:** Tasks 1–8 are complete and merged. Task 7 merged through [PR #24](https://github.com/Marchosias405/CampusClutch/pull/24) at `13d2202`. Task 8 merged through [PR #25](https://github.com/Marchosias405/CampusClutch/pull/25) at `19f3e61`, after backend validation, all five standalone Preview phone tests, final code review, and passing GitHub CI. Local `main` was synchronized and the Task 8 feature branch deleted locally and remotely. Task 9—Implement Real Offer Help Workflow—is next and has not started.
 
 ---
 
@@ -50,7 +50,7 @@ Completed major milestones:
 - Campus request feed and filters
 - Request creation for four request types
 - Request validation and submission feedback
-- Request details and Offer Help state
+- Request details and the original Offer Help UI prototype (superseded by Task 8)
 - Android keyboard fixes for messages and request forms
 - Expo/EAS project configuration
 - Android and iOS application identifiers
@@ -98,43 +98,49 @@ Completed major milestones:
 - Task 6 migrations applied to Development
 - Task 6 migrations applied to Preview
 - Physical Android testing of the Task 6 profile flows
+- Persistent course catalog, academic terms, and course memberships
+- Backend classmates with profile privacy enforcement
+- Persistent creation and details for all four request types
+- Owner-only request editing, cancellation, and history
+- Backend request filtering, pagination, and expiration
+- Offline refresh recovery and form retention after failed saves
+- Standalone Task 8 Preview APK built and tested
+- Task 7 and Task 8 merged with passing CI
 
 Current roadmap position:
 
 ```text
-Task 7 — Complete and merged (PR #24)
-Task 8 — In progress: Android validation checkpoint
+Task 6 — Complete and merged (PR #22, 870b6a7)
+Task 7 — Complete and merged (PR #24, 13d2202)
+Task 8 — Complete and merged (PR #25, 19f3e61)
+Task 9 — Next; not started
 ```
 
-Task 6 completion record:
+Task 8 completion record:
 
-```text
-Pull request #22 — Merged
-Merge commit — 870b6a7
-```
+- Implementation, database validation, hosted deployment, and Android testing passed.
+- Final local lint/typecheck and whitespace checks passed.
+- Code review found no blocking issues; the required GitHub CI check passed.
+- PR #25 merged into `main` on September 11, 2026 (America/Vancouver).
+- Local `main` was synchronized with `origin/main` at `19f3e61` with a clean working tree.
+- `codex/persist-requests` was deleted locally and remotely, and stale references were pruned.
+- This README closure update is on `codex/update-readme-task-8`; pushing it does not itself merge it into protected `main`.
 
-Task 6 implementation, backend validation, Preview deployment, manual testing, CI, review, merge, branch cleanup, and `main` synchronization are complete.
+Detailed validation history: [Task 8 checkpoint](docs/task-8-requests.md). Its earlier pending notes describe checkpoints before the completed PR #25 merge.
 
-Current implementation branch:
-
-```text
-codex/persist-requests
-```
-
-Task 7's Android tests, including password recovery, passed. Development and Preview validation was recorded before merge. The Task 8 branch starts from synchronized `main` at `13d2202`. Older Task 6 closure and Task 7 startup instructions below are historical; use the Task 8 checkpoint for current work.
 ---
 
 # Important Current Limitations
 
-CampusClutch now has working authentication and a persistent profile domain, but several other feature flows still use mock or in-memory data.
+CampusClutch has persistent authentication, profiles, courses, memberships, and requests. Remaining feature limitations are listed below.
 
 This means:
 
-- Requests now persist against local Supabase; Task 8 Android and hosted validation are pending.
+- Requests persist in the selected backend environment; local, hosted Development, and hosted Preview accounts/data are separate.
 - Locally sent messages reset when the conversation is reopened or the app reloads.
-- Offer Help state is local UI state and resets when the request details screen is reopened.
-- Course membership is not persisted.
-- Classmates are still derived from `mockStudents`.
+- Real offers are not implemented. Task 8 removed the simulated offer confirmation; Task 9 will add persistent offers.
+- Course membership persists; current/previous courses derive from membership and academic-term state.
+- Classmates load from real course membership with backend visibility rules.
 - Legacy classmate profile IDs such as `aisha-r`, `jordan-t`, and `mei-l` remain explicitly supported by the student-profile screen.
 - Real Supabase UUID student profiles can load persisted backend profile data.
 - Real UUID messaging is intentionally disabled until persistent conversations/messages are implemented in Task 10.
@@ -152,7 +158,7 @@ This means:
 - Public profile avatar rendering uses authenticated signed URLs.
 - Initials remain as a fallback when no avatar exists or avatar loading fails.
 - Task 6 migrations are applied and synchronized in both hosted Development and Preview.
-- Courses, requests, offers, conversations, messages, and notifications do not yet use persistent feature tables.
+- Offers, conversations, messages, and notifications do not yet use persistent feature tables.
 - There are no real push notifications.
 - There is no production reporting or moderation workflow.
 - The production Supabase project and production EAS variables are not configured.
@@ -223,7 +229,7 @@ Current team expectations:
 22. Do not assume `src/app/messages/new.tsx` exists.
 23. Keep Supabase temporary CLI state under `supabase/.temp/` uncommitted.
 24. Keep hosted Development as the normal linked Supabase project after Preview validation.
-25. Do not begin Task 8 until Task 7 has passed implementation, backend validation, manual testing, CI, review, merge, documentation, and `main` synchronization.
+25. Finish the Task 8 documentation closure before beginning Task 9 from updated `main`. Continue to complete each task through validation, CI, review, merge, and documentation before starting the next.
 
 ---
 
@@ -297,20 +303,12 @@ Current expected result:
 
 ```text
 0 errors
-2 warnings
+0 warnings
 ```
 
-The two existing warnings are in:
+The former Courses `matchesQuery` Hook warnings were resolved in Task 7.
 
-```text
-src/app/(tabs)/courses.tsx
-```
-
-They are React Hook `useMemo` dependency warnings involving `matchesQuery`.
-
-These warnings are intentionally deferred to Task 7 because they are in the Courses flow that Task 7 will migrate to persistent backend data.
-
-Do not make a separate unrelated warning-only change before Task 7.
+Task 8 also has database tests in `supabase/tests/requests.test.sql` (61 assertions), course regression tests in `supabase/tests/course_memberships.test.sql` (13 assertions), and a local API integration script in `scripts/test-requests-local.cjs` (13 assertions). These passed during feature validation; they are not yet part of GitHub CI. See [the checkpoint](docs/task-8-requests.md) for prerequisites and repeatable commands.
 
 ---
 
@@ -361,7 +359,10 @@ CampusClutch/
 │   └── settings.json
 ├── docs/
 │   ├── backend-plan.md
-│   └── backend-setup.md
+│   ├── backend-setup.md
+│   └── task-8-requests.md
+├── scripts/
+│   └── test-requests-local.cjs
 ├── src/
 │   ├── app/
 │   │   ├── (auth)/
@@ -404,10 +405,15 @@ CampusClutch/
 │   │   └── RequestsContext.tsx
 │   ├── lib/
 │   │   ├── avatars.ts
+│   │   ├── courses.ts
+│   │   ├── crypto.ts
+│   │   ├── crypto.native.ts
+│   │   ├── requests.ts
 │   │   ├── env.ts
 │   │   ├── profiles.ts
 │   │   └── supabase.ts
 │   └── types/
+│       ├── course.ts
 │       ├── index.ts
 │       └── profile.ts
 ├── supabase/
@@ -418,7 +424,12 @@ CampusClutch/
 │   │   ├── 20260805042701_replace_profile_interests_atomically.sql
 │   │   ├── 20260805052414_add_profile_social_links.sql
 │   │   ├── 20260805053323_replace_profile_social_links_atomically.sql
-│   │   └── 20260805061611_allow_avatar_owner_cleanup.sql
+│   │   ├── 20260805061611_allow_avatar_owner_cleanup.sql
+│   │   ├── 20260818072241_persist_courses_and_memberships.sql
+│   │   └── 20260907204626_persist_requests.sql
+│   ├── tests/
+│   │   ├── course_memberships.test.sql
+│   │   └── requests.test.sql
 │   ├── config.toml
 │   └── seed.sql
 ├── .env.example
@@ -459,33 +470,30 @@ Do not commit that directory.
 
 Completed behavior:
 
-- `+ Add Course` opens `/courses/add`.
-- Current course cards open `/courses/classmates`.
-- The selected course is passed through `courseId`.
-- Find Classmates opens `/courses/classmates`.
-- Course search works by code and title.
-- Course cards are selectable.
-- Selected cards use red/pink styling.
-- A checkmark appears on the selected course.
-- Add Course returns to the Courses screen.
-- Classmates are loaded from shared mock data.
-- Student cards open `/students/[id]`.
-- Legacy classmate Message buttons open `/messages/[id]`.
+- Available courses and academic terms load from Supabase.
+- `+ Add Course` opens `/courses/add` with search by course code/title.
+- Joining and leaving a course persists through guarded backend functions.
+- Duplicate enrollment is prevented; leaving and rejoining are supported.
+- Current and previous course lists derive from persisted membership and term status.
+- Course cards open `/courses/classmates` with `courseId`.
+- Classmates load from actual memberships, with discoverability and access rules enforced by the backend.
+- Student cards open real UUID profiles at `/students/[id]`.
+- Loading, error, empty, and refresh states are present.
 
 Known working flow:
 
 ```text
 Courses
-→ Course
+→ Add / Remove Course
+→ Reload with membership preserved
 → Classmates
-→ Student Profile
-→ Message Thread
+→ Persistent Student Profile
 ```
 
 Known limitation:
 
-- Added courses are not persisted after reload.
-- Classmate discovery is still mock-backed until Task 7.
+- Messaging from real UUID profiles remains disabled until Task 10.
+- Legacy mock profile/chat routes remain compatibility paths; they do not supply the current classmates list.
 
 ---
 
@@ -909,6 +917,8 @@ This prevents the user from being trapped in the protected profile-loading state
 
 # Task 6 Backend Migrations
 
+This section records Task 6 validation history. Tasks 7 and 8 added the two later migrations listed in the project tree; their validation is recorded in the roadmap sections below.
+
 Task 6 uses the following migration sequence:
 
 ```text
@@ -1029,34 +1039,32 @@ Persistent conversations/messages remain Task 10.
 
 Completed behavior:
 
-- Category filters:
-  - All
-  - Delivery
-  - Event Help
-  - Pickup
-  - Study Help
-- Request cards open `/requests/[id]`.
-- Nested Offer Help presses use `event.stopPropagation()`.
-- Offer Help does not trigger duplicate navigation.
-- Back navigation requires one press.
-- Newly created requests are added to the beginning of the feed.
-- An empty state appears when a filter has no matching requests.
-- The floating `+` button opens `/requests/create`.
+- Category filters: All, Delivery, Event Help, Pickup, and Study Help.
+- Campus feed loads open, unexpired requests from Supabase.
+- My requests loads the signed-in owner's history, including cancelled/expired requests.
+- Backend filtering and pagination support loading more requests.
+- Pull-to-refresh, focus refresh, and a one-minute refresh update visible data.
+- Loading, error, retry, and empty states are supported.
+- Stale responses are discarded when the account or selected view changes.
+- Request cards open `/requests/[id]`; the floating `+` opens `/requests/create`.
+- Location/deadline rows and View Details are separated to avoid overlap.
+- The feed toggle has spacing above the category buttons.
 
 Known limitation:
 
-- Requests remain in-memory and reset after app restart.
+- Offset pagination can shift when other users post concurrently; refresh starts from the beginning.
+- Requester profile names and a real points/reward system remain future work.
 
 ---
 
 # Create Request Flow
 
-The Create Request screen supports:
+The Create Request screen persists all four types:
 
-- Delivery
-- Pickup
-- Event Help
-- Study Help
+- Delivery: pickup and drop-off locations.
+- Pickup: pickup location and destination.
+- Event Help: event name and help needed.
+- Study Help: course/subject and study topic.
 
 Shared fields:
 
@@ -1068,24 +1076,23 @@ Shared fields:
 - Deadline
 - Points Offered
 
-Completed behavior includes:
+Completed behavior:
 
-- Burnaby, Surrey, and Vancouver campus selection
-- Native/web date selection
-- Past-date blocking
-- Numeric points validation
-- Whole-number validation
-- Type-specific validation
-- Red invalid-field styling
-- Duplicate-submit protection
-- Submission feedback
-- Android keyboard avoidance
-- Scrollable form while keyboard is open
-- Successful request insertion into local Requests context
+- Burnaby, Surrey, and Vancouver campus selection.
+- Native/web date selection and past-date blocking.
+- Positive whole-number points and type-specific validation.
+- Red invalid-field styling and submission feedback.
+- Duplicate-tap protection while awaiting the save.
+- Common and type-specific fields save atomically through the backend.
+- Failed/offline saves preserve form values for retry.
+- Successful saves open the persisted request details.
+- Owner edits preload persisted values; category remains fixed.
+- An unchanged deadline is preserved; a newly selected date uses the end of that day in the phone's timezone.
+- Android keyboard avoidance and a scrollable form.
 
 Known limitation:
 
-- Created requests reset after reload.
+- If connectivity fails after the server has saved but before the response arrives, check My requests before resubmitting. Duplicate-tap protection does not provide server-side idempotency across retries.
 
 ---
 
@@ -1093,23 +1100,20 @@ Known limitation:
 
 Completed behavior:
 
-- Dynamic request IDs
-- Request lookup through `RequestsContext`
-- Request Not Found state
-- Category
-- Title
-- Description
-- Location
-- Deadline
-- Points
-- Urgent badge
-- Additional Details for new requests
-- Local Offer Help state
-- Back navigation
+- UUID-based backend loading independent of the feed.
+- Loading, unavailable/not-found, and error/retry states.
+- Category, title, description, location, deadline, points, urgency, and Additional Details.
+- Persisted status and posted timestamp.
+- Owner-only Edit Request and Cancel Request controls.
+- Another account cannot edit or cancel the request; authorization is also enforced on the backend.
+- Cancellation preserves history and removes the request from the open campus feed.
+- Cancelled/expired requests cannot be edited.
+- Owner action buttons have spacing and centered labels.
+- Back navigation remains available.
 
 Known limitation:
 
-- Offer Help state resets when the screen is reopened.
+- Real Offer Help, offer acceptance/rejection, and completion are later workflows. The previous simulated Offer Sent confirmation has been removed.
 
 ---
 
@@ -1218,6 +1222,25 @@ Task 6 Android testing includes:
 - Visible social links
 - Public persisted avatar rendering
 - Real UUID messaging-disabled state
+
+---
+
+## Current Android Testing Setup
+
+The latest standalone Task 8 Preview APK contains its JavaScript bundle and uses hosted Preview. It launches without Metro, USB, or open laptop terminals. It still needs internet access for backend operations. Local accounts/requests are separate from hosted Preview accounts/requests.
+
+The development-client APK displays a development-server launcher and requires Metro. With the existing local backend configuration, connect the phone by USB and use:
+
+```powershell
+Set-Location D:\Projects\CampusClutch
+adb reverse tcp:8081 tcp:8081
+adb reverse tcp:54321 tcp:54321
+npx expo start --dev-client --localhost
+```
+
+Local Supabase must also be running. Removing USB disconnects these forwarded services. Restoring access recovered the persisted requests during testing. A development-server launcher indicates the development installation, not the standalone Preview launch flow.
+
+Fresh password-reset recovery was manually verified after the native rebuild. For local recovery testing, use the newest email link from Mailpit on the same phone/app installation that requested it; local mail is available at `http://127.0.0.1:54324` on the laptop.
 
 ---
 
@@ -1359,11 +1382,11 @@ Completed:
 - Preview migration verification
 - CLI returned to Development
 
-Current expected local quality result:
+Historical Task 6 local quality result:
 
 ```text
 0 errors
-2 existing Courses warnings
+2 existing Courses warnings (resolved in Task 7)
 ```
 
 Final completion record:
@@ -1408,61 +1431,119 @@ All Task 6 implementation, backend, Preview, manual-test, local-check, CI, revie
 
 # Task 7 — Persist Courses and Course Membership
 
-**Status: Next roadmap task — not started**
+**Status: Complete**
 
-Start only after the documentation-only `docs/complete-task-6` closure update is merged and local `main` is synchronized.
+Merged through:
 
-Requirements:
+```text
+Pull request #24
+Merge commit 13d2202
+```
 
-- Load available courses.
-- Add a course membership.
-- Prevent duplicate membership.
-- Remove a course.
-- Separate current and previous courses.
-- Load classmates from real course memberships.
-- Preserve existing navigation.
-- Add loading, error, and empty states.
-- Resolve the existing `matchesQuery` lint warnings during this task.
+Completed:
 
-Completion condition:
+- Persistent academic terms, course catalog, and course memberships.
+- Backend course loading, joining, leaving, and duplicate membership prevention.
+- Current/previous course classification.
+- Classmates derived from real memberships with backend authorization and profile visibility.
+- Existing Expo Router navigation preserved.
+- Loading, error, empty, and refresh states.
+- Former Courses Hook lint warnings resolved.
+- Android auth routing and native crypto support updated; fresh password-reset recovery was manually verified.
+- Development and Preview backend validation and Android manual testing completed before merge.
+- Task 7 merged with passing CI; Task 8 began from synchronized `main`.
 
-- Added courses persist after reload.
-- Classmates are based on backend membership.
-- Course screens no longer depend on hardcoded membership mock data.
+Migration:
+
+```text
+supabase/migrations/20260818072241_persist_courses_and_memberships.sql
+```
+
+The 13 course/membership regression assertions also passed after Task 8's migration in local, hosted Development, and hosted Preview validation.
+
+**Completion condition: Met.**
 
 ---
 
 # Task 8 — Persist Requests
 
-Start only after Courses persistence is complete.
+**Status: Complete**
 
-Requirements:
+Merged through:
 
-- Replace in-memory request creation.
-- Load requests from backend.
-- Persist every request type.
-- Preserve type-specific details.
-- Store owner ID.
-- Store timestamps.
-- Store status.
-- Add loading state.
-- Add error state.
-- Add refresh behavior.
-- Keep category filters working.
-- Keep Additional Details working.
-- Add owner edit/delete rules.
+```text
+Pull request #25
+Merge commit 19f3e61
+Implementation commit cca8a0f
+```
 
-Completion condition:
+Completed:
 
-- Requests survive app reload.
-- Multiple users can see appropriate requests.
-- Request ownership is enforced.
+- Replaced in-memory requests with persistent backend loading and saves.
+- All four request types retain their type-specific Additional Details.
+- Server-controlled owner ID, initial status, and timestamps.
+- Atomic common/detail creation and editing.
+- Owner-only editing and soft cancellation; cancellation retains history.
+- RLS-protected reads and guarded mutation functions; anonymous access denied.
+- Open/unexpired campus feed, owner history, category filters, pagination, and refresh.
+- Loading, error, empty, and retry states with stale-response protection.
+- Offline save form retention and duplicate-tap protection.
+- Android request-card, filter, and owner-button spacing fixes.
+- Simulated offer confirmations and mock points balance removed.
+
+Migration:
+
+```text
+supabase/migrations/20260907204626_persist_requests.sql
+```
+
+## Backend validation
+
+- 61 request assertions passed locally and in each hosted environment.
+- 13 course regression assertions passed locally and in each hosted environment.
+- 13 local API integration assertions passed using the actual request service.
+- Test fixtures were rolled back or cleaned up; existing user/course data was not reset.
+- Development and Preview migration histories were aligned to repository version `20260907204626`.
+- Hosted advisors did not flag Task 8 request objects.
+- Existing advisor warnings on `rls_auto_enable`, course functions, and disabled leaked-password protection remain documented for review before production release.
+
+Final local checks did not rerun these database suites because local Supabase was stopped. These results describe the completed feature-validation runs, not a new live health check.
+
+## Standalone Preview validation
+
+Build: `bb1edd72-ab02-4d24-8372-2f4540112157` — **FINISHED**.
+
+[Build page](https://expo.dev/accounts/marchosias405/projects/CampusClutch/builds/bb1edd72-ab02-4d24-8372-2f4540112157)
+
+The user confirmed all five phone tests passed:
+
+1. Create all four request types, restart, and confirm persistence.
+2. Edit and cancel owned requests.
+3. Verify another account cannot edit/cancel them.
+4. Turn off Wi-Fi and mobile data, refresh, reconnect, and retry.
+5. Save offline and confirm form values remain.
+
+This closes the Requests offline/retry test that was previously deferred during USB development testing.
+
+## Final completion record
+
+- `npm run check` and whitespace checks passed.
+- Final code review found no blocking issues.
+- Required GitHub CI passed before merge.
+- [PR #25](https://github.com/Marchosias405/CampusClutch/pull/25) merged on September 11, 2026 (America/Vancouver).
+- Local `main` and `origin/main` were synchronized at `19f3e61` with a clean working tree.
+- The completed feature branch was removed locally and remotely.
+- Full checkpoint history and repeatable backend test commands are in [docs/task-8-requests.md](docs/task-8-requests.md).
+
+**Completion condition: Met.**
 
 ---
 
 # Task 9 — Implement Real Offer Help Workflow
 
-Start only after requests are persisted.
+**Status: Next roadmap task — not started**
+
+Requests persistence is complete. Begin after this README closure update has passed the documentation PR workflow and local `main` is synchronized.
 
 Requirements:
 
@@ -1534,6 +1615,8 @@ Completion condition:
 ---
 
 # Task 12 — Add Automated Tests
+
+Course/request database tests and a local request API integration script already exist. This task expands coverage and adds automated test execution to CI beyond lint/typecheck.
 
 Recommended coverage:
 
@@ -1663,8 +1746,8 @@ Possible work:
 - Backend decision: Supabase
 - Backend architecture: Approved and documented
 - Local Supabase: Initialized and tested
-- Hosted Development project: Active
-- Hosted Preview project: Active and Task 6 migrations applied
+- Hosted Development project: Task 7 and Task 8 migrations deployed and validated
+- Hosted Preview project: Task 7 and Task 8 migrations deployed and validated
 - EAS Development variables: Configured
 - EAS Preview variables: Configured
 - Production Supabase project: Not created
@@ -1672,9 +1755,9 @@ Possible work:
 - Authentication: Task 5 complete and merged
 - User profiles: Task 6 complete and merged through pull request #22
 - Task 6 pull request: #22 merged into `main` at merge commit `870b6a7`
-- Courses/Classmates persistence: Task 7
-- Requests persistence: Task 8
-- Offer Help persistence: Task 9
+- Courses/Classmates persistence: Task 7 complete, PR #24 (`13d2202`)
+- Requests persistence: Task 8 complete, PR #25 (`19f3e61`)
+- Offer Help persistence: Task 9 next; not started
 - Messaging persistence: Task 10
 - Production Android build: Not started
 - Production iOS build: Not started
@@ -1689,13 +1772,10 @@ No secrets, private keys, database passwords, store credentials, or real environ
 
 CampusClutch still needs:
 
-- Persistent course storage and memberships
-- Backend classmate discovery
-- Persistent request storage
 - Real request offers
 - Persistent conversations and messages
 - Real notifications
-- Automated tests beyond lint/typecheck
+- Broader component/end-to-end tests and backend test execution in CI
 - Accessibility audit
 - Production-ready email delivery/SMTP strategy
 - Production Supabase environment
@@ -1705,68 +1785,50 @@ CampusClutch still needs:
 - Blocking/reporting/moderation
 - Error/crash reporting
 - Production store configuration
+- Review of existing hosted security-advisor findings recorded in the Task 8 checkpoint
 
 ---
 
 # Next Action
 
-Finish the documentation-only Task 6 closure branch:
+Finish the documentation-only closure update:
 
 ```text
-docs/complete-task-6
+codex/update-readme-task-8
 ```
 
 Immediate steps:
 
-1. Replace `README.md` with this updated file.
-2. Run:
-   ```powershell
-   npm run check
-   git diff --check
-   git status --short
-   git --no-pager diff --stat
-   ```
-3. Stage only `README.md`.
-4. Verify the staged diff.
-5. Commit the documentation update.
-6. Push `docs/complete-task-6`.
-7. Open a small documentation-only pull request.
-8. Confirm CI passes.
-9. Merge the documentation PR into `main`.
-10. Switch back to `main`.
-11. Pull `origin/main`.
-12. Delete the local documentation branch.
-13. Delete the remote documentation branch.
-14. Run `git fetch --prune`.
-15. Verify a clean synchronized `main`.
+1. Review and push the README-only commit.
+2. Open a documentation-only pull request into `main`.
+3. Confirm CI passes, review, and merge the documentation update.
+4. Synchronize local `main` and clean up the documentation branch.
 
-After that, begin:
+Then begin:
 
 ```text
-Task 7 — Persist Courses and Course Membership
+Task 9 — Implement Real Offer Help Workflow
 ```
 
-Create Task 7 from updated `main`:
+Create the next feature branch from updated `main`:
 
 ```powershell
 git switch main
-git pull origin main
-git switch -c feature/persist-courses
+git pull --ff-only origin main
+git switch -c codex/persist-request-offers
 ```
 
-Task 7 should begin with inspection rather than immediate implementation.
+Initial Task 9 work should:
 
-Initial Task 7 work should:
+1. Inspect the current request details screen, request service, and Task 8 database contract.
+2. Review `docs/backend-plan.md` and existing migrations before designing offer tables.
+3. Define ownership, allowed status transitions, duplicate-active-offer prevention, and request eligibility.
+4. Specify how acceptance updates the request atomically, including concurrent offers and owner decisions.
+5. Define pending, accepted, rejected, and withdrawn behavior and the owner-facing offer list.
+6. Decide the owner notification behavior for this task while keeping the full notification system in Task 11 and persistent messaging in Task 10.
+7. Add backend authorization and lifecycle tests before connecting the UI.
+8. Implement one bounded checkpoint at a time, preserving the existing Expo Router navigation and red/white design.
+9. Stop at a working checkpoint for manual Android testing before advancing.
+10. Complete local/hosted validation, Preview tests, CI, review, merge, and documentation before Task 10.
 
-1. Verify the new branch and clean working tree.
-2. Inspect the current Courses and Classmates screens.
-3. Inspect the current course types and mock data.
-4. Review `docs/backend-plan.md` for the approved course/membership architecture.
-5. Inspect existing Supabase migrations before designing new schema changes.
-6. Define the persistent course and membership model before writing application code.
-7. Preserve existing Expo Router navigation and the CampusClutch red/white UI.
-8. Keep Requests, Offers, Messages, and Notifications out of Task 7.
-9. Resolve the two existing `matchesQuery` warnings as part of the Courses migration.
-10. Implement and test Task 7 sequentially before moving to Task 8.
-
-Do not begin Task 8 until Task 7 has passed implementation, backend validation, manual testing, local checks, CI, review, merge, documentation, and `main` synchronization.
+Task 9 implementation has not started. This update documents completed progress and the next plan only.
