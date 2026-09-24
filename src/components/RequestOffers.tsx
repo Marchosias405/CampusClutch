@@ -3,7 +3,7 @@ import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, TextInput, View 
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useAuth } from '../context/AuthContext';
 import { useRequests } from '../context/RequestsContext';
-import { decideOffer, loadOfferPage, offerError, submitOffer, type OfferAction, type RequestOffer } from '../lib/offers';
+import { decideOffer, loadOfferPage, offerError, renewOffer, submitOffer, type OfferAction, type RequestOffer } from '../lib/offers';
 import type { CampusRequest } from '../types';
 
 type Props = { request?: CampusRequest; requestId?: string; onChanged?: () => Promise<void> };
@@ -22,6 +22,7 @@ export default function RequestOffers({ request, requestId, onChanged }: Props) 
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [message, setMessage] = useState('');
+  const [renewMessages, setRenewMessages] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const generation = useRef(0);
   const busy = useRef(false);
@@ -54,7 +55,7 @@ export default function RequestOffers({ request, requestId, onChanged }: Props) 
 
   useFocusEffect(useCallback(() => {
     active.current = true;
-    setMessage(''); setNotice(''); setItems([]); setLoadedScope(''); setHasMore(false);
+    setMessage(''); setRenewMessages({}); setNotice(''); setItems([]); setLoadedScope(''); setHasMore(false);
     void fetchPage();
     const timer = setInterval(() => { void fetchPage(); }, 60000);
     return () => { active.current = false; ++generation.current; busy.current = false; clearInterval(timer); };
@@ -65,19 +66,21 @@ export default function RequestOffers({ request, requestId, onChanged }: Props) 
   const ready = loadedScope === scope && !loading && !saving && !error;
   const canOffer = !!request && request.status === 'open' && Date.parse(request.deadlineAt ?? '') > Date.now();
 
-  const perform = async (action?: OfferAction, offer?: RequestOffer) => {
+  const perform = async (action?: OfferAction | 'renew', offer?: RequestOffer) => {
     if (!userId || mutation.current || busy.current || !active.current || currentScope.current !== scope) return;
     mutation.current = true; setSaving(true); setNotice(''); setError('');
     let committed = false;
     try {
-      if (action && offer) await decideOffer(userId, offer.id, action);
+      if (action === 'renew' && offer) await renewOffer(userId, offer.id, offer.request_offer_round, renewMessages[offer.id] ?? '');
+      else if (action && action !== 'renew' && offer) await decideOffer(userId, offer.id, action, offer.offer_round);
       else if (requestId) await submitOffer(userId, requestId, message);
       else return;
       committed = true;
       invalidate();
       if (active.current && currentScope.current === scope) {
         setMessage('');
-        setNotice(action ? 'Your decision was saved.' : 'Your offer was saved. Its current status is shown below.');
+        if (offer) setRenewMessages(previous => ({ ...previous, [offer.id]: '' }));
+        setNotice(action === 'renew' ? 'Your new offer was saved. Its current status is shown below.' : action ? 'Your decision was saved.' : 'Your offer was saved. Its current status is shown below.');
       }
     } catch (failure) {
       if (active.current && currentScope.current === scope) setError(offerError(failure));
@@ -92,9 +95,9 @@ export default function RequestOffers({ request, requestId, onChanged }: Props) 
 
   const confirm = (action: OfferAction, offer: RequestOffer) => {
     const text = action === 'accepted'
-      ? 'Accept this helper? Other pending offers will be declined. You cannot undo acceptance here.'
-      : action === 'rejected' ? 'Decline this offer? This helper cannot submit another offer for this request.'
-      : 'Withdraw your offer? You cannot submit another offer for this request.';
+      ? 'Accept this helper? Other pending offers will be declined. To choose again, reopen the request and wait for fresh offers.'
+      : action === 'rejected' ? 'Decline this offer? This helper can offer again only if you reopen the request for new offers.'
+      : 'Withdraw your offer? You can offer again only if the poster reopens the request for new offers.';
     Alert.alert(action === 'accepted' ? 'Accept helper?' : action === 'rejected' ? 'Decline offer?' : 'Withdraw offer?', text, [
       { text: 'Keep as is', style: 'cancel' },
       { text: action === 'accepted' ? 'Accept' : action === 'rejected' ? 'Decline' : 'Withdraw', style: action === 'accepted' ? 'default' : 'destructive', onPress: () => { void perform(action, offer); } },
@@ -122,21 +125,29 @@ export default function RequestOffers({ request, requestId, onChanged }: Props) 
     </View>}
     {visible.map(offer => {
       const open = offer.request_status === 'open' && Date.parse(offer.request_deadline_at) > Date.now();
-      const actionable = ready && open && offer.status === 'pending';
+      const currentRound = offer.offer_round === offer.request_offer_round;
+      const actionable = ready && open && currentRound && offer.status === 'pending';
+      const canRenew = open && !currentRound && offer.offering_user_id === userId && ['rejected', 'withdrawn'].includes(offer.status);
       return <View key={offer.id} style={styles.card}>
         <Text style={styles.title}>{requestId ? owner ? offer.helper_display_name || 'Campus helper' : 'Your offer' : offer.request_title}</Text>
         <Text style={styles.status}>{labels[offer.status]}</Text>
+        {!currentRound && <Text style={styles.text}>The poster reopened this request. This earlier offer is closed; the helper must offer again to be considered.</Text>}
         {!open && <Text style={styles.text}>Request {offer.request_status === 'open' ? 'expired' : offer.request_status}.</Text>}
         {owner && <Text style={styles.text}>{[offer.helper_major, offer.helper_year ? `Year ${offer.helper_year}` : null, offer.helper_campus].filter(Boolean).join(' • ')}</Text>}
         {!!offer.message && <Text style={styles.text}>{offer.message}</Text>}
-        <Text style={styles.text}>{new Date(offer.created_at).toLocaleString()}</Text>
-        {owner && offer.status === 'pending' && open && <>
+        <Text style={styles.text}>First offered {new Date(offer.created_at).toLocaleString()}</Text>
+        {owner && offer.status === 'pending' && open && currentRound && <>
           <Pressable accessibilityRole="button" disabled={!actionable} style={[styles.primary, !actionable && styles.disabled]} onPress={() => confirm('accepted', offer)}><Text style={styles.primaryText}>Accept helper</Text></Pressable>
           <Pressable accessibilityRole="button" disabled={!actionable} style={[styles.secondary, !actionable && styles.disabled]} onPress={() => confirm('rejected', offer)}><Text style={styles.secondaryText}>Decline offer</Text></Pressable>
         </>}
-        {offer.offering_user_id === userId && offer.status === 'pending' && open && <Pressable accessibilityRole="button" disabled={!actionable} style={[styles.secondary, !actionable && styles.disabled]} onPress={() => confirm('withdrawn', offer)}><Text style={styles.secondaryText}>Withdraw offer</Text></Pressable>}
+        {offer.offering_user_id === userId && offer.status === 'pending' && open && currentRound && <Pressable accessibilityRole="button" disabled={!actionable} style={[styles.secondary, !actionable && styles.disabled]} onPress={() => confirm('withdrawn', offer)}><Text style={styles.secondaryText}>Withdraw offer</Text></Pressable>}
+        {canRenew && <>
+          <Text style={styles.label}>New message (optional)</Text>
+          <TextInput accessibilityLabel={`New offer message for ${offer.request_title}`} style={styles.input} multiline maxLength={1000} value={renewMessages[offer.id] ?? ''} editable={!saving} onChangeText={value => setRenewMessages(previous => ({ ...previous, [offer.id]: value }))} placeholder="Confirm you are available to help" textAlignVertical="top" />
+          <Pressable accessibilityRole="button" disabled={!ready} style={[styles.primary, !ready && styles.disabled]} onPress={() => { void perform('renew', offer); }}><Text style={styles.primaryText}>Offer again</Text></Pressable>
+        </>}
         {!requestId && (open || offer.status === 'accepted') && <Pressable accessibilityRole="button" style={styles.secondary} onPress={() => router.push({ pathname: '/requests/[id]', params: { id: offer.request_id } })}><Text style={styles.secondaryText}>View request</Text></Pressable>}
-        {offer.status === 'accepted' && <Text style={styles.text}>Help confirmed. Messaging and completion will be added in later updates.</Text>}
+        {offer.status === 'accepted' && <Text style={styles.text}>Help confirmed. Find this request in My offers as the helper, or My requests as the poster.</Text>}
       </View>;
     })}
     {hasMore && <Pressable accessibilityRole="button" disabled={loading || saving} style={styles.secondary} onPress={() => { void fetchPage(true); }}><Text style={styles.secondaryText}>Load more offers</Text></Pressable>}

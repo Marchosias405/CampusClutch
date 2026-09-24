@@ -32,6 +32,7 @@ export type RequestStatus =
 export type CampusRequest = {
   id: string;
   ownerId?: string;
+  offerRound?: number;
   campusId?: string;
   deadlineAt?: string;
   category: Exclude<RequestCategory, "ALL">;

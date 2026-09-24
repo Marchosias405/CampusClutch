@@ -8,6 +8,8 @@ export type RequestOffer = {
   status: 'pending' | OfferAction;
   message: string | null;
   created_at: string;
+  offer_round: number;
+  request_offer_round: number;
   request_title: string;
   request_status: 'open' | 'accepted' | 'completed' | 'cancelled' | 'expired';
   request_deadline_at: string;
@@ -28,7 +30,7 @@ export async function assertOfferSession(expectedUserId: string) {
 
 export async function loadOfferPage(userId: string, requestId: string | null, offset = 0) {
   const session = await assertOfferSession(userId);
-  const { data, error } = await supabase.rpc('get_request_offer_page', {
+  const { data, error } = await supabase.rpc('get_request_offer_page_v2', {
     p_request_id: requestId, p_limit: 20, p_offset: offset,
   }).setHeader('Authorization', `Bearer ${session.access_token}`);
   if (error) throw error;
@@ -48,9 +50,30 @@ export async function submitOffer(userId: string, requestId: string, message: st
   return data as string;
 }
 
-export async function decideOffer(userId: string, offerId: string, action: OfferAction) {
+export async function decideOffer(userId: string, offerId: string, action: OfferAction, expectedRound: number) {
   const session = await assertOfferSession(userId);
-  const { error } = await supabase.rpc('decide_request_offer', { p_offer_id: offerId, p_action: action }).setHeader('Authorization', `Bearer ${session.access_token}`);
+  const { error } = await supabase.rpc('decide_request_offer_for_round', {
+    p_offer_id: offerId, p_action: action, p_expected_round: expectedRound,
+  }).setHeader('Authorization', `Bearer ${session.access_token}`);
+  if (error) throw error;
+  await assertOfferSession(userId);
+}
+
+export async function renewOffer(userId: string, offerId: string, expectedRound: number, message: string) {
+  if (message.trim().length > 1000) throw new Error('Keep your message within 1,000 characters.');
+  const session = await assertOfferSession(userId);
+  const { error } = await supabase.rpc('renew_my_request_offer', {
+    p_offer_id: offerId, p_expected_round: expectedRound, p_message: message.trim() || null,
+  }).setHeader('Authorization', `Bearer ${session.access_token}`);
+  if (error) throw error;
+  await assertOfferSession(userId);
+}
+
+export async function reopenRequest(userId: string, requestId: string, expectedRound: number, deadlineIso: string) {
+  const session = await assertOfferSession(userId);
+  const { error } = await supabase.rpc('reopen_my_request', {
+    p_request_id: requestId, p_expected_round: expectedRound, p_deadline: deadlineIso,
+  }).setHeader('Authorization', `Bearer ${session.access_token}`);
   if (error) throw error;
   await assertOfferSession(userId);
 }

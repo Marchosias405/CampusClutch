@@ -15,6 +15,7 @@ import { loadRequest, cancelRequest, requestError } from "../../lib/requests";
 import type { CampusRequest } from "../../types";
 import ScreenHeader from "../../components/ScreenHeader";
 import RequestOffers from "../../components/RequestOffers";
+import ReopenRequest from "../../components/ReopenRequest";
 import { useRequests } from "../../context/RequestsContext";
 
 const COLORS = {
@@ -337,7 +338,11 @@ export default function RequestDetailsScreen() {
               <Text style={styles.backButtonText}>{cancelling ? 'Cancelling…' : 'Cancel Request'}</Text>
             </Pressable>
           </View>}
-          <RequestOffers key={`${user?.id}:${requestId}`} request={request} requestId={requestId} onChanged={refresh} />
+          {request.ownerId === user?.id && request.status === 'accepted' && <Text style={styles.acceptedNotice}>
+            Accepted requests remain in My requests; your helper can find this in My offers.
+          </Text>}
+          <ReopenRequest key={`${user?.id}:${request.id}:${request.offerRound ?? 1}`} request={request} disabled={cancelling} onChanged={refresh} />
+          <RequestOffers key={`${user?.id}:${requestId}:${request.offerRound ?? 1}`} request={request} requestId={requestId} onChanged={refresh} />
         </View>
       </ScrollView>
     </View>
@@ -433,6 +438,14 @@ const styles = StyleSheet.create({
   },
   ownerActions: {
     gap: 12,
+  },
+  acceptedNotice: {
+    color: COLORS.primary,
+    backgroundColor: COLORS.softPink,
+    borderRadius: 12,
+    padding: 14,
+    fontSize: 15,
+    lineHeight: 22,
   },
   cancelButton: {
     alignItems: "center",

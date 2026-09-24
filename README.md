@@ -2,9 +2,9 @@
 
 CampusClutch is an Expo React Native mobile app for university students to connect through courses, classmates, student profiles, campus help requests, direct messages, group conversations, notifications, and user profiles.
 
-Authentication, user profiles, courses, course memberships, classmates, and campus requests now use persistent Supabase data. Tasks 6–8 have been validated in hosted Development and Preview. Messages and notifications still use mock or local state; Task 9 now has a locally tested offer backend and connected app UI. Local Android validation and hosted deployment remain pending.
+Authentication, user profiles, courses, course memberships, classmates, and campus requests now use persistent Supabase data. Tasks 6–8 have been validated in hosted Development and Preview. Messages and notifications still use mock or local state. Task 9's offer backend and UI passed local Android testing; the next local checkpoint adds clearer request history and poster-controlled reopening with fresh helper consent. Its phone validation and hosted deployment remain pending.
 
-> **Current status:** Tasks 1–8 are complete and merged. Task 7 merged through [PR #24](https://github.com/Marchosias405/CampusClutch/pull/24) at `13d2202`. Task 8 merged through [PR #25](https://github.com/Marchosias405/CampusClutch/pull/25) at `19f3e61`, after backend validation, all five standalone Preview phone tests, final code review, and passing GitHub CI. Local `main` was synchronized and the Task 8 feature branch deleted locally and remotely. The README closure merged through [PR #26](https://github.com/Marchosias405/CampusClutch/pull/26) at `9a87581`. Task 9—Implement Real Offer Help Workflow—is in progress on `codex/persist-request-offers`; its offer UI checkpoint is ready for local Android testing.
+> **Current status:** Tasks 1–8 are complete and merged. Task 7 merged through [PR #24](https://github.com/Marchosias405/CampusClutch/pull/24) at `13d2202`. Task 8 merged through [PR #25](https://github.com/Marchosias405/CampusClutch/pull/25) at `19f3e61`, after backend validation, all five standalone Preview phone tests, final code review, and passing GitHub CI. Local `main` was synchronized and the Task 8 feature branch deleted locally and remotely. The README closure merged through [PR #26](https://github.com/Marchosias405/CampusClutch/pull/26) at `9a87581`. Task 9—Implement Real Offer Help Workflow—is in progress on `codex/persist-request-offers`. The user passed checkpoint 2 phone tests on September 15, 2026; checkpoint 3 adds request history and reopening for the next local phone test.
 
 ---
 
@@ -113,7 +113,7 @@ Current roadmap position:
 Task 6 — Complete and merged (PR #22, 870b6a7)
 Task 7 — Complete and merged (PR #24, 13d2202)
 Task 8 — Complete and merged (PR #25, 19f3e61)
-Task 9 — In progress; offer UI checkpoint ready for local Android testing
+Task 9 — In progress; checkpoint 2 phone tests passed, checkpoint 3 history/reopening awaiting phone tests
 ```
 
 Task 8 completion record:
@@ -138,7 +138,8 @@ This means:
 
 - Requests persist in the selected backend environment; local, hosted Development, and hosted Preview accounts/data are separate.
 - Locally sent messages reset when the conversation is reopened or the app reloads.
-- Task 9 offers are connected to the local development app, including My offers and owner review. Phone validation and hosted deployment remain pending; the installed Preview APK still has the Task 8 behavior.
+- Task 9 offers are connected to the local development app, including My offers and owner review. Checkpoint 2 phone tests passed; checkpoint 3 adds My requests status/history and owner reopening with fresh helper consent. Its phone tests and hosted deployment remain pending; the installed Preview APK still has the Task 8 behavior.
+- Poster-confirmed completion, reserved/transferable points balances, and mutual ratings are planned separate checkpoints. The starting-balance/points-funding policy is unresolved.
 - Course membership persists; current/previous courses derive from membership and academic-term state.
 - Classmates load from real course membership with backend visibility rules.
 - Legacy classmate profile IDs such as `aisha-r`, `jordan-t`, and `mei-l` remain explicitly supported by the student-profile screen.
@@ -360,8 +361,11 @@ CampusClutch/
 ├── docs/
 │   ├── backend-plan.md
 │   ├── backend-setup.md
-│   └── task-8-requests.md
+│   ├── task-8-requests.md
+│   └── task-9-offers.md
 ├── scripts/
+│   ├── test-offers-local.cjs
+│   ├── test-request-offers-concurrency.py
 │   └── test-requests-local.cjs
 ├── src/
 │   ├── app/
@@ -389,7 +393,8 @@ CampusClutch/
 │   │   │   └── settings.tsx
 │   │   ├── requests/
 │   │   │   ├── [id].tsx
-│   │   │   └── create.tsx
+│   │   │   ├── create.tsx
+│   │   │   └── offers.tsx
 │   │   ├── students/
 │   │   │   └── [id].tsx
 │   │   ├── _layout.tsx
@@ -397,6 +402,8 @@ CampusClutch/
 │   ├── assets/
 │   │   └── images/
 │   ├── components/
+│   │   ├── ReopenRequest.tsx
+│   │   └── RequestOffers.tsx
 │   ├── constants/
 │   │   └── mockData.ts
 │   ├── context/
@@ -408,6 +415,7 @@ CampusClutch/
 │   │   ├── courses.ts
 │   │   ├── crypto.ts
 │   │   ├── crypto.native.ts
+│   │   ├── offers.ts
 │   │   ├── requests.ts
 │   │   ├── env.ts
 │   │   ├── profiles.ts
@@ -426,9 +434,15 @@ CampusClutch/
 │   │   ├── 20260805053323_replace_profile_social_links_atomically.sql
 │   │   ├── 20260805061611_allow_avatar_owner_cleanup.sql
 │   │   ├── 20260818072241_persist_courses_and_memberships.sql
-│   │   └── 20260907204626_persist_requests.sql
+│   │   ├── 20260907204626_persist_requests.sql
+│   │   ├── 20260912060259_persist_request_offers.sql
+│   │   ├── 20260912071410_offer_review_pages.sql
+│   │   └── 20260924091300_reopen_request_offers.sql
 │   ├── tests/
 │   │   ├── course_memberships.test.sql
+│   │   ├── offer_pages.test.sql
+│   │   ├── reopen_request_offers.test.sql
+│   │   ├── request_offers.test.sql
 │   │   └── requests.test.sql
 │   ├── config.toml
 │   └── seed.sql
@@ -1113,7 +1127,7 @@ Completed behavior:
 
 Known limitation:
 
-- Real Offer Help, offer acceptance/rejection, and completion are later workflows. The previous simulated Offer Sent confirmation has been removed.
+- This Task 8 section records the request-persistence baseline. Task 9 now connects real Offer Help and offer decisions locally; completion, points, and ratings are still planned. The previous simulated Offer Sent confirmation remains removed.
 
 ---
 
@@ -1541,7 +1555,7 @@ This closes the Requests offline/retry test that was previously deferred during 
 
 # Task 9 — Implement Real Offer Help Workflow
 
-**Status: In progress — offer UI checkpoint ready for local Android testing**
+**Status: In progress — checkpoint 2 phone tests passed; checkpoint 3 history and reopening ready for local phone testing**
 
 Requests persistence and README closure are merged. Work is on `codex/persist-request-offers`, created from `main` at `9a87581`.
 
@@ -1554,7 +1568,7 @@ Checkpoint 1 completed:
 - 53 offer assertions, five concurrent-operation tests, 61 request regressions, and 13 course regressions passed locally.
 - ESLint, TypeScript, and exact migration replay passed.
 
-Checkpoint 2 completed locally:
+Checkpoint 2 completed locally and phone tests passed September 15, 2026:
 
 - Offer Help with an optional message, persistent status, withdrawal, and owner accept/decline confirmations.
 - My offers history, including accepted and closed requests after restart.
@@ -1562,14 +1576,23 @@ Checkpoint 2 completed locally:
 - Refresh/error handling preserves unfinished messages; failed actions require refresh before retry.
 - 152 database assertions, five concurrency tests, 13 service checks, lint/typecheck, and Android Hermes export passed.
 
-Local phone testing, hosted deployment, and Preview testing are next. Task 9 is not complete or merged.
+Checkpoint 3 implemented locally on September 24, 2026:
+
+- Separate Campus feed and My requests tabs; owner history shows Open, Accepted, Completed, Cancelled, and Expired statuses. Accepted helpers can still find the work in My offers.
+- Poster-controlled Reopen for new offers with a new future deadline and explicit confirmation. Reopening ends the previous acceptance and closes pending offers; helpers must explicitly Offer again.
+- One permanent offer per helper/request, with fresh consent in a new offer round and earlier states/messages retained in protected audit history.
+- Round checks protect against old decisions and retries. Repeated reopening cannot undo a newer acceptance; notification events remain unique within each round.
+- Migration `20260924091300_reopen_request_offers.sql` is applied locally.
+- All 245 database assertions passed, including 93 new reopening checks and 152 earlier regressions. Nine concurrency races, 19 typed service/API checks, final lint/typecheck, and Android Hermes export passed. The exact final migration also passed replay with all 93 new assertions in a rollback-only transaction; existing local data was preserved.
+
+Checkpoint 3 phone testing is next. Hosted deployment, Preview testing, final review, CI, and merge are still pending. Task 9 is not complete or merged; no new APK is required for this local source update.
 
 Detailed contract and validation: [Task 9 checkpoint](docs/task-9-offers.md).
 
 Requirements:
 
 - Persist offers.
-- Enforce one permanent offer per helper/request; retries never reactivate rejected or withdrawn offers.
+- Enforce one permanent offer per helper/request. Ordinary retries never reactivate rejected or withdrawn offers; after the poster reopens selection, a helper can explicitly offer again in the new round.
 - Store offering user.
 - Store request ID.
 - Support:
@@ -1580,6 +1603,15 @@ Requirements:
 - Notify request owner.
 - Allow owner acceptance/rejection.
 - Update request status.
+- Keep accepted requests reachable in poster/helper history.
+- Allow the poster to reopen selection with a new deadline, ending old acceptance and requiring fresh helper consent.
+
+Next planned checkpoints requested during phone review:
+
+- Reserve the poster's points on acceptance; release the reservation if the request is reopened.
+- Transfer reserved points to the selected helper only when the poster confirms completion, with an atomic, retry-safe transaction ledger.
+- Allow both participants to rate each other after completion, with backend checks for participation and duplicate ratings.
+- Decide the starting-balance/points-funding policy before implementing balances. No amount or funding method has been chosen.
 
 Completion condition:
 
@@ -1778,7 +1810,7 @@ Possible work:
 - Task 6 pull request: #22 merged into `main` at merge commit `870b6a7`
 - Courses/Classmates persistence: Task 7 complete, PR #24 (`13d2202`)
 - Requests persistence: Task 8 complete, PR #25 (`19f3e61`)
-- Offer Help persistence: Task 9 backend and UI connected locally; Android and hosted validation pending
+- Offer Help persistence: Task 9 checkpoint 2 Android tests passed; checkpoint 3 reopening/history phone tests and hosted validation pending
 - Messaging persistence: Task 10
 - Production Android build: Not started
 - Production iOS build: Not started
@@ -1793,7 +1825,8 @@ No secrets, private keys, database passwords, store credentials, or real environ
 
 CampusClutch still needs:
 
-- Real request offers
+- Hosted deployment and final validation of real request offers
+- Poster-confirmed completion, points reservations/transfers, and mutual completed-request ratings
 - Persistent conversations and messages
 - Real notifications
 - Broader component/end-to-end tests and backend test execution in CI
@@ -1812,18 +1845,19 @@ CampusClutch still needs:
 
 # Next Action
 
-Test Task 9 checkpoint 2 on Android using the development build and local Supabase:
+Test Task 9 checkpoint 3 on Android using the existing development build and local Supabase:
 
 ```text
 codex/persist-request-offers
 ```
 
-Follow the setup and test checklist in [Task 9 checkpoint](docs/task-9-offers.md#checkpoint-2-offer-ui-ready-for-local-android-testing).
+Follow the setup and [checkpoint 3 phone checklist](docs/task-9-offers.md#checkpoint-3-phone-checklist). Reload Metro for the new source; no new APK is needed.
 
-1. Test offer creation, restart persistence, owner-only decisions, and helper withdrawal.
-2. Verify accepted/declined history, competing offers, and request cancellation.
-3. Verify offline refresh and failed submission preserve an unfinished message.
-4. Fix any phone-test findings before deploying Task 9 to hosted Development and Preview.
-5. Complete hosted validation, a new Preview APK, Preview tests, CI, review, merge, and documentation before Task 10.
+1. Find accepted work in the poster's My requests and the helper's My offers after restart.
+2. Reopen with a new deadline, require fresh offers, choose a different helper, and verify persistence.
+3. Check owner-only reopening, confirmation cancellation, and same-round withdrawal/decline restrictions.
+4. Test offline message/deadline retention by removing only USB forwarding for port 54321, then restore and refresh before retrying.
+5. After this checkpoint passes, settle the points-funding policy and implement poster-confirmed completion, points reservations/transfers, and mutual ratings as separately validated checkpoints.
+6. Complete hosted validation, a new Preview APK, Preview tests, CI, review, merge, and documentation before Task 10.
 
 No new Preview APK has been built, and no Task 9 migration has been applied to hosted Development or Preview. The installed Task 8 Preview app does not include this local checkpoint.

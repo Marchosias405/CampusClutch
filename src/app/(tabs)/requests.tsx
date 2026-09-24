@@ -40,6 +40,15 @@ const filters: RequestCategory[] = [
   "STUDY HELP",
 ];
 
+const statusLabels: Record<NonNullable<CampusRequest["status"]>, string> = {
+  open: "Open",
+  offered: "Offered",
+  accepted: "Accepted",
+  cancelled: "Cancelled",
+  expired: "Expired",
+  completed: "Completed",
+};
+
 
   export default function RequestsFeedScreen() {
     const router = useRouter();
@@ -118,9 +127,29 @@ const filters: RequestCategory[] = [
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          <Pressable style={[styles.filterPill, styles.feedToggle]} onPress={() => setMine(value => !value)}>
-            <Text style={styles.filterText}>{mine ? "My requests • Show campus feed" : "Campus feed • Show my requests"}</Text>
-          </Pressable>
+          <View style={styles.feedTabs}>
+            <Pressable
+              accessibilityRole="tab"
+              accessibilityState={{ selected: !mine }}
+              style={[styles.feedTab, !mine && styles.activeFilterPill]}
+              onPress={() => setMine(false)}
+            >
+              <Text style={[styles.filterText, !mine && styles.activeFilterText]}>Campus feed</Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="tab"
+              accessibilityState={{ selected: mine }}
+              style={[styles.feedTab, mine && styles.activeFilterPill]}
+              onPress={() => setMine(true)}
+            >
+              <Text style={[styles.filterText, mine && styles.activeFilterText]}>My requests</Text>
+            </Pressable>
+          </View>
+          {mine && (
+            <Text style={styles.feedDescription}>
+              Your accepted and closed requests stay here so you can follow their progress.
+            </Text>
+          )}
           <Pressable accessibilityRole="button" style={[styles.filterPill, styles.feedToggle]} onPress={() => router.push('/requests/offers')}>
             <Text style={styles.filterText}>My offers</Text>
           </Pressable>
@@ -213,6 +242,14 @@ const filters: RequestCategory[] = [
                         <View style={styles.categoryBadge}>
                           <Text style={styles.categoryBadgeText}>
                             ! {item.secondaryCategory}
+                          </Text>
+                        </View>
+                      )}
+
+                      {mine && (
+                        <View style={styles.statusBadge}>
+                          <Text style={styles.statusBadgeText}>
+                            {statusLabels[item.status ?? "open"]}
                           </Text>
                         </View>
                       )}
@@ -392,6 +429,32 @@ const styles = StyleSheet.create({
     marginRight: 0,
   },
 
+  feedTabs: {
+    flexDirection: "row",
+    gap: 10,
+    marginBottom: 12,
+  },
+
+  feedTab: {
+    flex: 1,
+    minHeight: 42,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 21,
+    backgroundColor: COLORS.cardWhite,
+    borderWidth: 1,
+    borderColor: "#E4CACA",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  feedDescription: {
+    color: COLORS.mutedText,
+    fontSize: 13,
+    lineHeight: 19,
+    marginBottom: 14,
+  },
+
   filterPill: {
     height: 35,
     paddingHorizontal: 18,
@@ -467,6 +530,19 @@ const styles = StyleSheet.create({
     fontWeight: "900",
     color: "#C2606B",
     letterSpacing: 0.2,
+  },
+
+  statusBadge: {
+    backgroundColor: COLORS.lightPillGray,
+    borderRadius: 7,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+
+  statusBadgeText: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: COLORS.textDark,
   },
 
   pointsText: {

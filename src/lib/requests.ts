@@ -6,7 +6,7 @@ const categories = { DELIVERY: 'delivery', PICKUP: 'pickup', 'EVENT HELP': 'even
 type Related<T> = T | T[] | null;
 const one = <T,>(value: Related<T>): T | null => Array.isArray(value) ? value[0] ?? null : value;
 type Row = {
-  id: string; owner_id: string; category: string; title: string; description: string;
+  id: string; owner_id: string; offer_round: number; category: string; title: string; description: string;
   campus_id: string; room_location: string; deadline_at: string; points: number;
   item_size: string; status: CampusRequest['status']; created_at: string; is_urgent: boolean;
   campuses: { display_name: string; slug: string } | null;
@@ -22,7 +22,7 @@ function mapRow(row: Row): CampusRequest {
   const event = one(row.event_help_request_details);
   const study = one(row.study_help_request_details);
   return {
-    id: row.id, ownerId: row.owner_id, campusId: row.campus_id,
+    id: row.id, ownerId: row.owner_id, offerRound: row.offer_round, campusId: row.campus_id,
     category: Object.keys(categories).find(key => categories[key as keyof typeof categories] === row.category) as CampusRequest['category'],
     title: row.title, description: row.description, campus: row.campuses ? row.campuses.slug[0].toUpperCase() + row.campuses.slug.slice(1) : undefined,
     roomLocation: row.room_location, location: `${row.campuses?.display_name ?? 'Campus'} • ${row.room_location}`,

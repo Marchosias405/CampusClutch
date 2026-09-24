@@ -89,6 +89,21 @@ def decision(offer_id, action, user=None):
     return as_user(user or users[0], f"select public.decide_request_offer('{offer_id}','{action}')")
 
 
+def round_decision(offer_id, action, expected_round, user=None):
+    return as_user(user or users[0],
+        f"select public.decide_request_offer_for_round('{offer_id}','{action}',{expected_round})")
+
+
+def reopen(request, expected_round):
+    return as_user(users[0],
+        f"select public.reopen_my_request('{request}',{expected_round},'2099-01-02T00:00:00Z')")
+
+
+def renew(offer_id, expected_round, user):
+    return as_user(user,
+        f"select public.renew_my_request_offer('{offer_id}',{expected_round},'Renewed helper consent')")
+
+
 try:
     for user in users:
         sql(f"insert into auth.users(id,email) values('{user}','{user}@offer-test.local'); "
@@ -144,6 +159,58 @@ try:
     assert value(f"select status from public.requests where id='{request}'") == 'expired'
     assert value(f"select count(*) from public.request_offers where request_id='{request}' and status='pending'") == '0'
     print('PASS expiry while acceptance waits: neither offer accepted', flush=True)
+
+    request = create_request()
+    first = offer(request, users[1])
+    sql(round_decision(first, 'accepted', 1))
+    call = reopen(request, 1)
+    results = race(request, [call, call])
+    assert all(r.returncode == 0 for r in results), [r.stderr for r in results]
+    assert all(r.stdout.strip().splitlines()[-1] == request for r in results)
+    assert value(f"select status||'/'||offer_round from public.requests where id='{request}'") == 'open/2'
+    assert value(f"select status||'/'||offer_round from public.request_offers where id='{first}'") == 'rejected/1'
+    assert value(f"select count(*) from public.request_offer_history where offer_id='{first}' and status='rejected' and offer_round=1") == '1'
+    assert value(f"select count(*) from public.offer_notifications where offer_id='{first}' and event_type='request_reopened' and offer_round=1") == '1'
+    print('PASS concurrent duplicate reopen: exactly one new round and one retirement event', flush=True)
+
+    request = create_request()
+    first = offer(request, users[1])
+    sql(reopen(request, 1))
+    call = renew(first, 2, users[1])
+    results = race(request, [call, call])
+    assert all(r.returncode == 0 for r in results), [r.stderr for r in results]
+    assert all(r.stdout.strip().splitlines()[-1] == first for r in results)
+    assert value(f"select status||'/'||offer_round from public.request_offers where id='{first}'") == 'pending/2'
+    assert value(f"select count(*) from public.request_offers where request_id='{request}'") == '1'
+    assert value(f"select count(*) from public.request_offer_history where offer_id='{first}' and status='pending' and offer_round=2") == '1'
+    assert value(f"select count(*) from public.request_offer_history where offer_id='{first}'") == '3'
+    assert value(f"select count(*) from public.offer_notifications where offer_id='{first}' and event_type='created' and offer_round=2") == '1'
+    print('PASS concurrent duplicate renewal: one pending history row and one created event', flush=True)
+
+    request = create_request()
+    first = offer(request, users[1])
+    results = race(request, [reopen(request, 1), round_decision(first, 'accepted', 1)])
+    assert results[0].returncode == 0, results[0].stderr
+    if results[1].returncode != 0:
+        assert 'Offer has changed' in results[1].stderr, results[1].stderr
+    assert value(f"select status||'/'||offer_round from public.requests where id='{request}'") == 'open/2'
+    assert value(f"select accepted_at is null from public.requests where id='{request}'") == 't'
+    assert value(f"select status||'/'||offer_round from public.request_offers where id='{first}'") == 'rejected/1'
+    assert value(f"select count(*) from public.request_offers where request_id='{request}' and status='accepted'") == '0'
+    print('PASS reopening versus old-round acceptance: open round two without an accepted helper', flush=True)
+
+    request = create_request()
+    first = offer(request, users[1])
+    sql(reopen(request, 1))
+    results = race(request, [round_decision(first, 'accepted', 1), renew(first, 2, users[1])])
+    assert results[0].returncode != 0 and 'Offer has changed' in results[0].stderr, results[0].stderr
+    assert results[1].returncode == 0, results[1].stderr
+    assert value(f"select status||'/'||offer_round from public.requests where id='{request}'") == 'open/2'
+    assert value(f"select status||'/'||offer_round from public.request_offers where id='{first}'") == 'pending/2'
+    assert value(f"select count(*) from public.request_offer_history where offer_id='{first}' and offer_round=2") == '1'
+    assert value(f"select count(*) from public.offer_notifications where offer_id='{first}' and event_type='created' and offer_round=2") == '1'
+    assert value(f"select count(*) from public.offer_notifications where offer_id='{first}' and event_type='accepted'") == '0'
+    print('PASS stale round-one decision versus renewal: new pending consent remains untouched', flush=True)
 finally:
     if requests:
         sql('delete from public.requests where id in (' + ','.join(f"'{r}'" for r in requests) + ')')
