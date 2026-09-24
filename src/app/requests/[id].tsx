@@ -341,8 +341,8 @@ export default function RequestDetailsScreen() {
           {request.ownerId === user?.id && request.status === 'accepted' && <Text style={styles.acceptedNotice}>
             Accepted requests remain in My requests; your helper can find this in My offers.
           </Text>}
-          <ReopenRequest key={`${user?.id}:${request.id}:${request.offerRound ?? 1}`} request={request} disabled={cancelling} onChanged={refresh} />
-          <RequestOffers key={`${user?.id}:${requestId}:${request.offerRound ?? 1}`} request={request} requestId={requestId} onChanged={refresh} />
+          <ReopenRequest key={`reopen:${user?.id}:${request.id}:${request.offerRound ?? 1}`} request={request} disabled={cancelling} onChanged={refresh} />
+          <RequestOffers key={`offers:${user?.id}:${requestId}:${request.offerRound ?? 1}`} request={request} requestId={requestId} onChanged={refresh} />
         </View>
       </ScrollView>
     </View>

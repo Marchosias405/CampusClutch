@@ -139,6 +139,7 @@ Validation:
 - Local advisors report only the two pre-existing multiple-permissive-profile-policy warnings described above; no new Task 9 warning was reported.
 - The CLI-captured schema included unrelated drift and omitted explicit privilege revocations. The generated migration was narrowed to the tested reopening SQL, preserving the generated filename and explicit grants/revokes. The exact final file passed replay with all 93 new assertions in one rollback-only transaction. Existing profiles, requests, offers, notifications, offer history, and Auth users had identical row counts and fingerprints before and after replay.
 - Local migration history matches repository version `20260924091300`. Read-only code review found no remaining blocking issue; native layout/date-picker behavior remains for the phone checklist below.
+- Phone testing caught identical React keys on the adjacent reopening and offer sections in request details. Distinct `reopen:` and `offers:` prefixes now preserve their separate identities while retaining account/round remounts. Lint and TypeScript passed after the correction; phone confirmation is pending.
 
 ### Checkpoint 3 phone checklist
 
