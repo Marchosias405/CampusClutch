@@ -139,7 +139,7 @@ export default function HomeDashboardScreen() {
               </Text>
             </View>
 
-            <View style={styles.pointsPill}>
+            <Pressable accessibilityRole="button" style={styles.pointsPill} onPress={() => router.push('/(tabs)/profile')}>
               <FontAwesome5
                 name="star"
                 size={11}
@@ -147,17 +147,13 @@ export default function HomeDashboardScreen() {
                 solid
               />
               <Text style={styles.pointsPillText}>
-                120 pts
+                View points
               </Text>
-            </View>
-          </View>
-
-          <View style={styles.progressTrack}>
-            <View style={styles.progressFill} />
+            </Pressable>
           </View>
 
           <Text style={styles.heroSub}>
-            80 points to your next reward
+            Earn points by helping other students
           </Text>
         </View>
 
@@ -307,14 +303,14 @@ export default function HomeDashboardScreen() {
               style={styles.requestTitle}
               numberOfLines={1}
             >
-              2 deliveries to Burnaby today
+              Find a campus request
             </Text>
 
             <Text
               style={styles.requestSub}
               numberOfLines={1}
             >
-              Join a route · earn up to 40 pts
+              Help a student and earn their offered points
             </Text>
           </View>
 

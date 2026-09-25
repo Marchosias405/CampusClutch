@@ -86,12 +86,15 @@ def race(request, calls, before_release=None):
 
 
 def decision(offer_id, action, user=None):
+    if action == 'accepted':
+        return round_decision(offer_id, action, 1, user)
     return as_user(user or users[0], f"select public.decide_request_offer('{offer_id}','{action}')")
 
 
 def round_decision(offer_id, action, expected_round, user=None):
+    amount = ',10' if action == 'accepted' else ''
     return as_user(user or users[0],
-        f"select public.decide_request_offer_for_round('{offer_id}','{action}',{expected_round})")
+        f"select public.decide_request_offer_for_round('{offer_id}','{action}',{expected_round}{amount})")
 
 
 def reopen(request, expected_round):

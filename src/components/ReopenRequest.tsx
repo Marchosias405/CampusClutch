@@ -88,7 +88,7 @@ export default function ReopenRequest({ request, disabled = false, onChanged }: 
     const deadlineIso = selectedDate.toISOString();
     const dateLabel = selectedDate.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
     Alert.alert('Reopen for new offers?',
-      `Any accepted helper will no longer be selected, and all current offers will close. Every helper must offer again. The new deadline is the end of ${dateLabel}.`, [
+      `Any accepted helper will no longer be selected, and reserved points will return to your available balance. All current offers will close. Every helper must offer again. The new deadline is the end of ${dateLabel}.`, [
         { text: 'Keep as is', style: 'cancel' },
         { text: 'Reopen request', style: 'destructive', onPress: () => { void perform(deadlineIso); } },
       ]);

@@ -72,7 +72,7 @@ export default function RequestOffers({ request, requestId, onChanged }: Props) 
     let committed = false;
     try {
       if (action === 'renew' && offer) await renewOffer(userId, offer.id, offer.request_offer_round, renewMessages[offer.id] ?? '');
-      else if (action && action !== 'renew' && offer) await decideOffer(userId, offer.id, action, offer.offer_round);
+      else if (action && action !== 'renew' && offer) await decideOffer(userId, offer.id, action, offer.offer_round, request?.points);
       else if (requestId) await submitOffer(userId, requestId, message);
       else return;
       committed = true;
@@ -95,7 +95,7 @@ export default function RequestOffers({ request, requestId, onChanged }: Props) 
 
   const confirm = (action: OfferAction, offer: RequestOffer) => {
     const text = action === 'accepted'
-      ? 'Accept this helper? Other pending offers will be declined. To choose again, reopen the request and wait for fresh offers.'
+      ? `Accept this helper and reserve ${request?.points ?? 'the offered'} points from your available balance? Points transfer only after you confirm completion. Other pending offers will be declined. Reopening releases the reservation and requires fresh offers.`
       : action === 'rejected' ? 'Decline this offer? This helper can offer again only if you reopen the request for new offers.'
       : 'Withdraw your offer? You can offer again only if the poster reopens the request for new offers.';
     Alert.alert(action === 'accepted' ? 'Accept helper?' : action === 'rejected' ? 'Decline offer?' : 'Withdraw offer?', text, [

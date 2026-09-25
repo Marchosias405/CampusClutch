@@ -16,6 +16,7 @@ import type { CampusRequest } from "../../types";
 import ScreenHeader from "../../components/ScreenHeader";
 import RequestOffers from "../../components/RequestOffers";
 import ReopenRequest from "../../components/ReopenRequest";
+import RequestCompletion from "../../components/RequestCompletion";
 import { useRequests } from "../../context/RequestsContext";
 
 const COLORS = {
@@ -342,6 +343,7 @@ export default function RequestDetailsScreen() {
             Accepted requests remain in My requests; your helper can find this in My offers.
           </Text>}
           <ReopenRequest key={`reopen:${user?.id}:${request.id}:${request.offerRound ?? 1}`} request={request} disabled={cancelling} onChanged={refresh} />
+          {(request.status === 'accepted' || request.status === 'completed') && <RequestCompletion key={`completion:${user?.id}:${request.id}:${request.offerRound ?? 1}`} request={request} onChanged={refresh} />}
           <RequestOffers key={`offers:${user?.id}:${requestId}:${request.offerRound ?? 1}`} request={request} requestId={requestId} onChanged={refresh} />
         </View>
       </ScrollView>

@@ -37,7 +37,7 @@ SELECT throws_ok($$SELECT * FROM public.get_request_offer_page(NULL,51,0)$$,'220
 SELECT throws_ok($$SELECT * FROM public.get_request_offer_page(NULL,0,0)$$,'22023',NULL,'Zero page rejected');
 SELECT throws_ok($$SELECT * FROM public.get_request_offer_page(NULL,20,-1)$$,'22023',NULL,'Negative offset rejected');
 SELECT throws_ok($$SELECT * FROM public.get_request_offer_page(NULL,NULL,0)$$,'22023',NULL,'Null page size rejected');
-SELECT public.decide_request_offer((SELECT id FROM fixtures WHERE name='offer-first'),'accepted');
+SELECT public.decide_request_offer_for_round((SELECT id FROM fixtures WHERE name='offer-first'),'accepted',1,10);
 SELECT public.cancel_my_request((SELECT id FROM fixtures WHERE name='second'));
 SELECT pg_temp.login(2);
 SELECT is((SELECT count(*) FROM public.get_request_offer_page() WHERE id IN (SELECT id FROM fixtures)),3::bigint,'My offers includes open, accepted and cancelled history');

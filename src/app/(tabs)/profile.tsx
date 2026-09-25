@@ -1,7 +1,7 @@
 import { useAuth } from "@/context/AuthContext";
 import { useProfile } from "@/context/ProfileContext";
 import { getProfileAvatarSignedUrl } from "@/lib/avatars";
-import { FontAwesome5, Ionicons } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
@@ -14,6 +14,7 @@ import {
   View,
 } from "react-native";
 import ScreenHeader from "../../components/ScreenHeader";
+import PointsBalance from "../../components/PointsBalance";
 
 const COLORS = {
   primary: "#9B1C31",
@@ -27,32 +28,9 @@ const COLORS = {
   inactiveGray: "#A5AAB3",
 };
 
-const activities = [
-  {
-    id: "1",
-    title: "Delivered notebook",
-    time: "Today, 2:15PM",
-    points: "+30",
-    pointsColor: COLORS.green,
-    icon: "archive",
-    iconColor: COLORS.green,
-    iconBackground: "#EAF8EF",
-  },
-  {
-    id: "2",
-    title: "Requested item",
-    time: "Yesterday",
-    points: "-25",
-    pointsColor: COLORS.primary,
-    icon: "shopping-cart",
-    iconColor: COLORS.primary,
-    iconBackground: "#FFF0F1",
-  },
-];
-
 export default function ProfileScreen() {
   const router = useRouter();
-  const { signOut } = useAuth();
+  const { signOut, user } = useAuth();
   const { profile } = useProfile();
   const [avatarSignedUrl, setAvatarSignedUrl] = useState<string | null>(null);
   const [isLoadingAvatar, setIsLoadingAvatar] = useState(
@@ -175,82 +153,7 @@ export default function ProfileScreen() {
             </View>
           </View>
 
-          <View style={styles.pointsCard}>
-            <View style={styles.pointsTop}>
-              <Text style={styles.balanceLabel}>Total Balance</Text>
-
-              <View style={styles.balanceRow}>
-                <Text style={styles.balanceNumber}>120</Text>
-                <Text style={styles.balancePoints}>points</Text>
-              </View>
-
-              <View style={styles.pointsButtonRow}>
-                <Pressable
-                  style={styles.sendButton}
-                  onPress={() => router.push("/points/send" as any)}
-                >
-                  <Ionicons
-                    name="send"
-                    size={17}
-                    color={COLORS.primary}
-                    style={styles.buttonIcon}
-                  />
-                  <Text style={styles.sendButtonText}>Send Points</Text>
-                </Pressable>
-
-                <Pressable
-                  style={styles.earnButton}
-                  onPress={() => router.push("/points/earn" as any)}
-                >
-                  <Ionicons
-                    name="add-circle"
-                    size={17}
-                    color={COLORS.cardWhite}
-                    style={styles.buttonIcon}
-                  />
-                  <Text style={styles.earnButtonText}>Earn More</Text>
-                </Pressable>
-              </View>
-            </View>
-
-            <View style={styles.activityArea}>
-              <View style={styles.activityHeader}>
-                <Text style={styles.activityTitle}>Recent Activity</Text>
-
-                <Pressable onPress={() => router.push("/activity" as any)}>
-                  <Text style={styles.seeAllText}>See All</Text>
-                </Pressable>
-              </View>
-
-              {activities.map((item) => (
-                <View key={item.id} style={styles.activityRow}>
-                  <View
-                    style={[
-                      styles.activityIconCircle,
-                      { backgroundColor: item.iconBackground },
-                    ]}
-                  >
-                    <FontAwesome5
-                      name={item.icon}
-                      size={16}
-                      color={item.iconColor}
-                    />
-                  </View>
-
-                  <View style={styles.activityTextWrap}>
-                    <Text style={styles.activityName}>{item.title}</Text>
-                    <Text style={styles.activityTime}>{item.time}</Text>
-                  </View>
-
-                  <Text
-                    style={[styles.activityPoints, { color: item.pointsColor }]}
-                  >
-                    {item.points}
-                  </Text>
-                </View>
-              ))}
-            </View>
-          </View>
+          <PointsBalance key={user?.id} />
 
           {signOutError ? (
             <Text style={styles.signOutError}>{signOutError}</Text>

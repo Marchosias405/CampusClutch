@@ -12,6 +12,7 @@ if (env.EXPO_PUBLIC_SUPABASE_URL !== 'http://127.0.0.1:54321') throw Error('Loca
 const key = env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
 const users = [];
 const compiled = ts.transpileModule(fs.readFileSync(root+'/src/lib/offers.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020}}).outputText;
+const pointsCompiled = ts.transpileModule(fs.readFileSync(root+'/src/lib/points.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020}}).outputText;
 function sql(query) {
  const out=cp.spawnSync('psql',['-X','-h','127.0.0.1','-p','54322','-U','postgres','-d','postgres','-v','ON_ERROR_STOP=1','-c',query],{env:{...process.env,PGPASSWORD:'postgres'},encoding:'utf8'});
  if(out.status!==0) throw Error(out.stderr);
@@ -21,12 +22,17 @@ function service(client) {
  vm.runInNewContext(compiled,{exports,require:()=>({supabase:client}),Error});
  return exports;
 }
+function pointsService(client) {
+ const exports = {};
+ vm.runInNewContext(pointsCompiled,{exports,require:path=>path==='./supabase'?{supabase:client}:service(client),Error});
+ return exports;
+}
 async function account() {
  const client=createClient(env.EXPO_PUBLIC_SUPABASE_URL,key,{auth:{persistSession:false,autoRefreshToken:false}});
  const email=`offer-api-${require('crypto').randomUUID()}@test.local`,password=require('crypto').randomBytes(24).toString('hex');
  const signup=await client.auth.signUp({email,password}); if(signup.error) throw signup.error;
  const id=signup.data.user.id; assert.match(id,/^[0-9a-f-]{36}$/);
- const user={id,client,api:service(client)}; users.push(user);
+ const user={id,client,api:service(client),points:pointsService(client)}; users.push(user);
  sql(`update auth.users set email_confirmed_at=now() where id='${id}'; update public.profiles set display_name='Offer API Tester',major='Testing',year_of_study=2,is_discoverable=false,campus_id=(select id from public.campuses where slug='burnaby') where id='${id}';`);
  const signin=await client.auth.signInWithPassword({email,password}); if(signin.error)throw signin.error;
  return user;
@@ -36,6 +42,12 @@ const pass=message=>console.log('PASS '+message);
  try {
   sql("notify pgrst, 'reload schema';");
   const owner=await account(),helper=await account(),other=await account();
+  for(const user of [owner,helper,other]) {
+   const wallet=await user.points.readWallet(user.id);
+   assert.equal(wallet.balance,100); assert.equal(wallet.available,100); assert.equal(wallet.reserved,0);
+   assert.equal(wallet.history.length,1); assert.equal(wallet.history[0].kind,'starter_grant');
+  }
+  pass('new accounts each receive exactly 100 starting points and one grant');
   const campus=await owner.client.from('campuses').select('id').eq('slug','burnaby').single(); if(campus.error)throw campus.error;
   const saved=await owner.client.rpc('save_my_request',{p_payload:{category:'delivery',title:'Offer service test',description:'Temporary offer integration fixture.',campus_id:campus.data.id,room_location:'Library',deadline_at:new Date(Date.now()+86400000).toISOString(),points:10,item_size:'small',details:{pickup_location:'Cafe',dropoff_location:'Library'}}}); if(saved.error)throw saved.error;
   const requestId=saved.data;
@@ -48,8 +60,16 @@ const pass=message=>console.log('PASS '+message);
   assert.equal(page.items[0].helper_display_name,'Offer API Tester'); assert.equal(page.items[0].helper_major,'Testing'); pass('approved private-profile summary maps through API');
   assert.equal((await helper.api.loadOfferPage(helper.id,requestId)).items.length,1); pass('helper cannot load competing offer');
   assert.equal(page.items[0].offer_round,1); assert.equal(page.items[0].request_offer_round,1); pass('page includes matching offer and request rounds');
-  await assert.rejects(()=>other.api.decideOffer(other.id,first,'accepted',1)); pass('unauthorized decision rejected');
-  await owner.api.decideOffer(owner.id,first,'accepted',1);
+  await assert.rejects(()=>other.api.decideOffer(other.id,first,'accepted',1,10)); pass('unauthorized decision rejected');
+  await assert.rejects(()=>owner.api.decideOffer(owner.id,first,'accepted',1,30),error=>error.code==='22023');
+  assert.equal((await owner.points.readWallet(owner.id)).reserved,0);
+  const refreshed=await owner.client.from('requests').select('points,status').eq('id',requestId).single(); if(refreshed.error)throw refreshed.error;
+  assert.equal(refreshed.data.status,'open'); assert.equal(refreshed.data.points,10); pass('changed reward rejects acceptance without reserving points; refresh exposes current amount');
+  await owner.api.decideOffer(owner.id,first,'accepted',1,refreshed.data.points);
+  const held=await owner.points.readWallet(owner.id);
+  assert.equal(held.balance,100); assert.equal(held.reserved,10); assert.equal(held.available,90);
+  assert.equal((await helper.points.readWallet(helper.id)).balance,100); pass('acceptance reserves poster points without crediting helper');
+  assert.equal((await helper.points.loadRequestReservation(helper.id,requestId,1)).status,'reserved'); pass('participants can see funded reservation');
   assert.equal((await helper.api.loadOfferPage(helper.id,null)).items[0].status,'accepted'); pass('accepted offer survives history reload');
   assert.equal((await other.api.loadOfferPage(other.id,null)).items[0].status,'rejected'); pass('other helper sees rejection');
   const detail=await helper.client.from('requests').select('id').eq('id',requestId).single(); assert.equal(detail.data?.id,requestId); pass('accepted helper can reopen request');
@@ -58,17 +78,30 @@ const pass=message=>console.log('PASS '+message);
   await assert.rejects(()=>helper.api.reopenRequest(helper.id,requestId,1,deadline)); pass('helper cannot reopen poster request');
   await owner.api.reopenRequest(owner.id,requestId,1,deadline);
   await owner.api.reopenRequest(owner.id,requestId,1,deadline);
+  assert.equal((await owner.points.readWallet(owner.id)).available,100); pass('reopening releases reserved points');
   const reopened=await helper.api.loadOfferPage(helper.id,null);
   assert.equal(reopened.items[0].status,'rejected'); assert.equal(reopened.items[0].offer_round,1); assert.equal(reopened.items[0].request_offer_round,2); pass('reopening retires acceptance and retry preserves round');
   await helper.api.renewOffer(helper.id,first,2,'  Available again  ');
   await helper.api.renewOffer(helper.id,first,2,'duplicate');
   const renewed=await owner.api.loadOfferPage(owner.id,requestId);
   assert.equal(renewed.items.find(o=>o.id===first).message,'Available again'); assert.equal(renewed.items.find(o=>o.id===first).offer_round,2); pass('renewal requires helper consent and retry preserves message');
-  await assert.rejects(()=>owner.api.decideOffer(owner.id,first,'accepted',1));
+  await assert.rejects(()=>owner.api.decideOffer(owner.id,first,'accepted',1,10));
   const legacy=await owner.client.rpc('decide_request_offer',{p_offer_id:first,p_action:'accepted'}); assert.equal(legacy.error?.code,'22023'); pass('stale and legacy decisions cannot act on renewed offer');
-  await owner.api.decideOffer(owner.id,first,'accepted',2);
+  await owner.api.decideOffer(owner.id,first,'accepted',2,10);
   await assert.rejects(()=>owner.api.reopenRequest(owner.id,requestId,1,deadline));
   assert.equal((await helper.api.loadOfferPage(helper.id,null)).items[0].status,'accepted'); pass('new acceptance survives stale reopen retry');
+  await assert.rejects(()=>helper.points.completeRequest(helper.id,requestId,2)); pass('helper cannot confirm completion');
+  await owner.points.completeRequest(owner.id,requestId,2);
+  await owner.points.completeRequest(owner.id,requestId,2);
+  const paid=await owner.points.readWallet(owner.id),earned=await helper.points.readWallet(helper.id);
+  assert.equal(paid.balance,90); assert.equal(paid.available,90); assert.equal(paid.reserved,0); assert.equal(earned.balance,110);
+  assert.equal(paid.history.filter(row=>row.kind==='request_sent').length,1); assert.equal(earned.history.filter(row=>row.kind==='request_received').length,1);
+  assert.equal((await helper.points.loadRequestReservation(helper.id,requestId,2)).status,'settled'); pass('poster completion transfers once with matching histories');
+  assert.equal((await helper.api.loadOfferPage(helper.id,null)).items[0].request_status,'completed');
+  await assert.rejects(()=>owner.api.reopenRequest(owner.id,requestId,2,deadline)); pass('completed request cannot reopen');
+  const privateWallet=await other.client.from('points_wallets').select('*').eq('profile_id',owner.id);
+  assert.equal(privateWallet.data?.length,0);
+  const forged=await helper.client.from('points_wallets').update({balance:9999}).eq('profile_id',helper.id); assert.ok(forged.error); pass('wallet privacy and write permissions enforced through API');
   await assert.rejects(()=>helper.api.submitOffer(owner.id,requestId,'')); pass('account mismatch blocks submission');
   await assert.rejects(()=>helper.api.submitOffer(helper.id,requestId,'a'.repeat(1001))); pass('client message validation');
   // A changed auth session must not silently switch the identity of an in-flight RPC.

@@ -54,7 +54,7 @@ SELECT pg_temp.login(3);
 SELECT public.renew_my_request_offer(pg_temp.fixture('declined'),1,'Unapproved retry');
 SELECT is((SELECT status FROM public.request_offers WHERE id=pg_temp.fixture('declined')),'rejected','Declined helper cannot reactivate before the owner reopens');
 SELECT pg_temp.login(1);
-SELECT public.decide_request_offer_for_round(pg_temp.fixture('selected'),'accepted',1);
+SELECT public.decide_request_offer_for_round(pg_temp.fixture('selected'),'accepted',1,10);
 SELECT ok((SELECT status='accepted' AND accepted_at IS NOT NULL FROM public.requests WHERE id=pg_temp.fixture('accepted')),'Acceptance is recorded before reopening');
 
 -- Authorization and validation must precede changes to selection or rounds.
@@ -85,7 +85,7 @@ SELECT is((SELECT status FROM public.request_offers WHERE id=pg_temp.fixture('wi
 SELECT is((SELECT count(*) FROM public.request_offer_history WHERE offer_id=pg_temp.fixture('selected') AND status='accepted' AND offer_round=1),1::bigint,'Original acceptance remains in audit history');
 SELECT is((SELECT count(*) FROM public.get_request_feed() WHERE id=pg_temp.fixture('accepted')),1::bigint,'Reopened request returns to the campus feed');
 SELECT is((SELECT count(*) FROM public.get_request_offer_page_v2(pg_temp.fixture('accepted')) WHERE offer_round=1 AND request_offer_round=2),3::bigint,'Owner review page distinguishes prior offer rounds from the current round');
-SELECT throws_ok($$SELECT public.decide_request_offer_for_round(pg_temp.fixture('selected'),'accepted',2)$$,'22023',NULL,'Owner cannot accept retired consent even with the current request round');
+SELECT throws_ok($$SELECT public.decide_request_offer_for_round(pg_temp.fixture('selected'),'accepted',2,10)$$,'22023',NULL,'Owner cannot accept retired consent even with the current request round');
 SELECT is(public.reopen_my_request(pg_temp.fixture('accepted'),1,clock_timestamp()+interval '7 days'),pg_temp.fixture('accepted'),'Repeated reopen request is harmless while still open');
 SELECT ok((SELECT offer_round=2 AND deadline_at=(SELECT value FROM saved_deadline) FROM public.requests WHERE id=pg_temp.fixture('accepted')),'Reopen retry neither increments again nor changes the saved deadline');
 
@@ -110,13 +110,13 @@ SELECT ok((SELECT status='pending' AND offer_round=2 AND withdrawn_at IS NULL AN
 SELECT pg_temp.login(1);
 SELECT is((SELECT count(*) FROM public.offer_notifications WHERE offer_id=pg_temp.fixture('selected') AND event_type='created'),2::bigint,'Owner receives one created event in each offered round');
 SELECT is((SELECT count(*) FROM public.offer_notifications WHERE offer_id=pg_temp.fixture('selected') AND event_type='created' AND offer_round=2),1::bigint,'Renewal retry does not duplicate the current-round event');
-SELECT throws_ok($$SELECT public.decide_request_offer_for_round(pg_temp.fixture('declined'),'accepted',1)$$,'22023',NULL,'Old acceptance dialog cannot select a renewed offer');
+SELECT throws_ok($$SELECT public.decide_request_offer_for_round(pg_temp.fixture('declined'),'accepted',1,10)$$,'22023',NULL,'Old acceptance dialog cannot select a renewed offer');
 SELECT throws_ok($$SELECT public.decide_request_offer(pg_temp.fixture('declined'),'accepted')$$,'22023',NULL,'Legacy public acceptance cannot decide a renewed offer');
 SELECT throws_ok($$SELECT request_private.decide_offer(pg_temp.fixture('declined'),'accepted')$$,'22023',NULL,'Legacy private acceptance cannot decide a renewed offer');
 SELECT is((SELECT status FROM public.request_offers WHERE id=pg_temp.fixture('declined')),'pending','Stale decision leaves current consent pending');
 SELECT public.reopen_my_request(pg_temp.fixture('accepted'),1,clock_timestamp()+interval '9 days');
 SELECT is((SELECT count(*) FROM public.request_offers WHERE request_id=pg_temp.fixture('accepted') AND status='pending'),3::bigint,'Original reopen retry does not retire new-round pending offers');
-SELECT public.decide_request_offer_for_round(pg_temp.fixture('declined'),'accepted',2);
+SELECT public.decide_request_offer_for_round(pg_temp.fixture('declined'),'accepted',2,10);
 SELECT throws_ok($$SELECT public.reopen_my_request(pg_temp.fixture('accepted'),1,clock_timestamp()+interval '3 days')$$,'22023',NULL,'Old reopen retry cannot undo a newer acceptance');
 SELECT ok((SELECT status='accepted' AND offer_round=2 AND accepted_at IS NOT NULL FROM public.requests WHERE id=pg_temp.fixture('accepted')),'Newer acceptance survives stale reopen');
 SELECT is((SELECT status FROM public.request_offers WHERE id=pg_temp.fixture('declined')),'accepted','Newly chosen helper stays selected');
@@ -128,7 +128,7 @@ SELECT public.reopen_my_request(pg_temp.fixture('accepted'),2,clock_timestamp()+
 SELECT pg_temp.login(3);
 SELECT public.renew_my_request_offer(pg_temp.fixture('declined'),3,'Third round consent');
 SELECT pg_temp.login(1);
-SELECT public.decide_request_offer_for_round(pg_temp.fixture('declined'),'accepted',3);
+SELECT public.decide_request_offer_for_round(pg_temp.fixture('declined'),'accepted',3,10);
 SELECT is((SELECT count(*) FROM public.offer_notifications WHERE offer_id=pg_temp.fixture('declined') AND event_type='created'),3::bigint,'Created events remain distinct through three offer rounds');
 SELECT pg_temp.login(3);
 SELECT is((SELECT count(*) FROM public.offer_notifications WHERE offer_id=pg_temp.fixture('declined') AND event_type='accepted'),2::bigint,'Acceptance notifications are delivered once for each accepted round');
@@ -154,7 +154,7 @@ SELECT pg_temp.login(1);
 SELECT public.cancel_my_request(pg_temp.fixture('cancelled'));
 SELECT throws_ok($$SELECT public.reopen_my_request(pg_temp.fixture('cancelled'),1,clock_timestamp()+interval '1 day')$$,'22023',NULL,'Cancelled request cannot be reopened through this workflow');
 SELECT public.reopen_my_request(pg_temp.fixture('renew-late'),1,clock_timestamp()+interval '1 day');
-SELECT public.decide_request_offer_for_round(pg_temp.fixture('accepted-late-offer'),'accepted',1);
+SELECT public.decide_request_offer_for_round(pg_temp.fixture('accepted-late-offer'),'accepted',1,10);
 RESET ROLE;
 UPDATE public.requests SET status='completed',completed_at=clock_timestamp() WHERE id=pg_temp.fixture('completed');
 UPDATE public.requests SET status='expired',deadline_at=clock_timestamp()-interval '1 minute' WHERE id=pg_temp.fixture('expired');

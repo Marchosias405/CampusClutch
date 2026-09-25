@@ -1253,6 +1253,9 @@ const formatCalendarMonthLabel = (date: Date) => {
             </View>
           </View>
 
+          <Text style={{ color: COLORS.mutedText, fontSize: 13, lineHeight: 19, marginBottom: 16 }}>
+            Points are reserved when you accept a helper. Your available balance must cover the amount; check Profile for your balance.
+          </Text>
           <View style={styles.safetyBox}>
             <Ionicons
               name="shield-checkmark"

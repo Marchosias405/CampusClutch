@@ -64,7 +64,7 @@ There is no new phone test to run for checkpoint 1: the app has not been connect
 
 Implemented on the same Task 9 branch. Migration `20260912071410_offer_review_pages.sql` is applied locally; both hosted projects remain unchanged.
 
-The user reported the checkpoint 2 phone tests passed on September 15, 2026. Their feedback identified two follow-ups: make accepted requests easier to find and allow the poster to reopen selection when they change their mind. Checkpoint 3 below addresses those follow-ups. Poster-confirmed completion, points, and mutual ratings remain separate planned checkpoints.
+The user reported the checkpoint 2 phone tests passed on September 15, 2026. Their feedback identified two follow-ups: make accepted requests easier to find and allow the poster to reopen selection when they change their mind. Checkpoint 3 below addresses those follow-ups. Checkpoint 4 adds points and poster-confirmed completion; mutual ratings remain later work.
 
 - Request details include Offer Help, optional message, existing offer status, withdrawal, and owner accept/decline confirmations.
 - Requests links to **My offers**, which keeps accepted/closed history reachable after restart. Accepted helpers can open the request details from that history.
@@ -116,7 +116,7 @@ Expiry and pagination have automated coverage. The original hosted/Preview hando
 
 ## Checkpoint 3: request history and reopening (2026-09-24, America/Vancouver)
 
-Status: implemented locally; phone validation is next. Task 9 remains in progress on `codex/persist-request-offers` and is not complete or merged. Both hosted databases and the standalone Preview APK still have their previous behavior.
+Status: local phone tests passed after the request-details React key correction. Task 9 remains in progress on `codex/persist-request-offers` and is not complete or merged. Both hosted databases and the standalone Preview APK still have their previous behavior.
 
 - Requests now has separate **Campus feed** and **My requests** tabs, plus **My offers**. My requests includes status labels and an explanation that accepted and closed requests stay in the owner's history.
 - An accepted request leaves the open campus feed. Its poster can find it in My requests, and the currently selected helper can open its details from My offers.
@@ -139,9 +139,9 @@ Validation:
 - Local advisors report only the two pre-existing multiple-permissive-profile-policy warnings described above; no new Task 9 warning was reported.
 - The CLI-captured schema included unrelated drift and omitted explicit privilege revocations. The generated migration was narrowed to the tested reopening SQL, preserving the generated filename and explicit grants/revokes. The exact final file passed replay with all 93 new assertions in one rollback-only transaction. Existing profiles, requests, offers, notifications, offer history, and Auth users had identical row counts and fingerprints before and after replay.
 - Local migration history matches repository version `20260924091300`. Read-only code review found no remaining blocking issue; native layout/date-picker behavior remains for the phone checklist below.
-- Phone testing caught identical React keys on the adjacent reopening and offer sections in request details. Distinct `reopen:` and `offers:` prefixes now preserve their separate identities while retaining account/round remounts. Lint and TypeScript passed after the correction; phone confirmation is pending.
+- Phone testing caught identical React keys on the adjacent reopening and offer sections in request details. Distinct `reopen:` and `offers:` prefixes now preserve their separate identities while retaining account/round remounts (`59aab33`). Lint and TypeScript passed after the correction; the user subsequently reported the tests passed.
 
-### Checkpoint 3 phone checklist
+### Checkpoint 3 phone checklist (passed; historical)
 
 Use the existing development APK and the Phone setup commands above. Reload Metro to receive this source; this checkpoint adds no native dependency and needs no new APK. Use local accounts A (poster), B (helper), and C (second helper). Most checks work with two accounts; C is needed to confirm choosing a different helper.
 
@@ -154,13 +154,72 @@ Use the existing development APK and the Phone setup commands above. Reload Metr
 7. **Offline message/deadline retention:** Keep USB and Metro connected. As a helper, type a fresh Offer again message; as the poster, choose a new reopen deadline in a separate run. In another terminal run `adb reverse --remove tcp:54321`, try the action, and confirm a useful error with the entered value retained. Restore with `adb reverse tcp:54321 tcp:54321`, refresh to check whether it already saved, then retry only if still needed. Confirm one resulting offer or reopen. Do not remove the Metro forwarding on port 8081 or disconnect USB for this test.
 8. **Layout and cancellation:** Check both request tabs, status labels, long messages, date picker, keyboard, and confirmation Keep as is buttons. Cancelling the confirmation must leave the prior state intact.
 
-### Planned completion, points, and ratings checkpoints
+## Checkpoint 4: starting points and confirmed completion (2026-09-24, America/Vancouver)
 
-The requested next workflow is poster-confirmed completion: accepting a helper does not mean the work is done. The poster must explicitly confirm that it was completed before points transfer.
+Status: implemented and tested locally; Android phone validation is next. The user approved **100 starting points for every account**, with creator-made miniature quests for earning more points later. Task 9 remains in progress; neither hosted database nor the standalone Preview APK has this checkpoint.
 
-- Reserve the poster's points balance when a helper is accepted, preventing the same points from being committed to multiple requests.
-- Release that reservation when the poster reopens selection. Require fresh helper consent and a fresh reservation when another offer is accepted.
-- Transfer the reserved points to the accepted helper only when the poster confirms completion. The operation must update request status and the points ledger atomically and be safe to retry.
-- Add mutual ratings after a completed request, limited to its poster and selected helper, to support reliability information. Rating eligibility and duplicate protections must be enforced by the backend.
+### Points policy and app behavior
 
-The starting-balance/points-funding policy is unresolved and must be decided before the balance workflow is implemented. These later checkpoints are planned, not shipped: the current reopening work does not reserve, transfer, or award points and has no completion or rating action. Local phone validation is the current stopping point; hosted deployment, a new Preview APK, Preview validation, CI, review, merge, and documentation closure remain before Task 9 is complete.
+- Every existing profile receives one 100-point welcome grant when the migration runs. New profiles receive the same grant through a database trigger. Sign-in, reload, reinstall, and profile updates do not create another grant.
+- A wallet has a total balance, a reserved amount, and an available amount (`total - reserved`). Profile shows these values and the latest 20 ledger transactions. Home links to Profile instead of showing a mock balance or reward progress.
+- Creating a request does not reserve points. Accepting a helper requires enough available points and reserves the request's amount. The helper receives nothing yet. A failed acceptance leaves the wallet, request, offers, and events unchanged.
+- Acceptance submits the points amount shown in its confirmation. The backend checks that amount and the offer round under the request lock. If another session changes the reward, the old confirmation fails and requires refresh. Older clients without an amount-confirmation parameter cannot accept; their decline and withdrawal actions remain supported.
+- Reopening releases the current reservation and retires the old selection. Helpers must explicitly offer again, and a new acceptance creates a new reservation.
+- Only the poster can choose **Confirm completion**. The confirmation names the amount and explains that completed work cannot be reopened. Confirming atomically completes the request, deducts the reserved points from the poster, credits the helper, and writes one debit and one credit. Retrying cannot pay twice.
+- Accepted and completed work remains reachable through the poster's My requests and the helper's My offers. The helper sees whether points are reserved or paid but cannot confirm completion on the poster's behalf.
+- The three existing local acceptances from before points were enabled are not automatically funded or charged. Such requests explain that the poster must reopen, receive a fresh offer, and accept it before completion. No payment is inferred from earlier tests.
+- On a failed action, the app reports uncertainty and asks for a refresh before retrying. Balances are loaded from the backend rather than optimistically increased. Account changes discard stale results and actions use the checked account's token.
+
+### Backend contract
+
+Migration `20260924235230_request_points.sql` is applied locally and matches local migration history.
+
+| Table / function | Purpose |
+| --- | --- |
+| `points_wallets` | One private wallet per profile; nonnegative balance and reservation constraints |
+| `points_ledger` | One welcome grant per profile and paired, unique request payment entries |
+| `request_point_reservations` | Held, released, or settled points for one request offer round; readable by its participants |
+| `get_my_points()` | Caller-only balance and latest 20 transactions from one consistent database snapshot |
+| `decide_request_offer_for_round(p_offer_id, p_action, p_expected_round, p_expected_points)` | Validates the confirmed amount and reserves points on acceptance |
+| `complete_my_request(p_request_id, p_expected_round)` | Poster-only, atomic, retry-safe completion and payment |
+
+All new tables enable RLS and grant authenticated clients read access only. Mutations run through checked functions in the private schema; the unchecked offer core and starter-grant trigger are not client-callable. Acceptance locks the request before updating available funds. Completion locks participant wallets in a consistent order so reciprocal payments do not deadlock. There is no arbitrary points-grant RPC, quest claim, or quest administration UI.
+
+### Validation
+
+- All **359 SQL assertions** passed across six files, including **114 points assertions** and the earlier request/course/offer/reopening regressions.
+- Points coverage includes one-time grants, private balances/history, insufficient funds, multiple reservations, release, legacy acceptance recovery, poster-only completion, stale rounds, stale/missing confirmation amounts, blocked legacy acceptance, rollback on event/ledger failure, retry safety, and recent-history ordering.
+- **13 real concurrency races** passed: nine offer/reopening races and four new points races covering competing reservations, duplicate completion, completion versus reopening, and reciprocal payment. Temporary fixtures were removed.
+- **28 typed service/API checks** passed through local Auth and PostgREST, including actual balance/reservation/completion calls, amount mismatch rejection, account/token guards, direct-write denial, and payment retry. Temporary accounts and requests were removed.
+- ESLint, TypeScript, and Android Hermes export passed. Review identified the stale acceptance-amount issue; the guarded confirmation and regression tests resolve it.
+- Local advisors report only the two pre-existing profile-policy performance warnings documented above; no new points warning was reported.
+- The CLI-captured schema contained unrelated function drift and omitted explicit privilege restrictions and welcome-grant backfill. The generated migration was narrowed to the tested SQL, including the final amount guard.
+- The exact final migration passed replay with all 114 points assertions inside a rollback-only transaction. Row counts and fingerprints for all nine existing Auth/profile/request/offer/points tables matched before and after; no existing local data changed.
+
+Repeatable local checks (Docker/Supabase running, Node/npm/Python/psql available):
+
+```powershell
+npx supabase test db --local supabase/tests
+node scripts/test-offers-local.cjs
+python scripts/test-request-offers-concurrency.py
+python scripts/test-request-points-concurrency.py
+npm run check
+```
+
+The API script reads the local URL and publishable key from `.env.local` and refuses to run unless the URL is `http://127.0.0.1:54321`. It also needs `psql` on PATH. Race tests are fixed to the local development database and clean up their temporary fixtures.
+
+### Checkpoint 4 phone checklist
+
+Use the existing development APK and the **Phone setup** commands above. Reload Metro to load the updated source; no new APK is required. Keep USB and Docker running. Use local accounts A (poster) and B (helper), and start with a new future-dated request. Existing hosted Preview accounts and the standalone Preview app do not include this checkpoint.
+
+1. **Welcome grant:** Open Profile as A and B. Each account should show 100 total/available, 0 reserved, and one +100 welcome entry if no points have been spent yet. Restart and sign out/in; the grant must not repeat. A newly created local account should also receive 100 once. If you have already made payments, record the current balances and compare the changes below instead.
+2. **Reserve without payment:** A posts a 30-point request, B offers, and A accepts. Check the amount in the confirmation. A should have 100 total, 70 available, and 30 reserved; B should still have 100. Find the accepted request through My requests/My offers after restart.
+3. **Cancel confirmation and release:** As A, open Confirm completion and choose Not yet. Nothing should change. Reopen the request and confirm a future deadline: A returns to 100 available/0 reserved and B is still unpaid. B explicitly offers again; A accepts the fresh offer and reserves 30 again.
+4. **Insufficient funds:** While A has only 70 available, post another request for 80 and have B offer. A's acceptance must fail with a points message, leaving the second request Open, B's offer Pending, and the original 30-point reservation unchanged.
+5. **Confirm and pay once:** B must not have the poster's Confirm completion control. As A, confirm the completed 30-point request. A should have 70 total/available and 0 reserved; B should have 130 total/available. Each account has one corresponding -30/+30 payment entry. Refresh, restart, and revisit the request: it remains Completed, no further payment occurs, and reopening is unavailable.
+6. **Offline completion recovery:** On a separate small accepted request, keep Metro/USB connected and remove only database forwarding with `adb reverse --remove tcp:54321`. Try confirming completion and check the error/refresh state. Restore `adb reverse tcp:54321 tcp:54321`, refresh completion and Profile first, then retry only if it is still accepted and unpaid. There must be one final payment, never two. Turning off Wi-Fi alone does not disconnect the USB-forwarded local database.
+7. **Old acceptances and layout:** Open a request accepted before this checkpoint. It should explain that it needs reopening and fresh acceptance before payment; no Confirm completion button should charge it immediately. Check button spacing, long text, balance/history layout, and account switching. Home's View points link should open the current account's real wallet.
+
+### Next checkpoints
+
+Stop here for phone validation. After it passes, implement mutual ratings for completed requests, restricted to the poster and selected helper with duplicate-rating protection. Creator-managed miniature quests and controlled points rewards are later work. Hosted deployment, a new Preview APK, Preview validation, CI, review, merge, and documentation closure remain before Task 9 is complete.
