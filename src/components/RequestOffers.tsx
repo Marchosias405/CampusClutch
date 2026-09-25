@@ -7,6 +7,7 @@ import { decideOffer, loadOfferPage, offerError, renewOffer, submitOffer, type O
 import type { CampusRequest } from '../types';
 
 type Props = { request?: CampusRequest; requestId?: string; onChanged?: () => Promise<void> };
+type OfferTerms = { round: number; points: number };
 const labels = { pending: 'Pending', accepted: 'Accepted', rejected: 'Not selected', withdrawn: 'Withdrawn' };
 
 export default function RequestOffers({ request, requestId, onChanged }: Props) {
@@ -66,21 +67,21 @@ export default function RequestOffers({ request, requestId, onChanged }: Props) 
   const ready = loadedScope === scope && !loading && !saving && !error;
   const canOffer = !!request && request.status === 'open' && Date.parse(request.deadlineAt ?? '') > Date.now();
 
-  const perform = async (action?: OfferAction | 'renew', offer?: RequestOffer) => {
+  const perform = async (action: OfferAction | 'renew' | 'create', terms: OfferTerms, offer?: RequestOffer, offerMessage = '') => {
     if (!userId || mutation.current || busy.current || !active.current || currentScope.current !== scope) return;
     mutation.current = true; setSaving(true); setNotice(''); setError('');
     let committed = false;
     try {
-      if (action === 'renew' && offer) await renewOffer(userId, offer.id, offer.request_offer_round, renewMessages[offer.id] ?? '');
-      else if (action && action !== 'renew' && offer) await decideOffer(userId, offer.id, action, offer.offer_round, request?.points);
-      else if (requestId) await submitOffer(userId, requestId, message);
+      if (action === 'renew' && offer) await renewOffer(userId, offer.id, terms.round, offerMessage, terms.points);
+      else if (action !== 'renew' && action !== 'create' && offer) await decideOffer(userId, offer.id, action, terms.round, terms.points);
+      else if (action === 'create' && requestId) await submitOffer(userId, requestId, offerMessage, terms.round, terms.points);
       else return;
       committed = true;
       invalidate();
       if (active.current && currentScope.current === scope) {
         setMessage('');
         if (offer) setRenewMessages(previous => ({ ...previous, [offer.id]: '' }));
-        setNotice(action === 'renew' ? 'Your new offer was saved. Its current status is shown below.' : action ? 'Your decision was saved.' : 'Your offer was saved. Its current status is shown below.');
+        setNotice(action === 'renew' ? 'Your new offer was saved. Its current status is shown below.' : action === 'create' ? 'Your offer was saved. Its current status is shown below.' : 'Your decision was saved.');
       }
     } catch (failure) {
       if (active.current && currentScope.current === scope) setError(offerError(failure));
@@ -94,13 +95,26 @@ export default function RequestOffers({ request, requestId, onChanged }: Props) 
   };
 
   const confirm = (action: OfferAction, offer: RequestOffer) => {
+    const terms = { round: offer.offer_round, points: offer.request_points };
     const text = action === 'accepted'
-      ? `Accept this helper and reserve ${request?.points ?? 'the offered'} points from your available balance? Points transfer only after you confirm completion. Other pending offers will be declined. Reopening releases the reservation and requires fresh offers.`
-      : action === 'rejected' ? 'Decline this offer? This helper can offer again only if you reopen the request for new offers.'
-      : 'Withdraw your offer? You can offer again only if the poster reopens the request for new offers.';
+      ? `Accept this helper and reserve ${terms.points} points from your available balance? Points transfer only after you confirm completion. Other pending offers will be declined. Reopening releases the reservation and requires fresh offers.`
+      : action === 'rejected' ? 'Decline this offer? This helper can offer again after you change the reward or reopen the request.'
+      : 'Withdraw your offer? You can offer again after the poster changes the reward or reopens the request.';
     Alert.alert(action === 'accepted' ? 'Accept helper?' : action === 'rejected' ? 'Decline offer?' : 'Withdraw offer?', text, [
       { text: 'Keep as is', style: 'cancel' },
-      { text: action === 'accepted' ? 'Accept' : action === 'rejected' ? 'Decline' : 'Withdraw', style: action === 'accepted' ? 'default' : 'destructive', onPress: () => { void perform(action, offer); } },
+      { text: action === 'accepted' ? 'Accept' : action === 'rejected' ? 'Decline' : 'Withdraw', style: action === 'accepted' ? 'default' : 'destructive', onPress: () => { void perform(action, terms, offer); } },
+    ]);
+  };
+
+  const confirmOffer = (offer?: RequestOffer) => {
+    const terms = offer
+      ? { round: offer.request_offer_round, points: offer.request_points }
+      : request ? { round: request.offerRound ?? 1, points: request.points } : null;
+    if (!terms) return;
+    const offerMessage = offer ? renewMessages[offer.id] ?? '' : message;
+    Alert.alert(offer ? 'Confirm offer again?' : 'Offer help?', `Offer to help for ${terms.points} points? Points transfer after the poster confirms completion.`, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Confirm offer', onPress: () => { void perform(offer ? 'renew' : 'create', terms, offer, offerMessage); } },
     ]);
   };
 
@@ -116,11 +130,12 @@ export default function RequestOffers({ request, requestId, onChanged }: Props) 
     {!loading && !error && !visible.length && <Text style={styles.text}>{owner ? 'No offers yet.' : requestId ? 'You have not offered help for this request.' : 'Your offers will appear here, including accepted and closed requests.'}</Text>}
     {requestId && request && !owner && visible.length === 0 && <View style={styles.card}>
       {canOffer ? <>
+        <Text style={styles.label}>Current reward: {request.points} points</Text>
         <Text style={styles.text}>Offer to help with this request. The owner will see your name, major, year and campus, even if your profile is hidden from discovery.</Text>
         <Text style={styles.label}>Message (optional)</Text>
         <TextInput accessibilityLabel="Optional offer message" style={styles.input} multiline maxLength={1000} value={message} editable={!saving} onChangeText={setMessage} placeholder="Let the owner know how you can help" textAlignVertical="top" />
         <Text style={styles.text}>{message.length}/1000</Text>
-        <Pressable accessibilityRole="button" disabled={!ready} style={[styles.primary, !ready && styles.disabled]} onPress={() => { void perform(); }}><Text style={styles.primaryText}>Offer Help</Text></Pressable>
+        <Pressable accessibilityRole="button" disabled={!ready} style={[styles.primary, !ready && styles.disabled]} onPress={() => confirmOffer()}><Text style={styles.primaryText}>Offer Help</Text></Pressable>
       </> : <Text style={styles.text}>This request is no longer accepting offers.</Text>}
     </View>}
     {visible.map(offer => {
@@ -130,8 +145,9 @@ export default function RequestOffers({ request, requestId, onChanged }: Props) 
       const canRenew = open && !currentRound && offer.offering_user_id === userId && ['rejected', 'withdrawn'].includes(offer.status);
       return <View key={offer.id} style={styles.card}>
         <Text style={styles.title}>{requestId ? owner ? offer.helper_display_name || 'Campus helper' : 'Your offer' : offer.request_title}</Text>
-        <Text style={styles.status}>{labels[offer.status]}</Text>
-        {!currentRound && <Text style={styles.text}>The poster reopened this request. This earlier offer is closed; the helper must offer again to be considered.</Text>}
+        <Text style={styles.status}>{open && !currentRound ? 'Confirmation needed' : labels[offer.status]}</Text>
+        <Text style={styles.label}>Current reward: {offer.request_points} points</Text>
+        {!currentRound && <Text style={styles.text}>The poster changed the reward or reopened this request. This earlier offer is closed; the helper must confirm the current reward to be considered again.</Text>}
         {!open && <Text style={styles.text}>Request {offer.request_status === 'open' ? 'expired' : offer.request_status}.</Text>}
         {owner && <Text style={styles.text}>{[offer.helper_major, offer.helper_year ? `Year ${offer.helper_year}` : null, offer.helper_campus].filter(Boolean).join(' • ')}</Text>}
         {!!offer.message && <Text style={styles.text}>{offer.message}</Text>}
@@ -144,7 +160,7 @@ export default function RequestOffers({ request, requestId, onChanged }: Props) 
         {canRenew && <>
           <Text style={styles.label}>New message (optional)</Text>
           <TextInput accessibilityLabel={`New offer message for ${offer.request_title}`} style={styles.input} multiline maxLength={1000} value={renewMessages[offer.id] ?? ''} editable={!saving} onChangeText={value => setRenewMessages(previous => ({ ...previous, [offer.id]: value }))} placeholder="Confirm you are available to help" textAlignVertical="top" />
-          <Pressable accessibilityRole="button" disabled={!ready} style={[styles.primary, !ready && styles.disabled]} onPress={() => { void perform('renew', offer); }}><Text style={styles.primaryText}>Offer again</Text></Pressable>
+          <Pressable accessibilityRole="button" disabled={!ready} style={[styles.primary, !ready && styles.disabled]} onPress={() => confirmOffer(offer)}><Text style={styles.primaryText}>Offer again</Text></Pressable>
         </>}
         {!requestId && (open || offer.status === 'accepted') && <Pressable accessibilityRole="button" style={styles.secondary} onPress={() => router.push({ pathname: '/requests/[id]', params: { id: offer.request_id } })}><Text style={styles.secondaryText}>View request</Text></Pressable>}
         {offer.status === 'accepted' && <Text style={styles.text}>Help confirmed. Find this request in My offers as the helper, or My requests as the poster.</Text>}

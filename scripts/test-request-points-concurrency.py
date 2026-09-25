@@ -54,7 +54,10 @@ def create_request(owner, points):
 
 
 def offer(request, helper):
-    return value(as_user(helper, f"select public.create_my_request_offer('{request}')"))
+    # Ordinary fixtures confirm the values read before submission; races below
+    # retain their explicit stale values instead of silently refreshing them.
+    round_number, points = value(f"select offer_round||'/'||points from public.requests where id='{request}'").split('/')
+    return value(as_user(helper, f"select public.create_my_request_offer_for_terms('{request}',{round_number},{points})"))
 
 
 def accept(offer_id, owner, points):

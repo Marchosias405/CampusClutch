@@ -235,6 +235,38 @@ Phone testing identified an account with 110 points being allowed to post a 111-
 
 **Phone retest:** Reload the development app. With 110 **available** points, posting 111 must show an error without creating a request; changing it to 110 should save. Editing a request to 111 must also fail and retain the form. If 30 points are reserved, the maximum is 80. No new APK is required. The full checklist above has been updated so the insufficient-funds acceptance test creates its second request before the first reservation.
 
+### Helper reward-consent correction (2026-09-25, America/Vancouver)
+
+Phone testing found that a poster could change the points after a helper offered and then accept that earlier offer. The helper had never agreed to the new amount. Migration `20260925165806_require_helper_reward_consent.sql` and the updated app now require explicit confirmation of the current reward.
+
+- Changing points on an open request advances its offer round and closes every pending offer in the same transaction. A decrease, increase, or change back to an earlier amount all require fresh consent. Saving without changing points preserves existing offers. Accepted and completed requests remain non-editable.
+- Helpers see **Confirmation needed**, the current reward, and a new offer confirmation prompt. The poster cannot accept an old offer; that helper must confirm again first. History is retained, and other helpers remain unconfirmed when one helper confirms.
+- `create_my_request_offer_for_terms(p_request_id, p_expected_round, p_expected_points, p_message)` and `renew_my_request_offer_for_terms(p_offer_id, p_expected_round, p_expected_points, p_message)` verify the exact displayed terms under the parent request lock. Missing or stale terms fail even on duplicate/retry paths. Old unchecked helper RPCs can no longer write through their private cores; reload old development clients.
+- `get_request_offer_page_v3` returns offer state, request round, and `request_points` together. Renewal and acceptance use that same row's amount in both the confirmation and request. A reward edit while a confirmation dialog is open cannot silently change the agreed amount.
+- The migration requires fresh confirmation once for existing open pending offers, whose original agreed amounts were not recorded. It locks and rechecks each parent before retiring those offers. One existing local open request needed this transition. It does not change accepted/completed work, wallets, reservations, or payment entries.
+- A stale reopen retry must also match the saved deadline before returning success; a reward edit must not make an unapplied deadline change look successful.
+- The correction is applied locally only. Mutual ratings, quests, hosted deployment, and a new Preview APK remain later checkpoints.
+
+Validation:
+
+- All **442 SQL assertions** passed across eight files, including 50 new reward-consent checks. Coverage includes decreases, increases, returning to the original amount, multiple helpers, missing/stale confirmation terms, unchanged-price edits, private/legacy bypass denial, account permissions, and rollback on history failure.
+- **36 offer/points API checks** and **22 request API checks** passed against local Auth/PostgREST. The new API flow verifies 30 → 20 invalidation, blocked old acceptance, helper confirmation, a 20-point reservation, and exactly one 20-point payment.
+- All **17 concurrency cases** passed: 12 offer/reopening races and five points races. The three new races overlap reward edits with first offers, acceptance, and renewed offers; either the old action fails or its consent is retired, and accepted work cannot be edited to a different reward. All temporary fixtures were removed.
+- ESLint, TypeScript, and Android Hermes export passed. Independent SQL review found no remaining consent bypass; advisors reported only the two existing profile-policy performance warnings.
+- The exact captured migration passed rollback-only replay with all 50 new assertions and eight legacy-data preservation checks. Accepted, completed, and terminal-only fixtures stayed unchanged; only the intended pending offers were retired. All 13 existing data-table fingerprints matched afterward.
+- The captured schema diff included unrelated pre-existing course-function changes and omitted the one-time data transition. The final migration contains only the reviewed consent SQL, explicit grants/revokes, and the tested transition. Local migration history matches `20260925165806`; the CLI's existing telemetry shutdown timeout occurred after successful capture/history operations.
+
+### Reward-consent phone retest
+
+Reload the existing development app, with Metro, USB forwarding, and local Supabase available. Use accounts A (poster) and B (helper); choose amounts within A's available balance.
+
+1. A posts a future-dated request for **30 points**. B offers and confirms 30.
+2. A edits the reward to **20 points**. Refresh offers: B's earlier offer must show **Confirmation needed**, and A must not be able to accept it.
+3. B opens My offers or the request, reviews the displayed 20 points, and confirms a new offer. Cancelling the prompt must leave the old offer unconfirmed. After confirmation, A can accept and reserves exactly 20.
+4. A confirms completion. Exactly 20 transfers from A to B once, including after refresh/restart.
+5. On a separate open request, repeat with an increase and with **30 → 20 → 30**. An old offer must never become acceptable merely because the price returns to 30. If two helpers offered, each must confirm separately.
+6. Save an edit that leaves points unchanged: its pending offers should remain valid. For a stale-screen test using two devices if available, leave B's confirmation open, change the reward as A, then confirm as B. It must fail and require refreshing/reviewing the new amount.
+
 ### Next checkpoints
 
 Stop here for phone validation. After it passes, implement mutual ratings for completed requests, restricted to the poster and selected helper with duplicate-rating protection. Creator-managed miniature quests and controlled points rewards are later work. Hosted deployment, a new Preview APK, Preview validation, CI, review, merge, and documentation closure remain before Task 9 is complete.

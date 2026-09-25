@@ -10,6 +10,7 @@ export type RequestOffer = {
   created_at: string;
   offer_round: number;
   request_offer_round: number;
+  request_points: number;
   request_title: string;
   request_status: 'open' | 'accepted' | 'completed' | 'cancelled' | 'expired';
   request_deadline_at: string;
@@ -30,7 +31,7 @@ export async function assertOfferSession(expectedUserId: string) {
 
 export async function loadOfferPage(userId: string, requestId: string | null, offset = 0) {
   const session = await assertOfferSession(userId);
-  const { data, error } = await supabase.rpc('get_request_offer_page_v2', {
+  const { data, error } = await supabase.rpc('get_request_offer_page_v3', {
     p_request_id: requestId, p_limit: 20, p_offset: offset,
   }).setHeader('Authorization', `Bearer ${session.access_token}`);
   if (error) throw error;
@@ -39,11 +40,11 @@ export async function loadOfferPage(userId: string, requestId: string | null, of
   return { items, hasMore: items.length === 20, nextOffset: offset + items.length };
 }
 
-export async function submitOffer(userId: string, requestId: string, message: string) {
+export async function submitOffer(userId: string, requestId: string, message: string, expectedRound: number, expectedPoints: number) {
   if (message.trim().length > 1000) throw new Error('Keep your message within 1,000 characters.');
   const session = await assertOfferSession(userId);
-  const { data, error } = await supabase.rpc('create_my_request_offer', {
-    p_request_id: requestId, p_message: message.trim() || null,
+  const { data, error } = await supabase.rpc('create_my_request_offer_for_terms', {
+    p_request_id: requestId, p_expected_round: expectedRound, p_expected_points: expectedPoints, p_message: message.trim() || null,
   }).setHeader('Authorization', `Bearer ${session.access_token}`);
   if (error) throw error;
   await assertOfferSession(userId);
@@ -59,11 +60,11 @@ export async function decideOffer(userId: string, offerId: string, action: Offer
   await assertOfferSession(userId);
 }
 
-export async function renewOffer(userId: string, offerId: string, expectedRound: number, message: string) {
+export async function renewOffer(userId: string, offerId: string, expectedRound: number, message: string, expectedPoints: number) {
   if (message.trim().length > 1000) throw new Error('Keep your message within 1,000 characters.');
   const session = await assertOfferSession(userId);
-  const { error } = await supabase.rpc('renew_my_request_offer', {
-    p_offer_id: offerId, p_expected_round: expectedRound, p_message: message.trim() || null,
+  const { error } = await supabase.rpc('renew_my_request_offer_for_terms', {
+    p_offer_id: offerId, p_expected_round: expectedRound, p_expected_points: expectedPoints, p_message: message.trim() || null,
   }).setHeader('Authorization', `Bearer ${session.access_token}`);
   if (error) throw error;
   await assertOfferSession(userId);

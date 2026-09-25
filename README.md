@@ -444,7 +444,8 @@ CampusClutch/
 │   │   ├── 20260912071410_offer_review_pages.sql
 │   │   ├── 20260924091300_reopen_request_offers.sql
 │   │   ├── 20260924235230_request_points.sql
-│   │   └── 20260925085239_limit_request_points_to_balance.sql
+│   │   ├── 20260925085239_limit_request_points_to_balance.sql
+│   │   └── 20260925165806_require_helper_reward_consent.sql
 │   ├── tests/
 │   │   ├── course_memberships.test.sql
 │   │   ├── offer_pages.test.sql
@@ -1608,6 +1609,9 @@ Checkpoint 4 implemented locally on September 24, 2026:
 - Automated coverage includes one-time grants, balance privacy, reservations, insufficient funds, completion permissions, stale confirmations, rollback, retry safety, and concurrent payment/reopening.
 - All 359 database assertions, 28 typed service/API checks, and 13 concurrency races passed. Lint/typecheck and Android Hermes export passed; exact migration replay passed all 114 points assertions while preserving existing local data. Advisors reported only the two existing profile-policy warnings.
 - Phone testing found that an account with 110 points could post a 111-point request because affordability was only checked at acceptance. The September 25 follow-up adds posting/editing limits in the app and database (`20260925085239_limit_request_points_to_balance.sql`, local only). All 388 database assertions, 22 request API checks, 28 offer/points API checks, five points concurrency cases, lint/typecheck, Android export, and the exact follow-up migration replay passed. Phone retesting is next.
+- A second phone finding exposed an unfair reward change: the poster could change points after a helper offered and then accept that old offer. Migration `20260925165806_require_helper_reward_consent.sql` now starts a fresh offer round whenever points change and closes pending offers. Each helper must explicitly confirm the current amount before acceptance. First offers, renewed offers, and acceptance check the displayed round and amount under the request lock, including stale screens and changes back to the original price. Edits that keep the same points preserve offers.
+- Existing open pending offers require confirmation once because their original agreed amount was not recorded. Accepted/completed requests and balances are preserved. The app shows **Confirmation needed**, the current points, and a confirmation prompt. This correction is local only; reload the development app before testing.
+- The reward-consent correction passed all 442 SQL assertions, 36 offer/points API checks, 22 request API checks, 17 concurrency cases, lint/typecheck, and Android export. Exact migration replay passed all 50 new assertions plus legacy-data preservation checks, with matching fingerprints for 13 data tables after rollback. The two-account phone retest below is the next checkpoint.
 
 Checkpoint 4 phone testing is next. Hosted deployment, Preview testing, final review, CI, and merge are still pending. Task 9 is not complete or merged; no new APK is required for this local source update.
 
@@ -1629,10 +1633,12 @@ Requirements:
 - Update request status.
 - Keep accepted requests reachable in poster/helper history.
 - Allow the poster to reopen selection with a new deadline, ending old acceptance and requiring fresh helper consent.
+- Require helpers to confirm any changed reward before their offer can be accepted.
 
 Next planned checkpoints requested during phone review:
 
 - Validate checkpoint 4's 100-point starting balances, reservations, transfers, and offline recovery on Android.
+- Retest reward changes with two accounts: old offers must become unavailable for acceptance until each helper confirms the new amount; stale confirmation screens must fail safely.
 - Allow both participants to rate each other after completion, with backend checks for participation and duplicate ratings.
 - Add creator-managed miniature quests for earning extra points later, with controlled rewards and protection against duplicate claims. This checkpoint adds no quest administration or reward-claim feature.
 
@@ -1875,7 +1881,7 @@ Test Task 9 checkpoint 4 on Android using the existing development build and loc
 codex/persist-request-offers
 ```
 
-Follow the setup and [checkpoint 4 phone checklist](docs/task-9-offers.md#checkpoint-4-phone-checklist). Reload Metro for the new source; no new APK is needed.
+Follow the setup, [checkpoint 4 phone checklist](docs/task-9-offers.md#checkpoint-4-phone-checklist), and [reward-consent phone retest](docs/task-9-offers.md#reward-consent-phone-retest). Reload Metro for the new source; no new APK is needed.
 
 1. Verify 100 welcome points per account and no extra grant after restart or sign-in.
 2. Accept a 30-point request: the poster has 70 available and 30 reserved; the helper is not paid yet.

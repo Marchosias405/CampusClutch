@@ -33,7 +33,7 @@ SET LOCAL ROLE authenticated;
 SELECT pg_temp.login(2);
 INSERT INTO fixtures VALUES('earning',public.save_my_request(pg_temp.payload(10)));
 SELECT pg_temp.login(1);
-INSERT INTO fixtures VALUES('earning-offer',public.create_my_request_offer(pg_temp.fixture('earning')));
+INSERT INTO fixtures VALUES('earning-offer',public.create_my_request_offer_for_terms(pg_temp.fixture('earning'),1,10));
 SELECT pg_temp.login(2);
 SELECT public.decide_request_offer_for_round(pg_temp.fixture('earning-offer'),'accepted',1,10);
 SELECT public.complete_my_request(pg_temp.fixture('earning'),1);
@@ -58,8 +58,8 @@ SELECT lives_ok($$SELECT public.save_my_request(pg_temp.payload(110),pg_temp.fix
 SELECT pg_temp.login(2);
 SELECT throws_ok($$SELECT public.save_my_request(pg_temp.payload(91))$$,'P0002',NULL,'Each poster uses their own wallet rather than another richer account');
 SELECT throws_ok($$SELECT public.save_my_request(pg_temp.payload(999),pg_temp.fixture('editable'))$$,'42501',NULL,'Ownership is checked before exposing edit balance validation');
-INSERT INTO fixtures VALUES('reserve-offer',public.create_my_request_offer(pg_temp.fixture('reservation'))),
- ('exact-offer',public.create_my_request_offer(pg_temp.fixture('exact')));
+INSERT INTO fixtures VALUES('reserve-offer',public.create_my_request_offer_for_terms(pg_temp.fixture('reservation'),1,30)),
+ ('exact-offer',public.create_my_request_offer_for_terms(pg_temp.fixture('exact'),1,110));
 SELECT pg_temp.login(1);
 SELECT public.decide_request_offer_for_round(pg_temp.fixture('reserve-offer'),'accepted',1,30);
 SELECT is((public.get_my_points()->>'available')::integer,80,'An accepted request reduces available points without reducing total');

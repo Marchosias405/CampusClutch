@@ -1258,6 +1258,7 @@ const formatCalendarMonthLabel = (date: Date) => {
 
           <Text style={{ color: COLORS.mutedText, fontSize: 13, lineHeight: 19, marginBottom: 16 }}>
             You cannot offer more than your available points. Your balance is checked when you post or edit, and again when you accept a helper. Points are reserved only on acceptance; check Profile for your balance.
+            {editId ? ' Changing points closes earlier offers and requires helpers to confirm the new reward before you can accept them.' : ''}
           </Text>
           <View style={styles.safetyBox}>
             <Ionicons

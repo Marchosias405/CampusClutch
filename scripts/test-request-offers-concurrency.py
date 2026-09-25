@@ -38,20 +38,24 @@ def value(query):
     return sql(query).stdout.strip().splitlines()[-1]
 
 
-def create_request():
+def request_payload(points=10):
     campus = value("select id from public.campuses where slug='burnaby'")
-    payload = json.dumps(dict(category='delivery', title='Task 9 concurrency',
+    return json.dumps(dict(category='delivery', title='Task 9 concurrency',
         description='Temporary concurrency test request.', campus_id=campus,
-        room_location='Library', points=10, item_size='small',
+        room_location='Library', points=points, item_size='small',
         deadline_at='2099-01-01T00:00:00Z',
         details=dict(pickup_location='Cafe', dropoff_location='Library')))
+
+
+def create_request(points=10):
+    payload = request_payload(points)
     request = value(as_user(users[0], f"select public.save_my_request('{payload}'::jsonb)"))
     requests.append(request)
     return request
 
 
-def offer(request, user):
-    return value(as_user(user, f"select public.create_my_request_offer('{request}')"))
+def offer(request, user, points=10):
+    return value(as_user(user, f"select public.create_my_request_offer_for_terms('{request}',1,{points})"))
 
 
 def race(request, calls, before_release=None):
@@ -91,8 +95,8 @@ def decision(offer_id, action, user=None):
     return as_user(user or users[0], f"select public.decide_request_offer('{offer_id}','{action}')")
 
 
-def round_decision(offer_id, action, expected_round, user=None):
-    amount = ',10' if action == 'accepted' else ''
+def round_decision(offer_id, action, expected_round, user=None, points=10):
+    amount = f',{points}' if action == 'accepted' else ''
     return as_user(user or users[0],
         f"select public.decide_request_offer_for_round('{offer_id}','{action}',{expected_round}{amount})")
 
@@ -102,9 +106,14 @@ def reopen(request, expected_round):
         f"select public.reopen_my_request('{request}',{expected_round},'2099-01-02T00:00:00Z')")
 
 
-def renew(offer_id, expected_round, user):
+def renew(offer_id, expected_round, user, points=10):
     return as_user(user,
-        f"select public.renew_my_request_offer('{offer_id}',{expected_round},'Renewed helper consent')")
+        f"select public.renew_my_request_offer_for_terms('{offer_id}',{expected_round},{points},'Renewed helper consent')")
+
+
+def edit_reward(request, points):
+    return as_user(users[0],
+        f"select public.save_my_request('{request_payload(points)}'::jsonb,'{request}')")
 
 
 try:
@@ -114,7 +123,7 @@ try:
             f"campus_id=(select id from public.campuses where slug='burnaby') where id='{user}';")
 
     request = create_request()
-    call = as_user(users[1], f"select public.create_my_request_offer('{request}')")
+    call = as_user(users[1], f"select public.create_my_request_offer_for_terms('{request}',1,10)")
     results = race(request, [call, call])
     assert all(r.returncode == 0 for r in results)
     assert results[0].stdout.strip().splitlines()[-1] == results[1].stdout.strip().splitlines()[-1]
@@ -214,6 +223,59 @@ try:
     assert value(f"select count(*) from public.offer_notifications where offer_id='{first}' and event_type='created' and offer_round=2") == '1'
     assert value(f"select count(*) from public.offer_notifications where offer_id='{first}' and event_type='accepted'") == '0'
     print('PASS stale round-one decision versus renewal: new pending consent remains untouched', flush=True)
+
+    request = create_request()
+    submit = as_user(users[1], f"select public.create_my_request_offer_for_terms('{request}',1,10)")
+    results = race(request, [edit_reward(request, 20), submit])
+    assert results[0].returncode == 0, results[0].stderr
+    assert value(f"select status||'/'||offer_round||'/'||points from public.requests where id='{request}'") == 'open/2/20'
+    if results[1].returncode == 0:
+        # Submission won the lock, so the following edit must retire that consent.
+        assert value(f"select status||'/'||offer_round from public.request_offers where request_id='{request}'") == 'rejected/1'
+    else:
+        assert 'Request reward has changed' in results[1].stderr, results[1].stderr
+        assert value(f"select count(*) from public.request_offers where request_id='{request}'") == '0'
+    assert value(f"select count(*) from public.request_offers where request_id='{request}' and status in ('pending','accepted')") == '0'
+    assert value(f"select count(*) from public.request_point_reservations where request_id='{request}'") == '0'
+    print('PASS reward edit versus initial submission: stale consent rejected or retired', flush=True)
+
+    request = create_request()
+    first = offer(request, users[1])
+    results = race(request, [edit_reward(request, 20), round_decision(first, 'accepted', 1, points=10)])
+    assert sum(r.returncode == 0 for r in results) == 1, [r.stderr for r in results]
+    if results[0].returncode == 0:
+        assert 'Offer has changed' in results[1].stderr, results[1].stderr
+        assert value(f"select status||'/'||offer_round||'/'||points from public.requests where id='{request}'") == 'open/2/20'
+        assert value(f"select status||'/'||offer_round from public.request_offers where id='{first}'") == 'rejected/1'
+        assert value(f"select count(*) from public.request_point_reservations where request_id='{request}'") == '0'
+        assert value(f"select count(*) from public.offer_notifications where offer_id='{first}' and event_type='accepted'") == '0'
+    else:
+        assert 'Request is no longer editable' in results[0].stderr, results[0].stderr
+        assert value(f"select status||'/'||offer_round||'/'||points from public.requests where id='{request}'") == 'accepted/1/10'
+        assert value(f"select status||'/'||offer_round from public.request_offers where id='{first}'") == 'accepted/1'
+        assert value(f"select status||'/'||offer_round||'/'||amount from public.request_point_reservations where request_id='{request}'") == 'reserved/1/10'
+        # Release the accepted fixture so later checks retain sufficient funds.
+        sql(reopen(request, 1))
+    print('PASS reward edit versus stale acceptance: changed reward never accepted on old consent', flush=True)
+
+    request = create_request()
+    first = offer(request, users[1])
+    sql(reopen(request, 1))
+    results = race(request, [edit_reward(request, 20), renew(first, 2, users[1], points=10)])
+    assert results[0].returncode == 0, results[0].stderr
+    assert value(f"select status||'/'||offer_round||'/'||points from public.requests where id='{request}'") == 'open/3/20'
+    if results[1].returncode == 0:
+        # Renewal won the lock, but its old reward confirmation is then retired.
+        assert value(f"select status||'/'||offer_round from public.request_offers where id='{first}'") == 'rejected/2'
+        assert value(f"select count(*) from public.request_offer_history where offer_id='{first}' and offer_round=2 and status='pending'") == '1'
+        assert value(f"select count(*) from public.request_offer_history where offer_id='{first}' and offer_round=2 and status='rejected'") == '1'
+    else:
+        assert 'Request reward has changed' in results[1].stderr, results[1].stderr
+        assert value(f"select status||'/'||offer_round from public.request_offers where id='{first}'") == 'rejected/1'
+        assert value(f"select count(*) from public.request_offer_history where offer_id='{first}' and offer_round=2") == '0'
+    assert value(f"select count(*) from public.request_offers where request_id='{request}' and status in ('pending','accepted')") == '0'
+    assert value(f"select count(*) from public.request_point_reservations where request_id='{request}'") == '0'
+    print('PASS reward edit versus renewal: refreshed round requires fresh reward confirmation', flush=True)
 finally:
     if requests:
         sql('delete from public.requests where id in (' + ','.join(f"'{r}'" for r in requests) + ')')
