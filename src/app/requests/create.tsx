@@ -627,6 +627,9 @@ const formatCalendarMonthLabel = (date: Date) => {
 
       submitLockRef.current = false;
       setSubmissionState("idle");
+      if (error && typeof error === 'object' && 'code' in error && error.code === 'P0002') {
+        setInvalidField('pointsOffered');
+      }
       setValidationError(
         requestError(error)
       );
@@ -1254,7 +1257,7 @@ const formatCalendarMonthLabel = (date: Date) => {
           </View>
 
           <Text style={{ color: COLORS.mutedText, fontSize: 13, lineHeight: 19, marginBottom: 16 }}>
-            Points are reserved when you accept a helper. Your available balance must cover the amount; check Profile for your balance.
+            You cannot offer more than your available points. Your balance is checked when you post or edit, and again when you accept a helper. Points are reserved only on acceptance; check Profile for your balance.
           </Text>
           <View style={styles.safetyBox}>
             <Ionicons

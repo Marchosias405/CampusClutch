@@ -443,13 +443,15 @@ CampusClutch/
 │   │   ├── 20260912060259_persist_request_offers.sql
 │   │   ├── 20260912071410_offer_review_pages.sql
 │   │   ├── 20260924091300_reopen_request_offers.sql
-│   │   └── 20260924235230_request_points.sql
+│   │   ├── 20260924235230_request_points.sql
+│   │   └── 20260925085239_limit_request_points_to_balance.sql
 │   ├── tests/
 │   │   ├── course_memberships.test.sql
 │   │   ├── offer_pages.test.sql
 │   │   ├── reopen_request_offers.test.sql
 │   │   ├── request_offers.test.sql
 │   │   ├── request_points.test.sql
+│   │   ├── request_points_limit.test.sql
 │   │   └── requests.test.sql
 │   ├── config.toml
 │   └── seed.sql
@@ -1598,12 +1600,14 @@ Checkpoint 4 implemented locally on September 24, 2026:
 
 - Every existing account receives a one-time 100-point welcome grant; each new profile receives the same grant. Reloads, sign-ins, reinstalls, and profile edits do not grant more points.
 - Accepting a helper reserves the request's points from the poster's available balance. The confirmation amount is checked under the request lock, so a stale confirmation cannot reserve a changed amount. Insufficient funds leave the request and offers unchanged.
+- Creating or editing a request also requires the offered points to fit the poster's current available balance. The form checks on every save, and the database checks again while locking the wallet. Saving does not reserve points; acceptance still rechecks and reserves them.
 - Reopening releases reserved points and requires fresh helper consent. The poster alone can confirm completed work; that action atomically completes the request, debits the poster, credits the helper, and records both ledger entries once.
 - Profile shows real available/reserved/total points and the latest 20 transactions. Home links to that balance; mock balance and reward-progress claims were removed.
 - Pre-points acceptances are not automatically charged. Reopen them and accept a fresh offer before confirming completion. Completed requests remain in participant history and cannot be reopened.
 - Migration `20260924235230_request_points.sql` is applied locally. Wallets and ledger entries are private; clients cannot directly change balances or award points.
 - Automated coverage includes one-time grants, balance privacy, reservations, insufficient funds, completion permissions, stale confirmations, rollback, retry safety, and concurrent payment/reopening.
 - All 359 database assertions, 28 typed service/API checks, and 13 concurrency races passed. Lint/typecheck and Android Hermes export passed; exact migration replay passed all 114 points assertions while preserving existing local data. Advisors reported only the two existing profile-policy warnings.
+- Phone testing found that an account with 110 points could post a 111-point request because affordability was only checked at acceptance. The September 25 follow-up adds posting/editing limits in the app and database (`20260925085239_limit_request_points_to_balance.sql`, local only). All 388 database assertions, 22 request API checks, 28 offer/points API checks, five points concurrency cases, lint/typecheck, Android export, and the exact follow-up migration replay passed. Phone retesting is next.
 
 Checkpoint 4 phone testing is next. Hosted deployment, Preview testing, final review, CI, and merge are still pending. Task 9 is not complete or merged; no new APK is required for this local source update.
 
@@ -1875,7 +1879,7 @@ Follow the setup and [checkpoint 4 phone checklist](docs/task-9-offers.md#checkp
 
 1. Verify 100 welcome points per account and no extra grant after restart or sign-in.
 2. Accept a 30-point request: the poster has 70 available and 30 reserved; the helper is not paid yet.
-3. Reopen to release the reservation, then accept a fresh offer. Test insufficient funds and cancelling confirmation.
+3. Reopen to release the reservation, then accept a fresh offer. Test the posting/editing balance limit, insufficient funds at acceptance, and cancelling confirmation.
 4. Confirm completion as the poster: exactly 30 points transfer, and both balances/history persist after reload. The helper cannot confirm completion.
 5. Test offline recovery by removing only USB forwarding for port 54321, then restore and refresh before retrying; no duplicate payment should appear.
 6. After this checkpoint passes, implement mutual ratings as a separately tested stage. Creator-made quests remain later work.

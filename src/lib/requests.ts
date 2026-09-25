@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import { getCampuses } from './profiles';
+import { readWallet } from './points';
 import type { CampusRequest, RequestCategory } from '../types';
 
 const categories = { DELIVERY: 'delivery', PICKUP: 'pickup', 'EVENT HELP': 'event_help', 'STUDY HELP': 'study_help' } as const;
@@ -68,6 +69,12 @@ export async function saveRequest(request: Omit<CampusRequest, 'id'>, id?: strin
   const { data: initial } = await supabase.auth.getSession();
   const userId = initial.session?.user.id;
   if (!userId) throw new Error('Please sign in again.');
+  // Check again on every save; an earlier form load may predate a reservation.
+  // The database repeats this check under a wallet lock before writing.
+  const wallet = await readWallet(userId);
+  if (request.points > wallet.available) {
+    throw Object.assign(new Error(`You have ${wallet.available} available points. Offer no more than this amount.`), { code: 'P0002' });
+  }
   const campuses = await getCampuses();
   const campusId = campuses.find(campus => campus.slug === request.campus?.toLowerCase())?.id;
   if (!campusId) throw new Error('Campus unavailable. Please try again.');
@@ -81,8 +88,10 @@ export async function saveRequest(request: Omit<CampusRequest, 'id'>, id?: strin
     category: categories[request.category], title: request.title, description: request.description,
     campus_id: campusId, room_location: request.roomLocation, deadline_at: request.deadlineAt,
     points: request.points, item_size: request.itemSize?.toLowerCase(), is_urgent: request.isUrgent ?? false, details,
-  } });
+  } }).setHeader('Authorization', `Bearer ${current.session.access_token}`);
   if (error) throw error;
+  const { data: after } = await supabase.auth.getSession();
+  if (after.session?.user.id !== userId) throw new Error('Your account changed. Please reopen the form.');
   return data as string;
 }
 export async function cancelRequest(id: string) {

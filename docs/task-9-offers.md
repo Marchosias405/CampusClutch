@@ -162,7 +162,7 @@ Status: implemented and tested locally; Android phone validation is next. The us
 
 - Every existing profile receives one 100-point welcome grant when the migration runs. New profiles receive the same grant through a database trigger. Sign-in, reload, reinstall, and profile updates do not create another grant.
 - A wallet has a total balance, a reserved amount, and an available amount (`total - reserved`). Profile shows these values and the latest 20 ledger transactions. Home links to Profile instead of showing a mock balance or reward progress.
-- Creating a request does not reserve points. Accepting a helper requires enough available points and reserves the request's amount. The helper receives nothing yet. A failed acceptance leaves the wallet, request, offers, and events unchanged.
+- Creating or editing a request requires the offered amount to fit the poster's current available balance, excluding reserved points. The app checks on every save and the database repeats the check under a wallet lock. Saving does not reserve points. Accepting a helper rechecks available points and reserves the request's amount. The helper receives nothing yet. A failed save or acceptance leaves existing data unchanged.
 - Acceptance submits the points amount shown in its confirmation. The backend checks that amount and the offer round under the request lock. If another session changes the reward, the old confirmation fails and requires refresh. Older clients without an amount-confirmation parameter cannot accept; their decline and withdrawal actions remain supported.
 - Reopening releases the current reservation and retires the old selection. Helpers must explicitly offer again, and a new acceptance creates a new reservation.
 - Only the poster can choose **Confirm completion**. The confirmation names the amount and explains that completed work cannot be reopened. Confirming atomically completes the request, deducts the reserved points from the poster, credits the helper, and writes one debit and one credit. Retrying cannot pay twice.
@@ -201,6 +201,7 @@ Repeatable local checks (Docker/Supabase running, Node/npm/Python/psql available
 ```powershell
 npx supabase test db --local supabase/tests
 node scripts/test-offers-local.cjs
+node scripts/test-requests-local.cjs
 python scripts/test-request-offers-concurrency.py
 python scripts/test-request-points-concurrency.py
 npm run check
@@ -213,12 +214,26 @@ The API script reads the local URL and publishable key from `.env.local` and ref
 Use the existing development APK and the **Phone setup** commands above. Reload Metro to load the updated source; no new APK is required. Keep USB and Docker running. Use local accounts A (poster) and B (helper), and start with a new future-dated request. Existing hosted Preview accounts and the standalone Preview app do not include this checkpoint.
 
 1. **Welcome grant:** Open Profile as A and B. Each account should show 100 total/available, 0 reserved, and one +100 welcome entry if no points have been spent yet. Restart and sign out/in; the grant must not repeat. A newly created local account should also receive 100 once. If you have already made payments, record the current balances and compare the changes below instead.
-2. **Reserve without payment:** A posts a 30-point request, B offers, and A accepts. Check the amount in the confirmation. A should have 100 total, 70 available, and 30 reserved; B should still have 100. Find the accepted request through My requests/My offers after restart.
+2. **Reserve without payment:** While A has 100 available, create requests for 30 and 80 points. B offers on both. A accepts the 30-point request. Check the amount in the confirmation. A should have 100 total, 70 available, and 30 reserved; B should still have 100. Find the accepted request through My requests/My offers after restart.
 3. **Cancel confirmation and release:** As A, open Confirm completion and choose Not yet. Nothing should change. Reopen the request and confirm a future deadline: A returns to 100 available/0 reserved and B is still unpaid. B explicitly offers again; A accepts the fresh offer and reserves 30 again.
-4. **Insufficient funds:** While A has only 70 available, post another request for 80 and have B offer. A's acceptance must fail with a points message, leaving the second request Open, B's offer Pending, and the original 30-point reservation unchanged.
+4. **Insufficient funds:** While A has only 70 available, creating or editing a request to offer 71 must fail, highlight the points field, and retain the form values. Offering exactly 70 is allowed. Try accepting B on the earlier 80-point request from step 2: this must also fail, leaving that request Open, B's offer Pending, and the original 30-point reservation unchanged.
 5. **Confirm and pay once:** B must not have the poster's Confirm completion control. As A, confirm the completed 30-point request. A should have 70 total/available and 0 reserved; B should have 130 total/available. Each account has one corresponding -30/+30 payment entry. Refresh, restart, and revisit the request: it remains Completed, no further payment occurs, and reopening is unavailable.
 6. **Offline completion recovery:** On a separate small accepted request, keep Metro/USB connected and remove only database forwarding with `adb reverse --remove tcp:54321`. Try confirming completion and check the error/refresh state. Restore `adb reverse tcp:54321 tcp:54321`, refresh completion and Profile first, then retry only if it is still accepted and unpaid. There must be one final payment, never two. Turning off Wi-Fi alone does not disconnect the USB-forwarded local database.
 7. **Old acceptances and layout:** Open a request accepted before this checkpoint. It should explain that it needs reopening and fresh acceptance before payment; no Confirm completion button should charge it immediately. Check button spacing, long text, balance/history layout, and account switching. Home's View points link should open the current account's real wallet.
+
+### Posting balance-limit correction (2026-09-25, America/Vancouver)
+
+Phone testing identified an account with 110 points being allowed to post a 111-point request. The original checkpoint checked affordability at acceptance only. Creating and editing now also require the requested amount to fit the caller's **available** points (`balance - reserved`). Exactly the available amount is allowed. Posting still does not reserve funds, so acceptance must also recheck the balance.
+
+- The typed request service loads the current wallet on every save. An unaffordable amount returns a clear error and highlights the points field while retaining all form values. Saves pin the checked session token and reject stale success after an account change.
+- The backend enforces the same rule even if the client validation is bypassed. Edits lock the owned request first; both new posts and edits then lock the caller's wallet and validate its latest available balance before changing any rows. Existing lifecycle, category, ownership, and field checks remain enforced.
+- Migration `20260925085239_limit_request_points_to_balance.sql` is applied locally. Existing balances and requests were preserved; an already-posted unaffordable request can be edited down, and accepting it still requires enough funds. Hosted environments remain unchanged.
+- All **388 SQL assertions** passed, including 29 new posting-limit checks covering 110 versus 111, all request categories, exact limits, edits and unchanged details after failures, reservations, own-account balances, zero available points, and acceptance rechecks.
+- **22 request API checks** and **28 offer/points API checks** passed. All five points concurrency cases passed, including a new case where posting and editing wait while an acceptance reduces the same wallet's available balance; both saves reject the now-unaffordable amount.
+- ESLint, TypeScript, and Android Hermes export passed. The exact saved migration passed replay with all 29 new assertions in a rollback-only transaction, with matching fingerprints for 13 data tables afterward. Advisors reported only the two pre-existing profile-policy warnings.
+- The CLI captured unrelated pre-existing function drift, so the generated file was narrowed to the tested save-function change and its grants. Local migration history matches. The CLI's existing telemetry shutdown timeout occurred after successful database operations; replay and migration history were verified independently.
+
+**Phone retest:** Reload the development app. With 110 **available** points, posting 111 must show an error without creating a request; changing it to 110 should save. Editing a request to 111 must also fail and retain the form. If 30 points are reserved, the maximum is 80. No new APK is required. The full checklist above has been updated so the insufficient-funds acceptance test creates its second request before the first reservation.
 
 ### Next checkpoints
 

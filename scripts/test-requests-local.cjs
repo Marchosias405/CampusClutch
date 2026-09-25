@@ -16,9 +16,15 @@ function sql(query) {
  if(out.status!==0) throw Error('SQL fixture operation failed: '+out.stderr);
 }
 const exportsObject = {};
+const compileService = name => ts.transpileModule(fs.readFileSync(root+'/src/lib/'+name+'.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020}}).outputText;
+const offers = {};
+vm.runInNewContext(compileService('offers'),{exports:offers,require:()=>({supabase:client}),Error});
+const points = {};
+vm.runInNewContext(compileService('points'),{exports:points,require:name=>name==='./supabase'?{supabase:client}:offers,Error});
 const compiled = ts.transpileModule(fs.readFileSync(root+'/src/lib/requests.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020}}).outputText;
-vm.runInNewContext(compiled,{exports:exportsObject,require: name=> name==='./supabase'?{supabase:client}:{getCampuses:async()=>{const {data,error}=await client.from('campuses').select('*');if(error)throw error;return data.map(r=>({id:r.id,slug:r.slug,displayName:r.display_name}));}},Date,Map,Error});
+vm.runInNewContext(compiled,{exports:exportsObject,require: name=> name==='./supabase'?{supabase:client}:name==='./points'?points:{getCampuses:async()=>{const {data,error}=await client.from('campuses').select('*');if(error)throw error;return data.map(r=>({id:r.id,slug:r.slug,displayName:r.display_name}));}},Date,Map,Error});
 const check=(v,m)=>{if(!v)throw Error(m);console.log('PASS '+m);};
+const rejectsForPoints=async(action,label)=>{let failure;try{await action();}catch(error){failure=error;}check(failure?.code==='P0002',label);};
 (async()=>{
  let userId;
  try {
@@ -42,6 +48,26 @@ const check=(v,m)=>{if(!v)throw Error(m);console.log('PASS '+m);};
   await exportsObject.saveRequest({...base,category:'DELIVERY',title:'Edited'},ids[0]);check((await exportsObject.loadRequest(ids[0])).title==='Edited','Edit persists');
   await exportsObject.cancelRequest(ids[0]);check((await exportsObject.loadRequest(ids[0])).status==='cancelled','Cancellation persists');
   const feed=await exportsObject.loadRequests('ALL',null,0);check(!feed.items.some(r=>r.id===ids[0]),'Cancelled excluded from feed');
+  // Boundary setup is restricted to this disposable account, never user wallets.
+  sql(`update public.points_wallets set balance=110 where profile_id='${userId}';`);
+  await rejectsForPoints(()=>exportsObject.saveRequest({...base,category:'DELIVERY',points:111}),'Typed save blocks 111 points with 110 available');
+  const campus=await client.from('campuses').select('id').eq('slug','burnaby').single();if(campus.error)throw campus.error;
+  const payload={category:'delivery',title:base.title,description:base.description,campus_id:campus.data.id,room_location:base.roomLocation,deadline_at:base.deadlineAt,points:111,item_size:'small',details:{pickup_location:'Cafe',dropoff_location:'Library'}};
+  const direct=await client.rpc('save_my_request',{p_payload:payload});
+  check(direct.error?.code==='P0002','Direct RPC cannot bypass the posting limit');
+  const exact=await exportsObject.saveRequest({...base,category:'DELIVERY',points:110});
+  check((await exportsObject.loadRequest(exact)).points===110,'Exactly 110 available points can be offered');
+  await rejectsForPoints(()=>exportsObject.saveRequest({...base,category:'DELIVERY',points:111,title:'Rejected edit'},exact),'Typed edit blocks an unaffordable increase');
+  const unchanged=await exportsObject.loadRequest(exact);
+  check(unchanged.points===110&&unchanged.title===base.title&&unchanged.pickupLocation==='Cafe','Failed edit preserves request and details');
+  sql(`update public.points_wallets set reserved=30 where profile_id='${userId}';`);
+  await rejectsForPoints(()=>exportsObject.saveRequest({...base,category:'PICKUP',points:81}),'Posting excludes points reserved for other work');
+  const reservedDirect=await client.rpc('save_my_request',{p_payload:{...payload,points:81}});
+  check(reservedDirect.error?.code==='P0002','Direct RPC also excludes reserved points');
+  await exportsObject.saveRequest({...base,category:'DELIVERY',points:80},exact);
+  check((await exportsObject.loadRequest(exact)).points===80,'Editing down to the available balance succeeds');
+  const wallet=await points.readWallet(userId);
+  check(wallet.balance===110&&wallet.reserved===30&&wallet.available===80,'Posting and editing do not spend or reserve additional points');
  } finally {
   await client.auth.signOut();
   if(userId)sql(`delete from public.requests where owner_id='${userId}'; delete from auth.users where id='${userId}';`);

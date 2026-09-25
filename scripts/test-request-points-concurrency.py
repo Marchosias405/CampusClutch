@@ -18,7 +18,7 @@ if not PSQL:
 ENV = dict(os.environ, PGPASSWORD='postgres', PGCONNECT_TIMEOUT='5')
 ARGS = [PSQL, '-X', '-qAt', '-v', 'ON_ERROR_STOP=1', '-h', '127.0.0.1',
         '-p', '54322', '-U', 'postgres', '-d', 'postgres']
-users = [str(uuid.uuid4()) for _ in range(4)]
+users = [str(uuid.uuid4()) for _ in range(5)]
 requests = []
 
 
@@ -38,13 +38,16 @@ def value(query):
     return sql(query).stdout.strip().splitlines()[-1]
 
 
-def create_request(owner, points):
+def request_payload(points):
     campus = value("select id from public.campuses where slug='burnaby'")
-    payload = json.dumps(dict(category='delivery', title='Points concurrency',
+    return json.dumps(dict(category='delivery', title='Points concurrency',
         description='Temporary points concurrency test request.', campus_id=campus,
         room_location='Library', points=points, item_size='small',
         deadline_at='2099-01-01T00:00:00Z',
         details=dict(pickup_location='Cafe', dropoff_location='Library')))
+
+def create_request(owner, points):
+    payload = request_payload(points)
     request = value(as_user(owner, f"select public.save_my_request('{payload}'::jsonb)"))
     requests.append(request)
     return request
@@ -70,7 +73,7 @@ def wallet(user):
     return tuple(map(int, value(f"select balance||'/'||reserved from public.points_wallets where profile_id='{user}'").split('/')))
 
 
-def race(lock_query, lock_value, calls):
+def race(lock_query, lock_value, calls, before_release=''):
     marker = 'points-' + uuid.uuid4().hex
     blocker = subprocess.Popen(ARGS, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
         stderr=subprocess.PIPE, text=True, env=dict(ENV, PGAPPNAME=marker+'-blocker'))
@@ -88,7 +91,7 @@ def race(lock_query, lock_value, calls):
             time.sleep(.05)
         else:
             raise AssertionError('Both contenders did not reach the database lock')
-        blocker.stdin.write('commit;\n\\q\n')
+        blocker.stdin.write(before_release + '; commit;\n\\q\n')
         blocker.stdin.flush()
         blocker.communicate(timeout=10)
         return [future.result(timeout=30) for future in futures]
@@ -177,9 +180,26 @@ try:
     assert value(f"select count(*) from public.points_ledger where request_id in ({ids})") == '4'
     assert value(f"select sum(amount) from public.points_ledger where request_id in ({ids})") == '0'
     print('PASS reciprocal simultaneous payments: no deadlock and conserved balances', flush=True)
+
+    # A create and an edit start before acceptance commits while waiting for the
+    # same poster's wallet. Both must validate the new spendable amount.
+    pending = create_request(users[4], 30)
+    chosen = offer(pending, users[1])
+    create_call = as_user(users[4], f"select public.save_my_request('{request_payload(80)}'::jsonb)")
+    edit_target = create_request(users[4], 10)
+    edit_call = as_user(users[4], f"select public.save_my_request('{request_payload(80)}'::jsonb,'{edit_target}')")
+    before_release = (f"set local role authenticated; select set_config('request.jwt.claim.sub','{users[4]}',true); "
+        f"select public.decide_request_offer_for_round('{chosen}','accepted',1,30)")
+    results = race(f"select profile_id from public.points_wallets where profile_id='{users[4]}' for update",
+                   users[4], [create_call, edit_call], before_release)
+    assert all(r.returncode != 0 and 'You have 70 available points' in r.stderr for r in results), [r.stderr for r in results]
+    assert wallet(users[4]) == (100, 30)
+    assert value(f"select points from public.requests where id='{edit_target}'") == '10'
+    assert value(f"select count(*) from public.requests where owner_id='{users[4]}'") == '2'
+    print('PASS posting and editing waiting on acceptance recheck the reduced available balance', flush=True)
 finally:
-    if requests:
-        sql('delete from public.requests where id in (' + ','.join(f"'{r}'" for r in requests) + ')')
+    # Include a post unexpectedly created by a failed race assertion in cleanup.
+    sql('delete from public.requests where owner_id in (' + ','.join(f"'{u}'" for u in users) + ')')
     for user in users:
         sql(f"delete from auth.users where id='{user}'")
     print('Temporary points concurrency fixtures removed.', flush=True)
