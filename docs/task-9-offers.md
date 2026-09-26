@@ -267,6 +267,38 @@ Reload the existing development app, with Metro, USB forwarding, and local Supab
 5. On a separate open request, repeat with an increase and with **30 → 20 → 30**. An old offer must never become acceptable merely because the price returns to 30. If two helpers offered, each must confirm separately.
 6. Save an edit that leaves points unchanged: its pending offers should remain valid. For a stale-screen test using two devices if available, leave B's confirmation open, change the reward as A, then confirm as B. It must fail and require refreshing/reviewing the new amount.
 
+### Three active requests per poster (2026-09-25, America/Vancouver)
+
+The user requested a maximum of three active posts while phone testing is deferred. Migration `20260926000632_limit_active_requests.sql` is applied locally; it contains no request cancellation or balance changes.
+
+- The cap applies across all four categories to requests **posted** by the account. Open requests count while their deadline is in the future. Accepted requests count even after the original deadline because the selected work still needs completion. Completed, cancelled, expired, and elapsed open requests free a slot; offering help on another person's request consumes no posting slot.
+- The database rejects a fourth active post with `P0004`. The form explains the cap and retains all entered values after rejection. Ordinary edits at the cap remain allowed. Reopening accepted work keeps its existing slot.
+- The `requests_active_limit_guard` trigger protects creation and every owner/status/deadline change that would activate a request. It locks the owner's wallet, evaluates expiry after any wait, and counts up to three other active requests. The partial owner/status/deadline index keeps this lookup limited to relevant rows. Direct client writes remain denied.
+- Removing a slot does not acquire another wallet lock. This preserves the batch-expiry reader's lock order. Posting and active transitions use the existing parent-then-wallet order; the count does not lock other request rows.
+- Existing over-limit accounts retain their requests, offer history, reservations, and payments. They may edit, accept, reopen, complete, or cancel existing active work; new posts remain blocked until fewer than three active requests remain. No automatic cancellation occurs.
+- Older regression suites that need simultaneous historical fixtures now explicitly construct those grandfathered fixtures before enabling the guard for assertions. Other fixtures close completed test scenarios or create requests as slots become available. The production guard stays enabled.
+
+Validation:
+
+- All **490 SQL assertions** passed across nine files: 443 existing regressions and 47 new active-limit checks. The new coverage includes all categories sharing the cap, account isolation, edits at the cap, accepted work, slot release, failed-save rollback, grandfathered accounts, and direct-write denial.
+- **25 request API checks** and **36 offer/points API checks** passed, including rejection of the fourth post, retained draft data, and cancellation freeing a slot without removing history.
+- All **23 concurrency cases** passed: the earlier 12 offer and five points races, plus six active-limit cases. Four simultaneous first posts yield exactly three successes; two posts competing for the final slot yield one winner. Stale edit/reopen/accept actions cannot reactivate a fourth request after expiry and replacement. Batch expiry completes while both owners' wallets are locked. Temporary fixtures were removed.
+- Lint, TypeScript, and Android export passed. Advisors reported only the two previously documented profile-policy performance warnings. Independent lock-order review informed the terminal-state early return to avoid adding a wallet lock to batch expiry.
+- Exact migration replay passed all 47 new assertions inside a rollback-only transaction. Fingerprints for 13 existing data tables matched afterward. The captured diff was narrowed to the reviewed trigger, index, and privilege restrictions; local migration history matches `20260926000632`.
+
+Re-run the new concurrency coverage with `python scripts/test-request-active-limit-concurrency.py` against the local database. Phone validation remains deferred; no hosted deployment or new APK is included.
+
+### Active-request limit phone checklist
+
+Deferred until the phone is available, together with the reward-consent retest above. Reload the existing development app; no new APK is required.
+
+1. With fewer than three active posts, create requests until the account has three, using different categories. A fourth must show the limit message and keep the draft values.
+2. Edit one of those requests without adding a new post. It must save normally. Cancel one, then retry the retained draft: it should save, and cancelled history should remain available.
+3. Accept a helper on an active request. It still counts toward the cap. Poster-confirmed completion frees that slot; reopening accepted work alone does not.
+4. An open request whose deadline has passed should not block a replacement. Completed and cancelled history should not count either.
+5. A second account has its own three-post allowance. Offering help on somebody else's request must not reduce that allowance.
+6. If an account already has more than three active requests, verify they remain visible and editable. New posting becomes available only after closing enough to leave fewer than three.
+
 ### Next checkpoints
 
 Stop here for phone validation. After it passes, implement mutual ratings for completed requests, restricted to the poster and selected helper with duplicate-rating protection. Creator-managed miniature quests and controlled points rewards are later work. Hosted deployment, a new Preview APK, Preview validation, CI, review, merge, and documentation closure remain before Task 9 is complete.

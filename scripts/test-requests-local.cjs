@@ -38,12 +38,20 @@ const rejectsForPoints=async(action,label)=>{let failure;try{await action();}cat
   const ids=[];
   const base={title:'API fixture',description:'Verify request persistence and detail mapping.',campus:'Burnaby',roomLocation:'Library',deadlineAt:new Date(Date.now()+86400000).toISOString(),points:15,itemSize:'Small',timeLabel:'',location:'',pickupLocation:'Cafe',dropoffLocation:'Library',eventName:'Welcome',eventTask:'Chairs',courseOrSubject:'CMPT 120',studyTopic:'Loops'};
   for(const category of ['DELIVERY','PICKUP','EVENT HELP','STUDY HELP']) {
+   if (ids.length===3) {
+    const draft={...base,category},before=JSON.stringify(draft);
+    let failure;try{await exportsObject.saveRequest(draft);}catch(error){failure=error;}
+    check(failure?.code==='P0004' && exportsObject.requestError(failure).includes('3 active requests'),'Fourth active request is blocked with a clear limit message');
+    check((await exportsObject.loadRequests('ALL',userId,0)).items.length===3 && JSON.stringify(draft)===before,'Failed capped save preserves existing requests and form data');
+    await exportsObject.cancelRequest(ids[2]);
+   }
    const id=await exportsObject.saveRequest({...base,category});ids.push(id);
    const row=await exportsObject.loadRequest(id);
    check(row.category===category && row.ownerId===userId && row.points===15,'Persist and reload '+category);
    check(category==='EVENT HELP'?row.eventTask==='Chairs':category==='STUDY HELP'?row.studyTopic==='Loops':row.dropoffLocation==='Library','Detail mapping '+category);
   }
   const page=await exportsObject.loadRequests('ALL',userId,0);check(page.items.length===4,'Owner history');
+  check(page.items.filter(row=>row.status==='open').length===3,'Cancelling frees a slot without removing request history');
   const filtered=await exportsObject.loadRequests('STUDY HELP',null,0);check(filtered.items.some(r=>r.id===ids[3]),'Feed RPC with embedded detail loading');
   await exportsObject.saveRequest({...base,category:'DELIVERY',title:'Edited'},ids[0]);check((await exportsObject.loadRequest(ids[0])).title==='Edited','Edit persists');
   await exportsObject.cancelRequest(ids[0]);check((await exportsObject.loadRequest(ids[0])).status==='cancelled','Cancellation persists');

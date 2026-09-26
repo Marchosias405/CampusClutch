@@ -19,7 +19,7 @@ CREATE TEMP TABLE fixtures(name text primary key,id uuid);
 GRANT ALL ON fixtures TO authenticated;
 SET LOCAL ROLE authenticated;
 SELECT pg_temp.login(1);
-INSERT INTO fixtures SELECT n,public.save_my_request(pg_temp.payload()) FROM unnest(ARRAY['first','second','expire','empty-expire']) n;
+INSERT INTO fixtures SELECT n,public.save_my_request(pg_temp.payload()) FROM unnest(ARRAY['first','second','expire']) n;
 SELECT pg_temp.login(2);
 INSERT INTO fixtures SELECT 'offer-'||name,public.create_my_request_offer_for_terms(id,1,10) FROM fixtures WHERE name IN ('first','second','expire');
 SELECT pg_temp.login(3);
@@ -39,6 +39,8 @@ SELECT throws_ok($$SELECT * FROM public.get_request_offer_page(NULL,20,-1)$$,'22
 SELECT throws_ok($$SELECT * FROM public.get_request_offer_page(NULL,NULL,0)$$,'22023',NULL,'Null page size rejected');
 SELECT public.decide_request_offer_for_round((SELECT id FROM fixtures WHERE name='offer-first'),'accepted',1,10);
 SELECT public.cancel_my_request((SELECT id FROM fixtures WHERE name='second'));
+-- The later empty-page expiry fixture uses the slot released by cancellation.
+INSERT INTO fixtures VALUES('empty-expire',public.save_my_request(pg_temp.payload()));
 SELECT pg_temp.login(2);
 SELECT is((SELECT count(*) FROM public.get_request_offer_page() WHERE id IN (SELECT id FROM fixtures)),3::bigint,'My offers includes open, accepted and cancelled history');
 SELECT is((SELECT request_status FROM public.get_request_offer_page() WHERE id=(SELECT id FROM fixtures WHERE name='offer-first')),'accepted','History exposes accepted request state');

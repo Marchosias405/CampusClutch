@@ -26,10 +26,10 @@ CREATE FUNCTION pg_temp.fixture(p_name text) RETURNS uuid LANGUAGE sql AS $$ SEL
 SET LOCAL ROLE authenticated;
 SELECT pg_temp.login(1);
 INSERT INTO fixtures SELECT n,public.save_my_request(pg_temp.payload(30))
-FROM unnest(ARRAY['paid','cycles','unchanged','rollback']) n;
+FROM unnest(ARRAY['paid','cycles','unchanged']) n;
 SELECT pg_temp.login(2);
 INSERT INTO fixtures SELECT name||'-a',public.create_my_request_offer_for_terms(id,1,30,'Agreed to 30')
-FROM fixtures WHERE name IN ('paid','cycles','unchanged','rollback');
+FROM fixtures WHERE name IN ('paid','cycles','unchanged');
 SELECT pg_temp.login(3);
 INSERT INTO fixtures SELECT name||'-b',public.create_my_request_offer_for_terms(id,1,30)
 FROM fixtures WHERE name IN ('paid','cycles');
@@ -66,8 +66,11 @@ SELECT throws_ok($$SELECT public.decide_request_offer_for_round(pg_temp.fixture(
 SELECT public.decide_request_offer_for_round(pg_temp.fixture('paid-b'),'accepted',2,20);
 SELECT is((SELECT amount FROM public.request_point_reservations WHERE request_id=pg_temp.fixture('paid')),20::bigint,'Fresh helper B consent reserves exactly 20');
 SELECT public.complete_my_request(pg_temp.fixture('paid'),2);
+-- Completion frees the slot needed for the later retirement-rollback fixture.
+INSERT INTO fixtures VALUES('rollback',public.save_my_request(pg_temp.payload(30)));
 SELECT is((public.get_my_points()->>'balance')::integer,80,'Completion pays the newly agreed 20');
 SELECT pg_temp.login(2);
+INSERT INTO fixtures VALUES('rollback-a',public.create_my_request_offer_for_terms(pg_temp.fixture('rollback'),1,30,'Agreed to 30'));
 SELECT is((public.get_my_points()->>'balance')::integer,100,'Helper A receives no payment');
 SELECT pg_temp.login(3);
 SELECT is((public.get_my_points()->>'balance')::integer,120,'Helper B receives exactly 20');

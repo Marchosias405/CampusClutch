@@ -38,6 +38,9 @@ function mapRow(row: Row): CampusRequest {
   };
 }
 export function requestError(error: unknown): string {
+  if (error && typeof error === 'object' && 'code' in error && error.code === 'P0004') {
+    return 'You can have at most 3 active requests. Complete or cancel an active request before posting another.';
+  }
   if (error && typeof error === 'object' && 'message' in error) return String(error.message);
   return 'Unable to reach requests. Check your connection and try again.';
 }

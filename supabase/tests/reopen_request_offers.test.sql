@@ -27,10 +27,18 @@ $$;
 CREATE TEMP TABLE saved_deadline(value timestamptz);
 GRANT ALL ON saved_deadline TO authenticated;
 
+-- Bootstrap the simultaneous scenarios as requests predating the active cap.
+-- Re-enable immediately after setup so all reopen/renewal assertions use it.
+ALTER TABLE public.requests DISABLE TRIGGER requests_active_limit_guard;
 SET LOCAL ROLE authenticated;
 SELECT pg_temp.login(1);
 INSERT INTO fixtures SELECT n,public.save_my_request(pg_temp.payload())
 FROM unnest(ARRAY['accepted','open','cancelled','completed','expired','deadline','renew-late','accepted-late','rollback']) n;
+RESET ROLE;
+SET CONSTRAINTS ALL IMMEDIATE;
+ALTER TABLE public.requests ENABLE TRIGGER requests_active_limit_guard;
+SET CONSTRAINTS ALL DEFERRED;
+SET LOCAL ROLE authenticated;
 SELECT is((SELECT offer_round FROM public.requests WHERE id=pg_temp.fixture('accepted')),1,'Requests start in offer round one');
 SELECT pg_temp.login(2);
 INSERT INTO fixtures SELECT 'selected',public.create_my_request_offer_for_terms(pg_temp.fixture('accepted'),1,10,'First consent');

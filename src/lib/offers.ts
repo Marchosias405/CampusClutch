@@ -81,6 +81,7 @@ export async function reopenRequest(userId: string, requestId: string, expectedR
 
 export function offerError(error: unknown) {
   const code = error && typeof error === 'object' && 'code' in error ? error.code : null;
+  if (code === 'P0004') return 'You can have at most 3 active requests. Complete or cancel an active request and try again.';
   if (code === 'P0002') return 'Not enough available points to accept this helper. Check your balance and reserved points in Profile.';
   if (code === '22023') return 'This request or offer has changed. Refresh to see its latest status.';
   if (code === '42501') return 'This action is unavailable to your account. Refresh or sign in again.';

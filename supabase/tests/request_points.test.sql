@@ -53,11 +53,12 @@ SELECT throws_ok($$INSERT INTO public.request_point_reservations DEFAULT VALUES$
 SELECT throws_ok($$UPDATE public.request_point_reservations SET amount=1$$,'42501',NULL,'Clients cannot edit reservations');
 SELECT throws_ok($$DELETE FROM public.request_point_reservations$$,'42501',NULL,'Clients cannot delete reservations');
 
+-- Cancel this disposable fixture before filling the three active request slots.
+INSERT INTO fixtures VALUES('cancelled',public.save_my_request(pg_temp.payload(10)));
+SELECT public.cancel_my_request(pg_temp.fixture('cancelled'));
 INSERT INTO fixtures VALUES('main',public.save_my_request(pg_temp.payload(10))),
   ('too-expensive',public.save_my_request(pg_temp.payload(80))),
-  ('second',public.save_my_request(pg_temp.payload(70))),
-  ('cancelled',public.save_my_request(pg_temp.payload(10)));
-SELECT public.cancel_my_request(pg_temp.fixture('cancelled'));
+  ('second',public.save_my_request(pg_temp.payload(70)));
 SELECT is((public.get_my_points()->>'available')::integer,100,'Posting and cancelling an unaccepted request do not reserve or spend points');
 SELECT throws_ok($$SELECT public.complete_my_request(pg_temp.fixture('main'),2)$$,'22023',NULL,'Open request cannot be completed');
 SELECT throws_ok($$SELECT public.complete_my_request(pg_temp.fixture('cancelled'),1)$$,'22023',NULL,'Cancelled request cannot be completed');

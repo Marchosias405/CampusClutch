@@ -17,9 +17,17 @@ CREATE FUNCTION pg_temp.payload() RETURNS jsonb LANGUAGE sql AS $$
 $$;
 CREATE TEMP TABLE fixtures(name text primary key,id uuid);
 GRANT ALL ON fixtures TO authenticated;
+-- Bootstrap a pre-limit owner with six historical active requests. Only this
+-- initial fixture construction bypasses the guard; every tested action uses it.
+ALTER TABLE public.requests DISABLE TRIGGER requests_active_limit_guard;
 SET LOCAL ROLE authenticated;
 SELECT pg_temp.login(1);
 INSERT INTO fixtures SELECT n,public.save_my_request(pg_temp.payload()) FROM unnest(ARRAY['accept','cancel','withdraw','reject','expire','rollback']) n;
+RESET ROLE;
+SET CONSTRAINTS ALL IMMEDIATE;
+ALTER TABLE public.requests ENABLE TRIGGER requests_active_limit_guard;
+SET CONSTRAINTS ALL DEFERRED;
+SET LOCAL ROLE authenticated;
 SELECT throws_ok($$SELECT public.create_my_request_offer_for_terms((SELECT id FROM fixtures WHERE name='accept'),1,10)$$,'42501',NULL,'Owner cannot offer on own request');
 SELECT pg_temp.login(5);
 SELECT throws_ok($$SELECT public.create_my_request_offer_for_terms((SELECT id FROM fixtures WHERE name='accept'),1,10)$$,'42501',NULL,'Incomplete profile cannot offer');

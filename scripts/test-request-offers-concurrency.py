@@ -48,6 +48,16 @@ def request_payload(points=10):
 
 
 def create_request(points=10):
+    # Each scenario is independent. Close earlier work through normal RPCs so
+    # the poster stays within the active-request cap without bypassing it.
+    for previous in requests:
+        status = value(f"select status from public.requests where id='{previous}'")
+        if status == 'accepted':
+            round_number = int(value(f"select offer_round from public.requests where id='{previous}'"))
+            sql(reopen(previous, round_number))
+            status = 'open'
+        if status == 'open':
+            sql(as_user(users[0], f"select public.cancel_my_request('{previous}')"))
     payload = request_payload(points)
     request = value(as_user(users[0], f"select public.save_my_request('{payload}'::jsonb)"))
     requests.append(request)

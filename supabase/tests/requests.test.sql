@@ -28,8 +28,18 @@ SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claim.sub','88888888-8888-4888-8888-888888888883',true);
 SELECT throws_ok($$SELECT public.save_my_request(pg_temp.payload())$$,'42501',NULL,'Incomplete profiles cannot create requests');
 SELECT set_config('request.jwt.claim.sub','88888888-8888-4888-8888-888888888881',true);
+RESET ROLE;
+-- These four simultaneous category fixtures represent a pre-limit account.
+-- The active cap is restored before all behavior and authorization assertions.
+ALTER TABLE public.requests DISABLE TRIGGER requests_active_limit_guard;
+SET LOCAL ROLE authenticated;
 INSERT INTO fixtures SELECT c,public.save_my_request(pg_temp.payload(c))
  FROM unnest(ARRAY['delivery','pickup','event_help','study_help']) c;
+RESET ROLE;
+SET CONSTRAINTS ALL IMMEDIATE;
+ALTER TABLE public.requests ENABLE TRIGGER requests_active_limit_guard;
+SET CONSTRAINTS ALL DEFERRED;
+SET LOCAL ROLE authenticated;
 SELECT is((SELECT count(*) FROM public.requests WHERE id IN (SELECT id FROM fixtures)),4::bigint,'All four categories persist');
 SELECT ok((SELECT bool_and(owner_id=auth.uid() AND status='open') FROM public.requests WHERE id IN (SELECT id FROM fixtures)),'Owner and initial status are server controlled');
 SELECT is((SELECT count(*) FROM public.delivery_request_details WHERE request_id IN (SELECT id FROM fixtures)),1::bigint,'Delivery details persist');
@@ -39,6 +49,9 @@ SELECT is((SELECT count(*) FROM public.study_help_request_details WHERE request_
 SET CONSTRAINTS ALL IMMEDIATE;
 SET CONSTRAINTS ALL DEFERRED;
 
+-- Validate malformed creates with an account that has room to create. This
+-- reaches the same field/detail constraints while the active cap stays enabled.
+SELECT set_config('request.jwt.claim.sub','88888888-8888-4888-8888-888888888882',true);
 SELECT throws_ok($$SELECT public.save_my_request(pg_temp.payload()-'details')$$,'22023',NULL,'Missing details rejected');
 SELECT throws_ok($$SELECT public.save_my_request(pg_temp.payload() || '{"details":{"destination":"Elsewhere"}}')$$,'22023',NULL,'Mismatched details rejected');
 SELECT throws_ok($$SELECT public.save_my_request(pg_temp.payload() || '{"owner_id":"88888888-8888-4888-8888-888888888882"}')$$,'22023',NULL,'Owner spoofing rejected');
@@ -54,6 +67,8 @@ SELECT throws_ok($$SELECT public.save_my_request(pg_temp.payload() || '{"item_si
 SELECT throws_ok($$SELECT public.save_my_request(pg_temp.payload() || '{"deadline_at":"2000-01-01T00:00:00Z"}')$$,'22023',NULL,'Past deadline rejected');
 SELECT throws_ok($$SELECT public.save_my_request(pg_temp.payload() || '{"deadline_at":"infinity"}')$$,'22023',NULL,'Infinite deadline rejected');
 SELECT throws_ok($$SELECT public.save_my_request(pg_temp.payload() || '{"details":{"pickup_location":"  ","dropoff_location":"Library"}}')$$,'23514',NULL,'Invalid detail fails after parent insert');
+SELECT is((SELECT count(*) FROM public.requests WHERE owner_id=auth.uid()),0::bigint,'Failed creates leave no partial requests for the validating account');
+SELECT set_config('request.jwt.claim.sub','88888888-8888-4888-8888-888888888881',true);
 SELECT is((SELECT count(*) FROM public.requests WHERE owner_id=auth.uid()),4::bigint,'Failed creates leave no partial requests');
 SELECT throws_ok($$UPDATE public.requests SET points=100 WHERE id=(SELECT id FROM fixtures LIMIT 1)$$,'42501',NULL,'Direct updates denied');
 SELECT throws_ok($$DELETE FROM public.requests WHERE id=(SELECT id FROM fixtures LIMIT 1)$$,'42501',NULL,'Direct deletes denied');
