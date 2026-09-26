@@ -1948,7 +1948,7 @@ CampusClutch still needs:
 - Blocking/reporting/moderation
 - Error/crash reporting
 - Production store configuration
-- Review of the eight existing hosted security-advisor findings rechecked in the [Task 9 checkpoint](docs/task-9-offers.md#checkpoint-6-hosted-deployment-2026-09-26-americavancouver)
+- Review of the eight existing hosted security-advisor findings rechecked in the [Task 9 checkpoint](docs/task-9-offers.md#checkpoint-6-hosted-development-and-preview-validation-2026-09-26-americavancouver)
 
 ---
 
