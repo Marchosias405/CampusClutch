@@ -40,3 +40,6 @@ jobs:
 
       - name: Run quality checks
         run: npm run check
+
+      - name: Check offer action lifecycle
+        run: npm run test:offers-lifecycle

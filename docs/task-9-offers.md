@@ -1,6 +1,6 @@
 # Task 9 — Request Offers
 
-**Current status (September 26, 2026):** Local Android validation has passed through checkpoints 4–5. All nine Task 9 migrations are now applied and validated in hosted Development and Preview, with 657 SQL assertions passing in each and existing data preserved. The new standalone Preview APK is built and inspected. Its phone test, final review, CI, and merge remain pending. Task 9 is **not complete**. Earlier sections below retain the results and scope of each historical checkpoint.
+**Current status (September 26, 2026):** All Task 9 local, hosted and manual phone gates passed. All ten migrations through `20260926085648` are applied in Development and Preview, with 770 SQL assertions passing in each and existing data preserved. The user confirmed the cancelled-assignment phone tests on Preview build `016bd2fd`, plus the earlier offline refresh/save test and fresh password-reset link. Final review, required CI and merge remain. Earlier sections retain historical checkpoint results.
 
 ## Checkpoint 1: local backend (2026-09-11, America/Vancouver)
 
@@ -404,7 +404,7 @@ All nine Task 9 migrations are applied successfully to **Development** (`ayisjsa
 
 ## Checkpoint 7: standalone Preview APK (2026-09-26, America/Vancouver)
 
-EAS build [`5dab754b-4ad7-446c-9272-5a30e7bd0a95`](https://expo.dev/accounts/marchosias405/projects/CampusClutch/builds/5dab754b-4ad7-446c-9272-5a30e7bd0a95) uses the Android `preview` profile, internal distribution, app source `d2e3cad`, and hosted Preview (`udbijakeasbvoycjyghe`). The build completed successfully and passed APK inspection. The user reported phone tests **1–6 passed**; test 7 (offline recovery) remains unconfirmed. This build predates the cancelled-assignment UI in checkpoint 8 and must be replaced to test that follow-up.
+EAS build [`5dab754b-4ad7-446c-9272-5a30e7bd0a95`](https://expo.dev/accounts/marchosias405/projects/CampusClutch/builds/5dab754b-4ad7-446c-9272-5a30e7bd0a95) uses the Android `preview` profile, internal distribution, app source `d2e3cad`, and hosted Preview (`udbijakeasbvoycjyghe`). The build completed successfully and passed APK inspection. The user reported phone tests **1–6 passed**; offline recovery was subsequently confirmed passed during final phone validation. This build predates the cancelled-assignment UI in checkpoint 8 and was replaced by `016bd2fd`, whose cancelled-assignment phone tests passed.
 
 - The downloaded APK is 154,057,322 bytes, package `com.marchosias405.campusclutch`, version `1.0.0` / code `1`. Its application is non-debuggable and not test-only, with no development-launcher components.
 - The APK contains `assets/index.android.bundle` as Hermes bytecode. Its embedded Supabase origin is only `https://udbijakeasbvoycjyghe.supabase.co`; no local Supabase endpoint was found. Rating, reliability-summary, cancellation, and archive RPC names are present. ZIP integrity passed.
@@ -413,7 +413,7 @@ EAS build [`5dab754b-4ad7-446c-9272-5a30e7bd0a95`](https://expo.dev/accounts/mar
 
 ### Standalone Preview phone checklist
 
-**Tests 1–6 passed, user-reported September 26, 2026. Test 7 remains unconfirmed.** These results apply to build `5dab754b`; the additional checkpoint 8 cases below need updated app source.
+**Tests 1–6 passed on build `5dab754b`; the user subsequently confirmed offline refresh/save and the fresh password-reset link passed on September 26.** The replacement build `016bd2fd` and its cancelled-assignment tests also passed; this checklist remains a regression reference.
 
 Use two **hosted Preview accounts**, A (poster) and B (helper). Preview accounts and data are separate from the local development database. Leave the laptop terminals closed and disconnect USB. Record each account's starting balance; existing Preview profiles received 100 points once during deployment. Signing in again must not grant another 100.
 
@@ -456,6 +456,8 @@ The user requested reliability ratings when accepted help ends without completio
 
 ### Cancelled-assignment phone checklist
 
+**Passed, user-reported September 26, 2026**, on Preview build `016bd2fd`. The user also separately confirmed the earlier offline refresh/save test and fresh password-reset link passed. Retained for regression testing.
+
 Install the replacement [Preview build `016bd2fd`](https://expo.dev/accounts/marchosias405/projects/CampusClutch/builds/016bd2fd-943b-4d6f-a69a-cde8eb90f935), or use the current development source with local Supabase. A is the poster, B the accepted helper, and C an optional replacement/nonselected helper. Keep each reward within A's available points.
 
 1. **Helper backs out:** A posts a future-dated request, B offers, A accepts. B opens it from My offers and cancels accepted help. The request returns to Open; A's reserved points return to available and B receives no payment. Restart and refresh: one release, no duplicate notifications or transfer.
@@ -467,4 +469,10 @@ Install the replacement [Preview build `016bd2fd`](https://expo.dev/accounts/mar
 
 ### Next checkpoints
 
-Validate checkpoint 8 on the phone and finish standalone offline test 7. The separate reported password-reset email issue still needs a fresh-link phone retest after its redirect correction. Final review, required CI, merge and documentation closure remain before Task 9 is complete. Creator-managed miniature quests and controlled points rewards remain later work.
+All manual gates have passed. Complete final review, required CI, merge and documentation closure before starting Task 10. Creator-managed miniature quests and controlled points rewards remain later work.
+
+## Final review correction: offer actions finishing off-screen
+
+Final review found that leaving My offers during a slow withdrawal or renewal could leave its buttons permanently disabled after returning. Saving state is now scoped to the account/request and cleared when that operation settles, even while the screen is blurred. Returning before an operation finishes triggers a status refresh afterward, including after a failed response. An old account's response cannot release a new account's pending action.
+
+`npm run test:offers-lifecycle` drives the actual component's buttons and confirmation callbacks through nine deterministic lifecycle cases. The regression fails against the previous component and passes with the correction. The same checks now run in GitHub CI after lint/typecheck. This small source correction follows the successful phone validation of Preview build `016bd2fd`; that APK predates this correction, which will be included in the next APK build.

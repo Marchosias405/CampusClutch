@@ -25,11 +25,12 @@ export default function RequestOffers({ request, requestId, ratingsRevision = 0,
   const [notice, setNotice] = useState('');
   const [message, setMessage] = useState('');
   const [renewMessages, setRenewMessages] = useState<Record<string, string>>({});
-  const [saving, setSaving] = useState(false);
+  const [savingOperation, setSavingOperation] = useState<{ scope: string; epoch: number } | null>(null);
   const generation = useRef(0);
   const busy = useRef(false);
-  const mutation = useRef(false);
+  const mutation = useRef<{ scope: string; epoch: number } | null>(null);
   const active = useRef(false);
+  const focusEpoch = useRef(0);
   const currentScope = useRef(scope);
   currentScope.current = scope;
   const offset = useRef(0);
@@ -37,7 +38,7 @@ export default function RequestOffers({ request, requestId, ratingsRevision = 0,
   changed.current = onChanged;
 
   const fetchPage = useCallback(async (append = false): Promise<boolean> => {
-    if (!userId || busy.current || mutation.current) return false;
+    if (!userId || !active.current || currentScope.current !== scope || busy.current || mutation.current?.scope === scope) return false;
     const ticket = ++generation.current;
     busy.current = true; setLoading(true);
     try {
@@ -57,20 +58,23 @@ export default function RequestOffers({ request, requestId, ratingsRevision = 0,
 
   useFocusEffect(useCallback(() => {
     active.current = true;
+    ++focusEpoch.current;
     setMessage(''); setRenewMessages({}); setNotice(''); setItems([]); setLoadedScope(''); setHasMore(false);
     void fetchPage();
     const timer = setInterval(() => { void fetchPage(); }, 60000);
-    return () => { active.current = false; ++generation.current; busy.current = false; clearInterval(timer); };
+    return () => { active.current = false; ++focusEpoch.current; ++generation.current; busy.current = false; clearInterval(timer); };
   }, [fetchPage]));
 
   const visible = loadedScope === scope ? items : [];
+  const saving = savingOperation?.scope === scope;
   const owner = !!request && request.ownerId === userId;
   const ready = loadedScope === scope && !loading && !saving && !error;
   const canOffer = !!request && request.status === 'open' && Date.parse(request.deadlineAt ?? '') > Date.now();
 
-  const perform = async (action: OfferAction | 'renew' | 'create', terms: OfferTerms, offer?: RequestOffer, offerMessage = '') => {
-    if (!userId || mutation.current || busy.current || !active.current || currentScope.current !== scope) return;
-    mutation.current = true; setSaving(true); setNotice(''); setError('');
+  const perform = async (action: OfferAction | 'renew' | 'create', terms: OfferTerms, epoch: number, offer?: RequestOffer, offerMessage = '') => {
+    if (!userId || mutation.current?.scope === scope || busy.current || !active.current || currentScope.current !== scope || focusEpoch.current !== epoch) return;
+    const operation = { scope, epoch };
+    mutation.current = operation; setSavingOperation(operation); setNotice(''); setError('');
     let committed = false;
     try {
       if (action === 'renew' && offer) await renewOffer(userId, offer.id, terms.round, offerMessage, terms.points);
@@ -79,23 +83,30 @@ export default function RequestOffers({ request, requestId, ratingsRevision = 0,
       else return;
       committed = true;
       invalidate();
-      if (active.current && currentScope.current === scope) {
+      if (active.current && currentScope.current === scope && focusEpoch.current === epoch) {
         setMessage('');
         if (offer) setRenewMessages(previous => ({ ...previous, [offer.id]: '' }));
         setNotice(action === 'renew' ? 'Your new offer was saved. Its current status is shown below.' : action === 'create' ? 'Your offer was saved. Its current status is shown below.' : 'Your decision was saved.');
       }
     } catch (failure) {
-      if (active.current && currentScope.current === scope) setError(offerError(failure));
+      if (active.current && currentScope.current === scope && focusEpoch.current === epoch) setError(offerError(failure));
     } finally {
-      mutation.current = false;
+      if (mutation.current === operation) mutation.current = null;
+      // My offers stays mounted behind request details. Finishing while blurred must release its saving state.
+      setSavingOperation(value => value === operation ? null : value);
       if (active.current && currentScope.current === scope) {
-        setSaving(false);
-        if (committed) { await fetchPage(); await changed.current?.(); }
+        // Refocusing during the mutation skips the initial read. Reconcile even if that response failed.
+        if (committed || focusEpoch.current !== epoch) {
+          const refreshEpoch = focusEpoch.current;
+          const refreshed = await fetchPage();
+          if ((committed || refreshed) && active.current && currentScope.current === scope && focusEpoch.current === refreshEpoch) await changed.current?.();
+        }
       }
     }
   };
 
   const confirm = (action: OfferAction, offer: RequestOffer) => {
+    const epoch = focusEpoch.current;
     const terms = { round: offer.offer_round, points: offer.request_points };
     const text = action === 'accepted'
       ? `Accept this helper and reserve ${terms.points} points from your available balance? Points transfer only after you confirm completion. Other pending offers will be declined. Reopening releases the reservation and requires fresh offers.`
@@ -103,11 +114,12 @@ export default function RequestOffers({ request, requestId, ratingsRevision = 0,
       : 'Withdraw your offer? You can offer again after the poster changes the reward or reopens the request.';
     Alert.alert(action === 'accepted' ? 'Accept helper?' : action === 'rejected' ? 'Decline offer?' : 'Withdraw offer?', text, [
       { text: 'Keep as is', style: 'cancel' },
-      { text: action === 'accepted' ? 'Accept' : action === 'rejected' ? 'Decline' : 'Withdraw', style: action === 'accepted' ? 'default' : 'destructive', onPress: () => { void perform(action, terms, offer); } },
+      { text: action === 'accepted' ? 'Accept' : action === 'rejected' ? 'Decline' : 'Withdraw', style: action === 'accepted' ? 'default' : 'destructive', onPress: () => { void perform(action, terms, epoch, offer); } },
     ]);
   };
 
   const confirmOffer = (offer?: RequestOffer) => {
+    const epoch = focusEpoch.current;
     const terms = offer
       ? { round: offer.request_offer_round, points: offer.request_points }
       : request ? { round: request.offerRound ?? 1, points: request.points } : null;
@@ -115,7 +127,7 @@ export default function RequestOffers({ request, requestId, ratingsRevision = 0,
     const offerMessage = offer ? renewMessages[offer.id] ?? '' : message;
     Alert.alert(offer ? 'Confirm offer again?' : 'Offer help?', `Offer to help for ${terms.points} points? Points transfer after the poster confirms completion.`, [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Confirm offer', onPress: () => { void perform(offer ? 'renew' : 'create', terms, offer, offerMessage); } },
+      { text: 'Confirm offer', onPress: () => { void perform(offer ? 'renew' : 'create', terms, epoch, offer, offerMessage); } },
     ]);
   };
 
