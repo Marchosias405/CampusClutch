@@ -1,13 +1,14 @@
 import { supabase } from './supabase';
 import { getCampuses } from './profiles';
 import { readWallet } from './points';
+import { assertOfferSession } from './offers';
 import type { CampusRequest, RequestCategory } from '../types';
 
 const categories = { DELIVERY: 'delivery', PICKUP: 'pickup', 'EVENT HELP': 'event_help', 'STUDY HELP': 'study_help' } as const;
 type Related<T> = T | T[] | null;
 const one = <T,>(value: Related<T>): T | null => Array.isArray(value) ? value[0] ?? null : value;
 type Row = {
-  id: string; owner_id: string; offer_round: number; category: string; title: string; description: string;
+  id: string; owner_id: string; offer_round: number; owner_archived_at: string | null; category: string; title: string; description: string;
   campus_id: string; room_location: string; deadline_at: string; points: number;
   item_size: string; status: CampusRequest['status']; created_at: string; is_urgent: boolean;
   campuses: { display_name: string; slug: string } | null;
@@ -23,7 +24,7 @@ function mapRow(row: Row): CampusRequest {
   const event = one(row.event_help_request_details);
   const study = one(row.study_help_request_details);
   return {
-    id: row.id, ownerId: row.owner_id, offerRound: row.offer_round, campusId: row.campus_id,
+    id: row.id, ownerId: row.owner_id, offerRound: row.offer_round, ownerArchivedAt: row.owner_archived_at, campusId: row.campus_id,
     category: Object.keys(categories).find(key => categories[key as keyof typeof categories] === row.category) as CampusRequest['category'],
     title: row.title, description: row.description, campus: row.campuses ? row.campuses.slug[0].toUpperCase() + row.campuses.slug.slice(1) : undefined,
     roomLocation: row.room_location, location: `${row.campuses?.display_name ?? 'Campus'} • ${row.room_location}`,
@@ -49,19 +50,19 @@ export async function loadRequest(id: string): Promise<CampusRequest | null> {
   if (error) throw error;
   return data ? mapRow(data as unknown as Row) : null;
 }
-export async function loadRequests(category: RequestCategory, ownerId: string | null, offset: number) {
-  let ids: string[];
+export async function loadRequests(category: RequestCategory, ownerId: string | null, offset: number, archived = false) {
   if (ownerId) {
-    let query = supabase.from('requests').select('id').eq('owner_id', ownerId).order('created_at', { ascending: false }).order('id', { ascending: false }).range(offset, offset + 19);
+    let query = supabase.from('requests').select(selection).eq('owner_id', ownerId).order('created_at', { ascending: false }).order('id', { ascending: false }).range(offset, offset + 19);
+    query = archived ? query.not('owner_archived_at', 'is', null) : query.is('owner_archived_at', null);
     if (category !== 'ALL') query = query.eq('category', categories[category]);
     const { data, error } = await query;
     if (error) throw error;
-    ids = data.map(row => row.id);
-  } else {
-    const { data, error } = await supabase.rpc('get_request_feed', { p_category: category === 'ALL' ? null : categories[category], p_limit: 20, p_offset: offset });
-    if (error) throw error;
-    ids = (data as { id: string }[]).map(row => row.id);
+    const items = (data as unknown as Row[]).map(mapRow);
+    return { items, hasMore: items.length === 20, nextOffset: offset + items.length };
   }
+  const { data: feed, error: feedError } = await supabase.rpc('get_request_feed', { p_category: category === 'ALL' ? null : categories[category], p_limit: 20, p_offset: offset });
+  if (feedError) throw feedError;
+  const ids = (feed as { id: string }[]).map(row => row.id);
   if (!ids.length) return { items: [], hasMore: false, nextOffset: offset };
   const { data, error } = await supabase.from('requests').select(selection).in('id', ids);
   if (error) throw error;
@@ -97,7 +98,19 @@ export async function saveRequest(request: Omit<CampusRequest, 'id'>, id?: strin
   if (after.session?.user.id !== userId) throw new Error('Your account changed. Please reopen the form.');
   return data as string;
 }
-export async function cancelRequest(id: string) {
-  const { error } = await supabase.rpc('cancel_my_request', { p_request_id: id });
+export async function cancelRequest(userId: string, id: string, expectedRound: number, expectedStatus: 'open' | 'accepted') {
+  const session = await assertOfferSession(userId);
+  const { error } = await supabase.rpc('cancel_my_request_for_round', {
+    p_request_id: id, p_expected_round: expectedRound, p_expected_status: expectedStatus,
+  }).setHeader('Authorization', `Bearer ${session.access_token}`);
   if (error) throw error;
+  await assertOfferSession(userId);
+}
+export async function setRequestArchived(userId: string, id: string, archived: boolean) {
+  const session = await assertOfferSession(userId);
+  const { error } = await supabase.rpc('set_my_request_archived', {
+    p_request_id: id, p_archived: archived,
+  }).setHeader('Authorization', `Bearer ${session.access_token}`);
+  if (error) throw error;
+  await assertOfferSession(userId);
 }

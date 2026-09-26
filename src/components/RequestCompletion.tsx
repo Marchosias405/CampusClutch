@@ -6,9 +6,9 @@ import { useRequests } from '../context/RequestsContext';
 import { completeRequest, loadRequestReservation, pointsError, type RequestReservation } from '../lib/points';
 import type { CampusRequest } from '../types';
 
-type Props = { request: CampusRequest; onChanged: () => Promise<void> };
+type Props = { request: CampusRequest; disabled?: boolean; onChanged: () => Promise<void> };
 
-export default function RequestCompletion({ request, onChanged }: Props) {
+export default function RequestCompletion({ request, disabled = false, onChanged }: Props) {
   const { user } = useAuth();
   const { invalidate } = useRequests();
   const userId = user?.id;
@@ -23,8 +23,8 @@ export default function RequestCompletion({ request, onChanged }: Props) {
   const busy = useRef(false);
   const mutation = useRef(false);
   const generation = useRef(0);
-  const current = useRef({ scope, onChanged });
-  current.current = { scope, onChanged };
+  const current = useRef({ scope, disabled, onChanged });
+  current.current = { scope, disabled, onChanged };
 
   const refresh = useCallback(async () => {
     if (!userId || busy.current || mutation.current) return;
@@ -51,10 +51,10 @@ export default function RequestCompletion({ request, onChanged }: Props) {
 
   const owner = request.ownerId === userId;
   const visible = loadedScope === scope ? reservation : null;
-  const ready = loadedScope === scope && !loading && !saving && !error;
+  const ready = loadedScope === scope && !loading && !saving && !error && !disabled;
 
   const perform = async () => {
-    if (!userId || !owner || !active.current || current.current.scope !== scope || mutation.current || busy.current) return;
+    if (!userId || !owner || !active.current || current.current.scope !== scope || current.current.disabled || mutation.current || busy.current) return;
     mutation.current = true; setSaving(true); setError('');
     let committed = false;
     try {

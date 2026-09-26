@@ -299,6 +299,31 @@ Deferred until the phone is available, together with the reward-consent retest a
 5. A second account has its own three-post allowance. Offering help on somebody else's request must not reduce that allowance.
 6. If an account already has more than three active requests, verify they remain visible and editable. New posting becomes available only after closing enough to leave fewer than three.
 
+### Accepted cancellation and request archiving (2026-09-25, America/Vancouver)
+
+Phone testing exposed two missing owner actions: accepted requests had no direct cancellation control, and expired requests could not be removed from the main My requests list.
+
+- Owners can now cancel open or accepted work. Cancelling accepted work releases its reserved points once, closes the selected offer, and frees a posting slot. It does not pay the helper. Completed work must use Confirm completion instead; a completed request cannot be cancelled.
+- The cancellation confirmation pins both the offer round and the displayed status. A stale open-request dialog cannot cancel a newly accepted arrangement, and a stale round cannot cancel reopened work. Account-scoped service calls pin the checked session token.
+- Owners can archive expired, cancelled, or completed requests. Elapsed open requests are settled as expired when archived. Active work cannot be archived. The action changes only the owner's list placement; requests, offers, payment records, and helper history are retained.
+- My requests has Unarchived and Archived lists. Each list applies its archive/category filter before pagination in a single owner query. Restore returns a closed request to the main list without reopening it or consuming a posting slot. Archive state is stored in the database and survives app restarts.
+- The existing open-only cancellation RPC remains available for older clients. The new app uses `cancel_my_request_for_round` and `set_my_request_archived`; direct client writes remain denied.
+- Migration `20260926064611_cancel_and_archive_requests.sql` is applied locally. The captured diff was narrowed to the reviewed cancellation/archive changes and explicit grants, excluding unrelated pre-existing function differences. Exact migration replay passed all 87 new assertions inside a rollback-only transaction; fingerprints for 12 existing data tables were unchanged after application, tests, and replay.
+- Local validation includes 87 new SQL assertions and all 490 earlier SQL regressions, 78 typed request/offer API checks, four overlapping cancellation races, lint/typecheck, and Android Hermes export. The new tests cover ownership, stale confirmations, malformed reservations, rollback on audit failure, history preservation, and archive pagination. Advisors reported only the two existing profile-policy performance warnings.
+
+#### Cancellation and archive phone checklist
+
+Reload the existing development app with local Supabase running; no new APK is needed.
+
+1. Open an accepted request you posted. Cancel Request should be visible. Choose Keep request first: status and balances must stay unchanged.
+2. Cancel an accepted request whose work is not being completed. It should become Cancelled, reserved points should return to your available balance, and the helper should receive no payment. Reload and verify the release does not repeat. The helper should see the cancellation in My offers.
+3. If you previously had three active posts, create another after cancelling one. The freed slot should permit it, provided the points offer fits your available balance.
+4. Open an expired request and choose Archive Request. It should disappear from My requests → Unarchived and appear under Archived, including after restart. Repeat for a cancelled or completed request; completed payment history must stay unchanged.
+5. Open the archived request and choose Restore Request. It should return to Unarchived with its original closed status. It must not return to the campus feed or use an active slot.
+6. Switch accounts: another user's requests must not expose cancellation or archive controls. Active open/accepted work must have no Archive action. If a connection failure occurs during an action, reconnect and refresh before retrying.
+
+These changes are local only. Existing requests have not been automatically cancelled or archived. Phone validation, hosted deployment, and a new Preview APK remain pending.
+
 ### Next checkpoints
 
 Stop here for phone validation. After it passes, implement mutual ratings for completed requests, restricted to the poster and selected helper with duplicate-rating protection. Creator-managed miniature quests and controlled points rewards are later work. Hosted deployment, a new Preview APK, Preview validation, CI, review, merge, and documentation closure remain before Task 9 is complete.

@@ -1617,6 +1617,7 @@ Checkpoint 4 implemented locally on September 24, 2026:
 - Migration `20260926000632_limit_active_requests.sql` enforces the cap under the same wallet lock used by posting and points operations. Concurrent posts and reactivation cannot bypass it. Existing requests are preserved, including accounts already above the cap; they can edit or close those requests but must get below three before posting again. The form explains the rule and retains entered values when a capped save fails.
 - Phone testing of reward confirmation and the active-request cap is deferred until the user's phone is available. Both changes are local; no new Preview APK or hosted deployment is included.
 - The active-request cap passed all 490 SQL assertions, 61 combined request/offer API checks, 23 concurrency cases, lint/typecheck, and Android export. Exact migration replay passed all 47 new cap assertions with unchanged fingerprints for 13 existing data tables. Existing requests and balances were preserved.
+- A later phone finding exposed missing cancellation for accepted requests and no way to remove expired requests from the main list. Owners can now cancel accepted work to release reserved points without payment, and archive/restore closed requests through My requests → Archived. History is preserved for both participants; active requests cannot be archived. The new actions are local and need the [cancellation/archive phone retest](docs/task-9-offers.md#cancellation-and-archive-phone-checklist).
 
 Checkpoint 4 phone testing is next. Hosted deployment, Preview testing, final review, CI, and merge are still pending. Task 9 is not complete or merged; no new APK is required for this local source update.
 
@@ -1887,7 +1888,7 @@ Test Task 9 checkpoint 4 on Android using the existing development build and loc
 codex/persist-request-offers
 ```
 
-When the phone is available, follow the setup, [checkpoint 4 phone checklist](docs/task-9-offers.md#checkpoint-4-phone-checklist), [reward-consent phone retest](docs/task-9-offers.md#reward-consent-phone-retest), and [active-request limit checklist](docs/task-9-offers.md#active-request-limit-phone-checklist). Reload Metro for the new source; no new APK is needed.
+Follow the setup, [checkpoint 4 phone checklist](docs/task-9-offers.md#checkpoint-4-phone-checklist), [reward-consent phone retest](docs/task-9-offers.md#reward-consent-phone-retest), [active-request limit checklist](docs/task-9-offers.md#active-request-limit-phone-checklist), and [cancellation/archive phone retest](docs/task-9-offers.md#cancellation-and-archive-phone-checklist). Reload Metro for the new source; no new APK is needed.
 
 1. Verify 100 welcome points per account and no extra grant after restart or sign-in.
 2. Accept a 30-point request: the poster has 70 available and 30 reserved; the helper is not paid yet.

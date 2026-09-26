@@ -11,7 +11,7 @@ import {
   View,
 } from "react-native";
 import { useAuth } from "../../context/AuthContext";
-import { loadRequest, cancelRequest, requestError } from "../../lib/requests";
+import { loadRequest, cancelRequest, setRequestArchived, requestError } from "../../lib/requests";
 import type { CampusRequest } from "../../types";
 import ScreenHeader from "../../components/ScreenHeader";
 import RequestOffers from "../../components/RequestOffers";
@@ -42,8 +42,12 @@ export default function RequestDetailsScreen() {
   const request = user?.id === loadedFor ? storedRequest : null;
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [cancelling, setCancelling] = useState(false);
+  const [ownerAction, setOwnerAction] = useState<'cancel' | 'archive' | 'restore' | null>(null);
   const lock = useRef(false);
+  const focused = useRef(false);
+  const scope = `${user?.id}:${requestId}`;
+  const currentScope = useRef(scope);
+  currentScope.current = scope;
   const sequence = useRef(0);
   const refresh = useCallback(async () => {
     const ticket = ++sequence.current;
@@ -55,21 +59,46 @@ export default function RequestDetailsScreen() {
     finally { if (ticket === sequence.current) setLoading(false); }
   }, [requestId, user]);
   useFocusEffect(useCallback(() => {
+    focused.current = true;
     void refresh();
     const timer = setInterval(() => { void refresh(); }, 60000);
-    return () => { clearInterval(timer); ++sequence.current; setRequest(null); };
+    return () => { focused.current = false; clearInterval(timer); ++sequence.current; setRequest(null); };
   }, [refresh]));
+  const performOwnerAction = async (action: 'cancel' | 'archive' | 'restore') => {
+    if (!user || !request || request.ownerId !== user.id || lock.current || !focused.current || currentScope.current !== scope) return;
+    lock.current = true; setOwnerAction(action); setError('');
+    try {
+      if (action === 'cancel') {
+        if (request.status !== 'open' && request.status !== 'accepted') return;
+        await cancelRequest(user.id, request.id, request.offerRound ?? 1, request.status);
+      } else {
+        await setRequestArchived(user.id, request.id, action === 'archive');
+      }
+      invalidate();
+      if (focused.current && currentScope.current === scope) await refresh();
+    } catch (failure) {
+      if (focused.current && currentScope.current === scope) setError(requestError(failure));
+    } finally {
+      lock.current = false;
+      setOwnerAction(null);
+    }
+  };
   const handleCancel = () => {
-    Alert.alert('Cancel request?', 'It will leave the campus feed and remain in your history.', [
+    const accepted = request?.status === 'accepted';
+    Alert.alert(accepted ? 'Cancel accepted request?' : 'Cancel request?', accepted
+      ? 'This ends the arrangement with your helper and releases reserved points to your available balance. No points will be paid. If the work is finished, use Confirm completion instead.'
+      : 'It will leave the campus feed and remain in your history.', [
       { text: 'Keep request', style: 'cancel' },
-      { text: 'Cancel request', style: 'destructive', onPress: async () => {
-        if (!requestId || lock.current) return;
-        lock.current = true; setCancelling(true);
-        const ticket = sequence.current;
-        try { await cancelRequest(requestId); invalidate(); if (ticket === sequence.current) await refresh(); }
-        catch (failure) { if (ticket === sequence.current) setError(requestError(failure)); }
-        finally { lock.current = false; setCancelling(false); }
-      } },
+      { text: 'Cancel request', style: 'destructive', onPress: () => { void performOwnerAction('cancel'); } },
+    ]);
+  };
+  const handleArchive = () => {
+    const restoring = Boolean(request?.ownerArchivedAt);
+    Alert.alert(restoring ? 'Restore request?' : 'Archive request?', restoring
+      ? 'This puts the request back in your main list. Its status and points history stay the same.'
+      : 'This removes it from your main list. You can find and restore it under My requests → Archived. Its history is kept.', [
+      { text: 'Keep as is', style: 'cancel' },
+      { text: restoring ? 'Restore' : 'Archive', onPress: () => { void performOwnerAction(restoring ? 'restore' : 'archive'); } },
     ]);
   };
 
@@ -331,19 +360,25 @@ export default function RequestDetailsScreen() {
 
 
           {!!error && <Text accessibilityRole="alert" style={styles.notFoundText}>{error}</Text>}
-          {request.ownerId === user?.id && request.status === 'open' && <View style={styles.ownerActions}>
-            <Pressable style={styles.offerButton} disabled={cancelling} onPress={() => router.push({ pathname: '/requests/create', params: { edit: request.id } })}>
+          {request.ownerId === user?.id && (request.status === 'open' || request.status === 'accepted') && <View style={styles.ownerActions}>
+            {request.status === 'open' && <Pressable accessibilityRole="button" style={styles.offerButton} disabled={loading || !!ownerAction} onPress={() => router.push({ pathname: '/requests/create', params: { edit: request.id } })}>
               <Text style={styles.offerButtonText}>Edit Request</Text>
+            </Pressable>}
+            <Pressable accessibilityRole="button" style={[styles.backButton, styles.cancelButton]} disabled={loading || !!ownerAction} onPress={handleCancel}>
+              <Text style={styles.backButtonText}>{ownerAction === 'cancel' ? 'Cancelling…' : 'Cancel Request'}</Text>
             </Pressable>
-            <Pressable style={[styles.backButton, styles.cancelButton]} disabled={cancelling} onPress={handleCancel}>
-              <Text style={styles.backButtonText}>{cancelling ? 'Cancelling…' : 'Cancel Request'}</Text>
+          </View>}
+          {request.ownerId === user?.id && ['expired', 'cancelled', 'completed'].includes(request.status ?? '') && <View style={styles.ownerActions}>
+            <Text style={styles.acceptedNotice}>{request.ownerArchivedAt ? 'Archived. You can restore this request to your main list without reopening it.' : 'This request is closed. Archive it to remove it from your main list and keep its history.'}</Text>
+            <Pressable accessibilityRole="button" style={[styles.backButton, styles.cancelButton]} disabled={loading || !!ownerAction} onPress={handleArchive}>
+              <Text style={styles.backButtonText}>{ownerAction === 'archive' ? 'Archiving…' : ownerAction === 'restore' ? 'Restoring…' : request.ownerArchivedAt ? 'Restore Request' : 'Archive Request'}</Text>
             </Pressable>
           </View>}
           {request.ownerId === user?.id && request.status === 'accepted' && <Text style={styles.acceptedNotice}>
             Accepted requests remain in My requests; your helper can find this in My offers.
           </Text>}
-          <ReopenRequest key={`reopen:${user?.id}:${request.id}:${request.offerRound ?? 1}`} request={request} disabled={cancelling} onChanged={refresh} />
-          {(request.status === 'accepted' || request.status === 'completed') && <RequestCompletion key={`completion:${user?.id}:${request.id}:${request.offerRound ?? 1}`} request={request} onChanged={refresh} />}
+          <ReopenRequest key={`reopen:${user?.id}:${request.id}:${request.offerRound ?? 1}`} request={request} disabled={loading || !!ownerAction} onChanged={refresh} />
+          {(request.status === 'accepted' || request.status === 'completed') && <RequestCompletion key={`completion:${user?.id}:${request.id}:${request.offerRound ?? 1}`} request={request} disabled={loading || !!ownerAction} onChanged={refresh} />}
           <RequestOffers key={`offers:${user?.id}:${requestId}:${request.offerRound ?? 1}`} request={request} requestId={requestId} onChanged={refresh} />
         </View>
       </ScrollView>
