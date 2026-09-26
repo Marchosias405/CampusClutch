@@ -1,12 +1,12 @@
 # Task 9 — Request Offers
 
-**Current status (September 26, 2026):** Checkpoint 5 mutual ratings are implemented and automatically tested locally, ready for Android phone validation. Checkpoints 2–3 and the focused cancellation/archive retest passed phone testing. Any remaining checkpoint 4 phone cases, hosted deployment, standalone Preview validation, final review, CI, and merge remain pending. Task 9 is **not complete**. Earlier sections below retain the results and scope of each historical checkpoint.
+**Current status (September 26, 2026):** Local Android validation has passed through checkpoints 4–5. All nine Task 9 migrations are now applied and validated in hosted Development and Preview, with 657 SQL assertions passing in each and existing data preserved. A new standalone Preview APK and phone test, final review, CI, and merge remain pending. Task 9 is **not complete**. Earlier sections below retain the results and scope of each historical checkpoint.
 
 ## Checkpoint 1: local backend (2026-09-11, America/Vancouver)
 
 Branch: `codex/persist-request-offers`, based on `9a87581` after README PR #26 merged.
 
-Status at checkpoint 1: backend checkpoint tested locally. Later checkpoints below add the app UI and reopening. Task 9 is **not complete**. No hosted deployment, new APK, PR, or merge is included in these local checkpoints.
+Status at checkpoint 1: backend checkpoint tested locally. Later checkpoints below add the app UI and reopening. Task 9 is **not complete**. No hosted deployment, new APK, PR, or merge was included at this initial checkpoint; hosted deployment is recorded in checkpoint 6 below.
 
 ## Database contract
 
@@ -64,7 +64,7 @@ There is no new phone test to run for checkpoint 1: the app has not been connect
 
 ## Checkpoint 2: offer UI and local Android validation
 
-Implemented on the same Task 9 branch. Migration `20260912071410_offer_review_pages.sql` is applied locally; both hosted projects remain unchanged.
+Implemented on the same Task 9 branch. Migration `20260912071410_offer_review_pages.sql` was initially applied locally; both hosted projects were unchanged at checkpoint 2. Hosted deployment is recorded in checkpoint 6 below.
 
 The user reported the checkpoint 2 phone tests passed on September 15, 2026. Their feedback identified two follow-ups: make accepted requests easier to find and allow the poster to reopen selection when they change their mind. Checkpoint 3 below addresses those follow-ups. Checkpoint 4 adds points and poster-confirmed completion; checkpoint 5 adds mutual ratings.
 
@@ -118,7 +118,7 @@ Expiry and pagination have automated coverage. The original hosted/Preview hando
 
 ## Checkpoint 3: request history and reopening (2026-09-24, America/Vancouver)
 
-Status: local phone tests passed after the request-details React key correction. Task 9 remains in progress on `codex/persist-request-offers` and is not complete or merged. Both hosted databases and the standalone Preview APK still have their previous behavior.
+Status: local phone tests passed after the request-details React key correction. Task 9 remains in progress on `codex/persist-request-offers` and is not complete or merged. Both hosted databases and the standalone Preview APK retained their previous behavior at checkpoint 3; hosted deployment follows in checkpoint 6.
 
 - Requests now has separate **Campus feed** and **My requests** tabs, plus **My offers**. My requests includes status labels and an explanation that accepted and closed requests stay in the owner's history.
 - An accepted request leaves the open campus feed. Its poster can find it in My requests, and the currently selected helper can open its details from My offers.
@@ -158,7 +158,7 @@ Use the existing development APK and the Phone setup commands above. Reload Metr
 
 ## Checkpoint 4: starting points and confirmed completion (2026-09-24, America/Vancouver)
 
-Status: implemented and tested locally; Android phone validation is next. The user approved **100 starting points for every account**, with creator-made miniature quests for earning more points later. Task 9 remains in progress; neither hosted database nor the standalone Preview APK has this checkpoint.
+Status: implemented and tested locally; the local phone gate closed on September 26 with the user's confirmation of the earlier points-transfer, changed-reward, and active-request-limit tests. The user approved **100 starting points for every account**, with creator-made miniature quests for earning more points later. Hosted deployment is recorded in checkpoint 6; the standalone Preview APK update remains pending.
 
 ### Points policy and app behavior
 
@@ -213,7 +213,7 @@ The API script reads the local URL and publishable key from `.env.local` and ref
 
 ### Checkpoint 4 phone checklist
 
-Use the existing development APK and the **Phone setup** commands above. Reload Metro to load the updated source; no new APK is required. Keep USB and Docker running. Use local accounts A (poster) and B (helper), and start with a new future-dated request. Existing hosted Preview accounts and the standalone Preview app do not include this checkpoint.
+Use the existing development APK and the **Phone setup** commands above. Reload Metro to load the updated source; no new APK is required. Keep USB and Docker running. Use local accounts A (poster) and B (helper), and start with a new future-dated request. This checklist records local testing; hosted Preview accounts/data are separate, and the old standalone Preview app lacks the updated source.
 
 1. **Welcome grant:** Open Profile as A and B. Each account should show 100 total/available, 0 reserved, and one +100 welcome entry if no points have been spent yet. Restart and sign out/in; the grant must not repeat. A newly created local account should also receive 100 once. If you have already made payments, record the current balances and compare the changes below instead.
 2. **Reserve without payment:** While A has 100 available, create requests for 30 and 80 points. B offers on both. A accepts the 30-point request. Check the amount in the confirmation. A should have 100 total, 70 available, and 30 reserved; B should still have 100. Find the accepted request through My requests/My offers after restart.
@@ -229,7 +229,7 @@ Phone testing identified an account with 110 points being allowed to post a 111-
 
 - The typed request service loads the current wallet on every save. An unaffordable amount returns a clear error and highlights the points field while retaining all form values. Saves pin the checked session token and reject stale success after an account change.
 - The backend enforces the same rule even if the client validation is bypassed. Edits lock the owned request first; both new posts and edits then lock the caller's wallet and validate its latest available balance before changing any rows. Existing lifecycle, category, ownership, and field checks remain enforced.
-- Migration `20260925085239_limit_request_points_to_balance.sql` is applied locally. Existing balances and requests were preserved; an already-posted unaffordable request can be edited down, and accepting it still requires enough funds. Hosted environments remain unchanged.
+- Migration `20260925085239_limit_request_points_to_balance.sql` was initially applied locally. Existing balances and requests were preserved; an already-posted unaffordable request can be edited down, and accepting it still requires enough funds. Hosted environments were unchanged during this correction; deployment follows in checkpoint 6.
 - All **388 SQL assertions** passed, including 29 new posting-limit checks covering 110 versus 111, all request categories, exact limits, edits and unchanged details after failures, reservations, own-account balances, zero available points, and acceptance rechecks.
 - **22 request API checks** and **28 offer/points API checks** passed. All five points concurrency cases passed, including a new case where posting and editing wait while an acceptance reduces the same wallet's available balance; both saves reject the now-unaffordable amount.
 - ESLint, TypeScript, and Android Hermes export passed. The exact saved migration passed replay with all 29 new assertions in a rollback-only transaction, with matching fingerprints for 13 data tables afterward. Advisors reported only the two pre-existing profile-policy warnings.
@@ -247,7 +247,7 @@ Phone testing found that a poster could change the points after a helper offered
 - `get_request_offer_page_v3` returns offer state, request round, and `request_points` together. Renewal and acceptance use that same row's amount in both the confirmation and request. A reward edit while a confirmation dialog is open cannot silently change the agreed amount.
 - The migration requires fresh confirmation once for existing open pending offers, whose original agreed amounts were not recorded. It locks and rechecks each parent before retiring those offers. One existing local open request needed this transition. It does not change accepted/completed work, wallets, reservations, or payment entries.
 - A stale reopen retry must also match the saved deadline before returning success; a reward edit must not make an unapplied deadline change look successful.
-- The correction is applied locally only. Mutual ratings follow in checkpoint 5 below. Quests, hosted deployment, and a new Preview APK were outside this correction's scope.
+- The correction was initially applied locally only. Mutual ratings follow in checkpoint 5 and hosted deployment in checkpoint 6 below. Quests and a new Preview APK were outside this correction's scope.
 
 Validation:
 
@@ -271,7 +271,7 @@ Reload the existing development app, with Metro, USB forwarding, and local Supab
 
 ### Three active requests per poster (2026-09-25, America/Vancouver)
 
-The user requested a maximum of three active posts while phone testing is deferred. Migration `20260926000632_limit_active_requests.sql` is applied locally; it contains no request cancellation or balance changes.
+The user requested a maximum of three active posts while phone testing was deferred. Migration `20260926000632_limit_active_requests.sql` is applied locally; it contains no request cancellation or balance changes.
 
 - The cap applies across all four categories to requests **posted** by the account. Open requests count while their deadline is in the future. Accepted requests count even after the original deadline because the selected work still needs completion. Completed, cancelled, expired, and elapsed open requests free a slot; offering help on another person's request consumes no posting slot.
 - The database rejects a fourth active post with `P0004`. The form explains the cap and retains all entered values after rejection. Ordinary edits at the cap remain allowed. Reopening accepted work keeps its existing slot.
@@ -288,11 +288,11 @@ Validation:
 - Lint, TypeScript, and Android export passed. Advisors reported only the two previously documented profile-policy performance warnings. Independent lock-order review informed the terminal-state early return to avoid adding a wallet lock to batch expiry.
 - Exact migration replay passed all 47 new assertions inside a rollback-only transaction. Fingerprints for 13 existing data tables matched afterward. The captured diff was narrowed to the reviewed trigger, index, and privilege restrictions; local migration history matches `20260926000632`.
 
-Re-run the new concurrency coverage with `python scripts/test-request-active-limit-concurrency.py` against the local database. Phone validation remains deferred; no hosted deployment or new APK is included.
+Re-run the new concurrency coverage with `python scripts/test-request-active-limit-concurrency.py` against the local database. Phone testing was initially deferred; the user explicitly confirmed it passed on September 26. Hosted deployment follows in checkpoint 6; a new Preview APK remains pending.
 
 ### Active-request limit phone checklist
 
-Deferred until the phone is available, together with the reward-consent retest above. Reload the existing development app; no new APK is required.
+The user confirmed these tests and the reward-consent retest above passed on September 26. Keep this checklist for regression testing with the existing development app; no new APK is required for the local source.
 
 1. With fewer than three active posts, create requests until the account has three, using different categories. A fourth must show the limit message and keep the draft values.
 2. Edit one of those requests without adding a new post. It must save normally. Cancel one, then retry the retained draft: it should save, and cancelled history should remain available.
@@ -326,11 +326,11 @@ Reload the existing development app with local Supabase running; no new APK is n
 
 **Focused phone retest passed (September 25, 2026):** The user confirmed all three tests supplied with commit `70ccd47`: cancelling an accepted request returns reserved points and permits another post, archiving an expired request persists after restart, and restoring it preserves its expired status. This completes the cancellation/archive fix checkpoint. This confirmation does not mark every case in the broader checklist or earlier checkpoint 4 checklists as passed.
 
-These changes are local only. Hosted deployment and a new Preview APK remain pending.
+These changes were initially local only. Hosted deployment follows in checkpoint 6; a new Preview APK remains pending.
 
 ## Checkpoint 5: mutual reliability ratings (2026-09-26, America/Vancouver)
 
-Status: implemented and automatically tested locally; phone validation is next. The user chose **reveal both scores only after both people rate**, with no automatic publication deadline. This checkpoint does not change the 100-point welcome grant, reservations, completion payment, or archive behavior. Hosted databases and the standalone Preview APK remain unchanged.
+Status: implemented, automatically tested, and passed local phone validation on September 26 after the Profile key correction (`d2e3cad`). The user chose **reveal both scores only after both people rate**, with no automatic publication deadline. This checkpoint does not change the 100-point welcome grant, reservations, completion payment, or archive behavior. Hosted deployment follows in checkpoint 6; the standalone Preview APK update remains pending.
 
 ### Ratings policy and app behavior
 
@@ -366,6 +366,8 @@ Repeatable local checks include `supabase/tests/request_ratings.test.sql`, `pyth
 
 ### Checkpoint 5 phone checklist
 
+**Passed September 26, 2026.** Retained below for regression and standalone Preview validation.
+
 Use the existing development APK, local accounts A (poster) and B (selected helper), and optional C (nonselected helper). Record each account's points and published rating count before starting. Choose a reward within A's available balance and leave room under the three-active-request cap. **No new APK is required**; reload the development source with Docker running and the phone connected by USB:
 
 ```powershell
@@ -386,8 +388,20 @@ npx expo start --dev-client --localhost
 
 ### Profile key correction during ratings phone testing
 
-The first checkpoint 5 phone run reported duplicate React child keys on Profile. The adjacent points and reliability sections both used the account UUID as their key. They now use distinct `points:` and `rating:` prefixes while still remounting when the account changes. The other ratings integration sites were reviewed for the same collision. This is a rendering-only correction; it requires no database change or new APK. Reload the development app, open Profile on both accounts, and continue the ratings checklist after verifying that the warning is gone.
+The first checkpoint 5 phone run reported duplicate React child keys on Profile. The adjacent points and reliability sections both used the account UUID as their key. Commit `d2e3cad` uses distinct `points:` and `rating:` prefixes while still remounting when the account changes. The other ratings integration sites were reviewed for the same collision. This was a rendering-only correction requiring no database change or new APK. The user first confirmed Profile worked, then confirmed all remaining ratings checks passed on September 26.
+
+**Local checkpoint 4–5 phone gate closed (September 26, 2026):** The user also explicitly clarified that the earlier points-transfer, changed-reward confirmation, and three-active-request tests had passed. Together with the September 25 cancellation/archive pass, the local phone validation is complete. This records user-reported device results; it does not imply a hosted deployment or standalone Preview pass.
+
+## Checkpoint 6: hosted Development and Preview validation (2026-09-26, America/Vancouver)
+
+All nine Task 9 migrations are applied successfully to **Development** (`ayisjsajufjkebvbzpdr`) and **Preview** (`udbijakeasbvoycjyghe`). Both migration histories include every Task 9 version from `20260912060259` through `20260926071307` and match the repository. The repository's normal Supabase link is restored to Development.
+
+- All **657 SQL assertions** passed in each hosted environment. Tests ran through the SQL API using temporary rollback-only copies; no test writes were retained. Both runs explicitly checked pgTAP completion with `finish(true)` and a zero failed-assertion count.
+- Fingerprints for **all 11 pre-existing data tables** stayed unchanged in both projects. Development's one existing profile and Preview's three existing profiles each received exactly one 100-point starter wallet and ledger grant. Preview's existing request and detail remained intact. No reservations, offers, or ratings from the test fixtures remain.
+- Advisors reported the same **eight previously known warnings** in each project: anonymous/authenticated execution of `rls_auto_enable`, authenticated definer findings for `get_course_classmates`, `join_my_course`, and `leave_my_course`, disabled leaked-password protection, and two multiple-permissive-SELECT-policy warnings. No Task 9 object was flagged. These existing findings remain recorded for release review.
+- The CLI database test path could not resolve pgTAP functions in the hosted session; the SQL API ran the suites successfully instead. Migration push also printed a non-blocking `pg-delta` catalog-cache CA-file warning. Success was verified from all nine migration-history entries and the database assertions, rather than inferred from the command output alone.
+- EAS project access, authentication, the hosted Preview environment, and the standalone internal-distribution profile were verified. The new Task 9 Preview build has started from app source `d2e3cad`; completion and installation remain pending.
 
 ### Next checkpoints
 
-Run the checkpoint 5 phone checklist and confirm any remaining checkpoint 4 phone cases before hosted validation. The focused cancellation/archive phone checkpoint has already passed. Creator-managed miniature quests and controlled points rewards remain later work. Hosted deployment, a new Preview APK, Preview validation, CI, review, merge, and documentation closure remain before Task 9 is complete.
+Build a new standalone Preview APK using the verified hosted Preview environment, then repeat the critical request, points, and mutual-ratings flows on the phone without Metro or USB forwarding. Final review, required CI, merge, and documentation closure remain before Task 9 is complete. Creator-managed miniature quests and controlled points rewards remain later work.
