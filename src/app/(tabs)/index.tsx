@@ -16,6 +16,8 @@ import {
 
 import ScreenHeader from "../../components/ScreenHeader";
 
+import { useAuth } from "@/context/AuthContext";
+import { useProfile } from "@/context/ProfileContext";
 import {
   getMyCourses,
   isCurrentCourse,
@@ -43,6 +45,11 @@ function getCourseNumber(code: string) {
 
 export default function HomeDashboardScreen() {
   const router = useRouter();
+  const { user } = useAuth();
+  const { profile } = useProfile();
+  const displayName =
+    (profile?.id === user?.id ? profile?.displayName?.trim() : null) ||
+    "Student";
 
   const [currentCourses, setCurrentCourses] =
     useState<MyCourse[]>([]);
@@ -135,11 +142,11 @@ export default function HomeDashboardScreen() {
                 Welcome back,
               </Text>
               <Text style={styles.heroName}>
-                Hi, Kazi
+                Hi, {displayName}
               </Text>
             </View>
 
-            <View style={styles.pointsPill}>
+            <Pressable accessibilityRole="button" style={styles.pointsPill} onPress={() => router.push('/(tabs)/profile')}>
               <FontAwesome5
                 name="star"
                 size={11}
@@ -147,17 +154,13 @@ export default function HomeDashboardScreen() {
                 solid
               />
               <Text style={styles.pointsPillText}>
-                120 pts
+                View points
               </Text>
-            </View>
-          </View>
-
-          <View style={styles.progressTrack}>
-            <View style={styles.progressFill} />
+            </Pressable>
           </View>
 
           <Text style={styles.heroSub}>
-            80 points to your next reward
+            Earn points by helping other students
           </Text>
         </View>
 
@@ -307,14 +310,14 @@ export default function HomeDashboardScreen() {
               style={styles.requestTitle}
               numberOfLines={1}
             >
-              2 deliveries to Burnaby today
+              Find a campus request
             </Text>
 
             <Text
               style={styles.requestSub}
               numberOfLines={1}
             >
-              Join a route · earn up to 40 pts
+              Help a student and earn their offered points
             </Text>
           </View>
 
@@ -379,6 +382,7 @@ const styles = StyleSheet.create({
 
   heroTextBlock: {
     flex: 1,
+    marginRight: 12,
   },
 
   heroHello: {

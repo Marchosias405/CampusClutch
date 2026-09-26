@@ -190,6 +190,7 @@ function RootNavigator() {
           <Stack.Screen name="courses/classmates" />
           <Stack.Screen name="requests/create" />
           <Stack.Screen name="requests/[id]" />
+          <Stack.Screen name="requests/offers" />
           <Stack.Screen name="students/[id]" />
           <Stack.Screen name="notifications" />
           <Stack.Screen name="messages/[id]" />

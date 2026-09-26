@@ -627,6 +627,9 @@ const formatCalendarMonthLabel = (date: Date) => {
 
       submitLockRef.current = false;
       setSubmissionState("idle");
+      if (error && typeof error === 'object' && 'code' in error && error.code === 'P0002') {
+        setInvalidField('pointsOffered');
+      }
       setValidationError(
         requestError(error)
       );
@@ -1253,6 +1256,11 @@ const formatCalendarMonthLabel = (date: Date) => {
             </View>
           </View>
 
+          <Text style={{ color: COLORS.mutedText, fontSize: 13, lineHeight: 19, marginBottom: 16 }}>
+            {!editId ? 'You can have up to 3 active requests across all categories. Open and accepted requests count toward this limit. Completed, cancelled, and expired requests free a slot.\n\n' : ''}
+            You cannot offer more than your available points. Your balance is checked when you post or edit, and again when you accept a helper. Points are reserved only on acceptance; check Profile for your balance.
+            {editId ? ' Changing points closes earlier offers and requires helpers to confirm the new reward before you can accept them.' : ''}
+          </Text>
           <View style={styles.safetyBox}>
             <Ionicons
               name="shield-checkmark"

@@ -40,12 +40,22 @@ const filters: RequestCategory[] = [
   "STUDY HELP",
 ];
 
+const statusLabels: Record<NonNullable<CampusRequest["status"]>, string> = {
+  open: "Open",
+  offered: "Offered",
+  accepted: "Accepted",
+  cancelled: "Cancelled",
+  expired: "Expired",
+  completed: "Completed",
+};
+
 
   export default function RequestsFeedScreen() {
     const router = useRouter();
     const { user } = useAuth();
     const [selectedFilter, setSelectedFilter] = useState<RequestCategory>("ALL");
     const [mine, setMine] = useState(false);
+    const [archived, setArchived] = useState(false);
     const [requests, setRequests] = useState<CampusRequest[]>([]);
     const [loadedFor, setLoadedFor] = useState<string>();
     const [loading, setLoading] = useState(true);
@@ -61,14 +71,14 @@ const filters: RequestCategory[] = [
       setLoading(true); setError("");
       if (!append) { setRequests([]); offset.current = 0; setHasMore(false); }
       try {
-        const result = await loadRequests(selectedFilter, mine ? user.id : null, append ? offset.current : 0);
+        const result = await loadRequests(selectedFilter, mine ? user.id : null, append ? offset.current : 0, archived);
         if (ticket !== generation.current) return;
         setLoadedFor(user.id);
         setRequests(previous => append ? [...previous, ...result.items.filter(item => !previous.some(old => old.id === item.id))] : result.items);
         offset.current = result.nextOffset; setHasMore(result.hasMore);
       } catch (failure) { if (ticket === generation.current) setError(requestError(failure)); }
       finally { if (ticket === generation.current) { setLoading(false); busy.current = false; } }
-    }, [user, selectedFilter, mine]);
+    }, [user, selectedFilter, mine, archived]);
     useFocusEffect(useCallback(() => {
       void fetchPage();
       const timer = setInterval(() => { void fetchPage(); }, 60000);
@@ -118,8 +128,41 @@ const filters: RequestCategory[] = [
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          <Pressable style={[styles.filterPill, styles.feedToggle]} onPress={() => setMine(value => !value)}>
-            <Text style={styles.filterText}>{mine ? "My requests • Show campus feed" : "Campus feed • Show my requests"}</Text>
+          <View style={styles.feedTabs}>
+            <Pressable
+              accessibilityRole="tab"
+              accessibilityState={{ selected: !mine }}
+              style={[styles.feedTab, !mine && styles.activeFilterPill]}
+              onPress={() => setMine(false)}
+            >
+              <Text style={[styles.filterText, !mine && styles.activeFilterText]}>Campus feed</Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="tab"
+              accessibilityState={{ selected: mine }}
+              style={[styles.feedTab, mine && styles.activeFilterPill]}
+              onPress={() => setMine(true)}
+            >
+              <Text style={[styles.filterText, mine && styles.activeFilterText]}>My requests</Text>
+            </Pressable>
+          </View>
+          {mine && (
+            <View>
+            <Text style={styles.feedDescription}>
+              Open and accepted requests count toward your limit of 3. You can archive expired, cancelled, or completed requests from their details.
+            </Text>
+            <View style={styles.feedTabs}>
+              <Pressable accessibilityRole="tab" accessibilityState={{ selected: !archived }} style={[styles.feedTab, !archived && styles.activeFilterPill]} onPress={() => setArchived(false)}>
+                <Text style={[styles.filterText, !archived && styles.activeFilterText]}>Unarchived</Text>
+              </Pressable>
+              <Pressable accessibilityRole="tab" accessibilityState={{ selected: archived }} style={[styles.feedTab, archived && styles.activeFilterPill]} onPress={() => setArchived(true)}>
+                <Text style={[styles.filterText, archived && styles.activeFilterText]}>Archived</Text>
+              </Pressable>
+            </View>
+            </View>
+          )}
+          <Pressable accessibilityRole="button" style={[styles.filterPill, styles.feedToggle]} onPress={() => router.push('/requests/offers')}>
+            <Text style={styles.filterText}>My offers</Text>
           </Pressable>
           {loading && <View style={styles.refreshStatus}><ActivityIndicator color={COLORS.primary} /><Text>Refreshing requests…</Text></View>}
           {!!error && <Pressable onPress={() => { void fetchPage(); }}><Text accessibilityRole="alert">{error} Tap to retry.</Text></Pressable>}
@@ -169,11 +212,11 @@ const filters: RequestCategory[] = [
                 </View>
 
                 <Text style={styles.emptyStateTitle}>
-                  No requests found
+                  {mine && archived ? 'No archived requests' : 'No requests found'}
                 </Text>
 
                 <Text style={styles.emptyStateText}>
-                  There are currently no requests in this category.
+                  {mine && archived ? 'Archived requests will appear here. Open one to restore it to your list.' : 'There are currently no requests in this category.'}
                 </Text>
 
                 <Pressable
@@ -210,6 +253,14 @@ const filters: RequestCategory[] = [
                         <View style={styles.categoryBadge}>
                           <Text style={styles.categoryBadgeText}>
                             ! {item.secondaryCategory}
+                          </Text>
+                        </View>
+                      )}
+
+                      {mine && (
+                        <View style={styles.statusBadge}>
+                          <Text style={styles.statusBadgeText}>
+                            {statusLabels[item.status ?? "open"]}
                           </Text>
                         </View>
                       )}
@@ -389,6 +440,32 @@ const styles = StyleSheet.create({
     marginRight: 0,
   },
 
+  feedTabs: {
+    flexDirection: "row",
+    gap: 10,
+    marginBottom: 12,
+  },
+
+  feedTab: {
+    flex: 1,
+    minHeight: 42,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 21,
+    backgroundColor: COLORS.cardWhite,
+    borderWidth: 1,
+    borderColor: "#E4CACA",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  feedDescription: {
+    color: COLORS.mutedText,
+    fontSize: 13,
+    lineHeight: 19,
+    marginBottom: 14,
+  },
+
   filterPill: {
     height: 35,
     paddingHorizontal: 18,
@@ -464,6 +541,19 @@ const styles = StyleSheet.create({
     fontWeight: "900",
     color: "#C2606B",
     letterSpacing: 0.2,
+  },
+
+  statusBadge: {
+    backgroundColor: COLORS.lightPillGray,
+    borderRadius: 7,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+
+  statusBadgeText: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: COLORS.textDark,
   },
 
   pointsText: {

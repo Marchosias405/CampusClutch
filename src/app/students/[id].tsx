@@ -13,6 +13,7 @@ import {
 } from "react-native";
 
 import ScreenHeader from "../../components/ScreenHeader";
+import RatingSummary from "../../components/RatingSummary";
 import { mockStudents } from "../../constants/mockData";
 
 import { useProfile } from "@/context/ProfileContext";
@@ -448,6 +449,8 @@ export default function StudentProfileScreen() {
             </Text>
           </Pressable>
         </View>
+
+        {!isMock && realStudent && <RatingSummary key={realStudent.profile.id} profileId={realStudent.profile.id} />}
 
         <View style={styles.sectionCard}>
           <Text style={styles.sectionTitle}>

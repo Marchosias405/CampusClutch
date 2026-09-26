@@ -1,0 +1,110 @@
+BEGIN;
+CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
+SET search_path=public,extensions;
+SELECT no_plan();
+INSERT INTO auth.users(id,email) SELECT ('99999999-9999-4999-8999-'||lpad(i::text,12,'0'))::uuid,'offer-'||i||'@test.local' FROM generate_series(1,5) i;
+UPDATE public.profiles SET display_name='Offer Tester',major='Computing Science',year_of_study=2,
+ campus_id=(SELECT id FROM public.campuses WHERE slug='burnaby')
+ WHERE id IN (SELECT ('99999999-9999-4999-8999-'||lpad(i::text,12,'0'))::uuid FROM generate_series(1,4) i);
+CREATE FUNCTION pg_temp.login(i integer) RETURNS text LANGUAGE sql AS $$
+ SELECT set_config('request.jwt.claim.sub','99999999-9999-4999-8999-'||lpad(i::text,12,'0'),true);
+$$;
+CREATE FUNCTION pg_temp.payload() RETURNS jsonb LANGUAGE sql AS $$
+ SELECT jsonb_build_object('category','delivery','title','Offer test','description','Please help with this request.',
+ 'campus_id',(SELECT id FROM public.campuses WHERE slug='burnaby'),'room_location','Library',
+ 'deadline_at',clock_timestamp()+interval '1 day','points',10,'item_size','small',
+ 'details','{"pickup_location":"Cafe","dropoff_location":"Library"}'::jsonb);
+$$;
+CREATE TEMP TABLE fixtures(name text primary key,id uuid);
+GRANT ALL ON fixtures TO authenticated;
+-- Bootstrap a pre-limit owner with six historical active requests. Only this
+-- initial fixture construction bypasses the guard; every tested action uses it.
+ALTER TABLE public.requests DISABLE TRIGGER requests_active_limit_guard;
+SET LOCAL ROLE authenticated;
+SELECT pg_temp.login(1);
+INSERT INTO fixtures SELECT n,public.save_my_request(pg_temp.payload()) FROM unnest(ARRAY['accept','cancel','withdraw','reject','expire','rollback']) n;
+RESET ROLE;
+SET CONSTRAINTS ALL IMMEDIATE;
+ALTER TABLE public.requests ENABLE TRIGGER requests_active_limit_guard;
+SET CONSTRAINTS ALL DEFERRED;
+SET LOCAL ROLE authenticated;
+SELECT throws_ok($$SELECT public.create_my_request_offer_for_terms((SELECT id FROM fixtures WHERE name='accept'),1,10)$$,'42501',NULL,'Owner cannot offer on own request');
+SELECT pg_temp.login(5);
+SELECT throws_ok($$SELECT public.create_my_request_offer_for_terms((SELECT id FROM fixtures WHERE name='accept'),1,10)$$,'42501',NULL,'Incomplete profile cannot offer');
+SELECT pg_temp.login(2);
+SELECT throws_ok($$SELECT public.create_my_request_offer_for_terms((SELECT id FROM fixtures WHERE name='accept'),1,10,repeat('a',1001))$$,'23514',NULL,'Message length bounded');
+INSERT INTO fixtures SELECT 'offer-'||name,public.create_my_request_offer_for_terms(id,1,10,'  I can help  ') FROM fixtures WHERE name IN ('accept','cancel','withdraw','reject','expire','rollback');
+SELECT is((SELECT message FROM public.request_offers WHERE id=(SELECT id FROM fixtures WHERE name='offer-accept')),'I can help','Message trimmed');
+SELECT is(public.create_my_request_offer_for_terms((SELECT id FROM fixtures WHERE name='accept'),1,10),(SELECT id FROM fixtures WHERE name='offer-accept'),'Create retry returns same offer');
+SELECT is((SELECT count(*) FROM public.request_offers WHERE offering_user_id=auth.uid()),6::bigint,'Own offers visible');
+SELECT throws_ok($$INSERT INTO public.request_offers(request_id,offering_user_id) VALUES((SELECT id FROM fixtures WHERE name='accept'),auth.uid())$$,'42501',NULL,'Direct insert/spoofing denied');
+SELECT throws_ok($$UPDATE public.request_offers SET status='accepted'$$,'42501',NULL,'Direct status writes denied');
+SELECT throws_ok($$DELETE FROM public.request_offers$$,'42501',NULL,'Direct deletion denied');
+SELECT throws_ok($$INSERT INTO public.offer_notifications DEFAULT VALUES$$,'42501',NULL,'Clients cannot fabricate notifications');
+SELECT is((SELECT count(*) FROM public.offer_notifications WHERE request_id IN (SELECT id FROM fixtures)),0::bigint,'Helper cannot read owner notifications');
+SELECT throws_ok($$SELECT public.decide_request_offer_for_round((SELECT id FROM fixtures WHERE name='offer-accept'),'accepted',1,10)$$,'42501',NULL,'Helper cannot accept');
+SELECT throws_ok($$SELECT public.decide_request_offer((SELECT id FROM fixtures WHERE name='offer-accept'),'rejected')$$,'42501',NULL,'Helper cannot reject');
+SELECT lives_ok($$SELECT public.decide_request_offer((SELECT id FROM fixtures WHERE name='offer-withdraw'),'withdrawn')$$,'Helper withdraws pending offer');
+SELECT lives_ok($$SELECT public.decide_request_offer((SELECT id FROM fixtures WHERE name='offer-withdraw'),'withdrawn')$$,'Withdraw retry succeeds');
+SELECT is(public.create_my_request_offer_for_terms((SELECT id FROM fixtures WHERE name='withdraw'),1,10),(SELECT id FROM fixtures WHERE name='offer-withdraw'),'Reoffer returns permanent history');
+SELECT is((SELECT status FROM public.request_offers WHERE id=(SELECT id FROM fixtures WHERE name='offer-withdraw')),'withdrawn','Reoffer does not reactivate withdrawn row');
+SELECT pg_temp.login(3);
+SELECT is((SELECT count(*) FROM public.request_offers WHERE request_id IN (SELECT id FROM fixtures)),0::bigint,'Other helpers cannot inspect offers');
+SELECT is((SELECT count(*) FROM public.get_request_offers((SELECT id FROM fixtures WHERE name='accept'))),0::bigint,'Unrelated list returns no private offers');
+SELECT throws_ok($$SELECT public.decide_request_offer((SELECT id FROM fixtures WHERE name='offer-accept'),'withdrawn')$$,'42501',NULL,'Other helper cannot withdraw');
+INSERT INTO fixtures SELECT 'second-accept',public.create_my_request_offer_for_terms((SELECT id FROM fixtures WHERE name='accept'),1,10,'  ');
+SELECT is((SELECT message FROM public.request_offers WHERE id=(SELECT id FROM fixtures WHERE name='second-accept')),NULL::text,'Blank message becomes null');
+SELECT pg_temp.login(1);
+SELECT is((SELECT count(*) FROM public.get_request_offers((SELECT id FROM fixtures WHERE name='accept'))),2::bigint,'Owner sees both offers');
+SELECT is((SELECT count(*) FROM public.offer_notifications WHERE offer_id=(SELECT id FROM fixtures WHERE name='offer-accept')),1::bigint,'Create retry did not duplicate notification');
+SELECT lives_ok($$SELECT public.decide_request_offer_for_round((SELECT id FROM fixtures WHERE name='offer-accept'),'accepted',1,10)$$,'Owner accepts offer');
+SELECT lives_ok($$SELECT public.decide_request_offer_for_round((SELECT id FROM fixtures WHERE name='offer-accept'),'accepted',1,10)$$,'Accept retry is harmless');
+SELECT is((SELECT status FROM public.requests WHERE id=(SELECT id FROM fixtures WHERE name='accept')),'accepted','Request accepted atomically');
+SELECT is((SELECT status FROM public.request_offers WHERE id=(SELECT id FROM fixtures WHERE name='second-accept')),'rejected','Competing offer rejected');
+SELECT throws_ok($$SELECT public.decide_request_offer_for_round((SELECT id FROM fixtures WHERE name='second-accept'),'accepted',1,10)$$,'22023',NULL,'Cannot accept second helper');
+SELECT throws_ok($$SELECT public.cancel_my_request((SELECT id FROM fixtures WHERE name='accept'))$$,'22023',NULL,'Accepted request cannot use open cancellation');
+SELECT lives_ok($$SELECT public.cancel_my_request((SELECT id FROM fixtures WHERE name='cancel'))$$,'Existing cancellation settles offers');
+SELECT is((SELECT status FROM public.request_offers WHERE id=(SELECT id FROM fixtures WHERE name='offer-cancel')),'rejected','Cancelled request has no pending offer');
+SELECT lives_ok($$SELECT public.decide_request_offer((SELECT id FROM fixtures WHERE name='offer-reject'),'rejected')$$,'Owner rejects pending offer');
+SELECT is((SELECT status FROM public.requests WHERE id=(SELECT id FROM fixtures WHERE name='reject')),'open','Rejection leaves request open');
+SELECT pg_temp.login(2);
+SELECT is((SELECT count(*) FROM public.requests WHERE id=(SELECT id FROM fixtures WHERE name='accept')),1::bigint,'Accepted helper retains request access');
+SELECT is((SELECT count(*) FROM public.delivery_request_details WHERE request_id=(SELECT id FROM fixtures WHERE name='accept')),1::bigint,'Accepted helper retains detail access');
+SELECT throws_ok($$SELECT public.decide_request_offer((SELECT id FROM fixtures WHERE name='offer-accept'),'withdrawn')$$,'22023',NULL,'Accepted helper cannot withdraw');
+SELECT is((SELECT count(*) FROM public.offer_notifications WHERE offer_id=(SELECT id FROM fixtures WHERE name='offer-accept') AND event_type='accepted'),1::bigint,'Acceptance notification exactly once');
+SELECT is((SELECT event_type FROM public.offer_notifications WHERE offer_id=(SELECT id FROM fixtures WHERE name='offer-cancel')),'request_cancelled','Cancellation notification uses correct event');
+SELECT pg_temp.login(3);
+SELECT is((SELECT count(*) FROM public.requests WHERE id=(SELECT id FROM fixtures WHERE name='accept')),0::bigint,'Rejected helper cannot read accepted request');
+SELECT is((SELECT event_type FROM public.offer_notifications WHERE offer_id=(SELECT id FROM fixtures WHERE name='second-accept')),'another_accepted','Other helper sees only own decision notification');
+SELECT pg_temp.login(4);
+SELECT throws_ok($$SELECT public.create_my_request_offer_for_terms((SELECT id FROM fixtures WHERE name='accept'),1,10)$$,'22023',NULL,'New offer on accepted request denied');
+SELECT throws_ok($$SELECT public.create_my_request_offer_for_terms((SELECT id FROM fixtures WHERE name='cancel'),1,10)$$,'22023',NULL,'New offer on cancelled request denied');
+RESET ROLE;
+UPDATE public.requests SET deadline_at=clock_timestamp()-interval '1 minute' WHERE id=(SELECT id FROM fixtures WHERE name='expire');
+SET LOCAL ROLE authenticated;
+SELECT pg_temp.login(1);
+SELECT throws_ok($$SELECT public.decide_request_offer_for_round((SELECT id FROM fixtures WHERE name='offer-expire'),'accepted',1,10)$$,'22023',NULL,'Server deadline blocks acceptance');
+SELECT lives_ok($$SELECT * FROM public.get_request_offers((SELECT id FROM fixtures WHERE name='expire'))$$,'Refresh settles expiry');
+SELECT is((SELECT status FROM public.requests WHERE id=(SELECT id FROM fixtures WHERE name='expire')),'expired','Request expiry persisted');
+SELECT is((SELECT status FROM public.request_offers WHERE id=(SELECT id FROM fixtures WHERE name='offer-expire')),'rejected','Expiry settles pending offers');
+SELECT pg_temp.login(2);
+SELECT ok((SELECT event_type='request_expired' AND actor_id IS NULL FROM public.offer_notifications WHERE offer_id=(SELECT id FROM fixtures WHERE name='offer-expire')),'Expiry notification is system attributed');
+-- An event write failure must roll back the request AND accepted offer.
+RESET ROLE;
+CREATE FUNCTION pg_temp.fail_event() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'test event failure' USING errcode='P0001'; END $$;
+CREATE TRIGGER test_event_failure BEFORE INSERT ON public.offer_notifications FOR EACH ROW EXECUTE FUNCTION pg_temp.fail_event();
+SET LOCAL ROLE authenticated;
+SELECT pg_temp.login(1);
+SELECT throws_ok($$SELECT public.decide_request_offer_for_round((SELECT id FROM fixtures WHERE name='offer-rollback'),'accepted',1,10)$$,'P0001','test event failure','Notification failure rolls back acceptance');
+SELECT is((SELECT status FROM public.requests WHERE id=(SELECT id FROM fixtures WHERE name='rollback')),'open','Request rolled back');
+SELECT is((SELECT status FROM public.request_offers WHERE id=(SELECT id FROM fixtures WHERE name='offer-rollback')),'pending','Offer rolled back');
+RESET ROLE;
+DROP TRIGGER test_event_failure ON public.offer_notifications;
+SET LOCAL ROLE anon;
+SELECT throws_ok($$SELECT public.create_my_request_offer_for_terms(null,1,10)$$,'42501',NULL,'Anonymous creation denied');
+SELECT throws_ok($$SELECT * FROM public.request_offers$$,'42501',NULL,'Anonymous offer reads denied');
+SELECT throws_ok($$SELECT * FROM public.offer_notifications$$,'42501',NULL,'Anonymous notifications denied');
+RESET ROLE;
+SET CONSTRAINTS ALL IMMEDIATE;
+SELECT * FROM finish();
+ROLLBACK;

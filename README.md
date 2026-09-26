@@ -2,9 +2,9 @@
 
 CampusClutch is an Expo React Native mobile app for university students to connect through courses, classmates, student profiles, campus help requests, direct messages, group conversations, notifications, and user profiles.
 
-Authentication, user profiles, courses, course memberships, classmates, and campus requests now use persistent Supabase data. Tasks 6–8 have been validated in hosted Development and Preview. Messages and notifications still use mock or local state; the real Offer Help workflow is the next roadmap task.
+Authentication, user profiles, courses, course memberships, classmates, campus requests, offers, points and reliability ratings now use persistent Supabase data. Task 9 local and hosted validation passed, including offers, history, reopening, points transfers, changed-reward confirmation, the three-active-request cap, cancellation/archive and mutual ratings. All ten Task 9 migrations are deployed in hosted Development and Preview; 770 SQL assertions passed in each. The user confirmed all standalone and cancelled-assignment phone tests passed on September 26, including offline refresh/save and the fresh password-reset link. Ratings reveal only after both participants submit. Final Task 9 review, CI and merge are next; persistent messaging remains Task 10.
 
-> **Current status:** Tasks 1–8 are complete and merged. Task 7 merged through [PR #24](https://github.com/Marchosias405/CampusClutch/pull/24) at `13d2202`. Task 8 merged through [PR #25](https://github.com/Marchosias405/CampusClutch/pull/25) at `19f3e61`, after backend validation, all five standalone Preview phone tests, final code review, and passing GitHub CI. Local `main` was synchronized and the Task 8 feature branch deleted locally and remotely. Task 9—Implement Real Offer Help Workflow—is next and has not started.
+> **Current status:** Tasks 1–8 are complete and merged. Task 7 merged through [PR #24](https://github.com/Marchosias405/CampusClutch/pull/24) at `13d2202`. Task 8 merged through [PR #25](https://github.com/Marchosias405/CampusClutch/pull/25) at `19f3e61`, after backend validation, all five standalone Preview phone tests, final code review, and passing GitHub CI. Local `main` was synchronized and the Task 8 feature branch deleted locally and remotely. The README closure merged through [PR #26](https://github.com/Marchosias405/CampusClutch/pull/26) at `9a87581`. Task 9—Implement Real Offer Help Workflow—is in final review on `codex/persist-request-offers`. All local and hosted checks and all manual phone gates have passed. The user confirmed the cancelled-assignment checklist on Preview build `016bd2fd` and separately confirmed offline refresh/save and fresh-link password reset on September 26. All ten migrations are deployed in Development and Preview with 770 SQL assertions passing in each and existing data preserved. Final review, CI and merge remain; creator-made quests remain later work.
 
 ---
 
@@ -113,7 +113,7 @@ Current roadmap position:
 Task 6 — Complete and merged (PR #22, 870b6a7)
 Task 7 — Complete and merged (PR #24, 13d2202)
 Task 8 — Complete and merged (PR #25, 19f3e61)
-Task 9 — Next; not started
+Task 9 — Final review; all local, hosted and phone validation gates passed
 ```
 
 Task 8 completion record:
@@ -124,7 +124,7 @@ Task 8 completion record:
 - PR #25 merged into `main` on September 11, 2026 (America/Vancouver).
 - Local `main` was synchronized with `origin/main` at `19f3e61` with a clean working tree.
 - `codex/persist-requests` was deleted locally and remotely, and stale references were pruned.
-- This README closure update is on `codex/update-readme-task-8`; pushing it does not itself merge it into protected `main`.
+- The README closure update merged through PR #26 at `9a87581`; Task 9 began from synchronized `main`.
 
 Detailed validation history: [Task 8 checkpoint](docs/task-8-requests.md). Its earlier pending notes describe checkpoints before the completed PR #25 merge.
 
@@ -138,7 +138,9 @@ This means:
 
 - Requests persist in the selected backend environment; local, hosted Development, and hosted Preview accounts/data are separate.
 - Locally sent messages reset when the conversation is reopened or the app reloads.
-- Real offers are not implemented. Task 8 removed the simulated offer confirmation; Task 9 will add persistent offers.
+- Task 9 local, hosted Development/Preview and standalone phone validation passed, including real points, reward-change confirmation, active limits, completed/cancelled mutual ratings and offline recovery. Fresh-link password reset also passed.
+- Every existing and new account in each configured backend receives 100 welcome points once. Accepting reserves the poster's available points; reopening releases them; only poster-confirmed completion transfers them to the helper. Old acceptances without a reservation must be reopened and accepted again with fresh helper consent.
+- Mutual ratings cover completed paid work and cancelled accepted assignments in the current source. Only the poster and accepted helper for that assignment can each submit one immutable 1–5-star rating; scores and profile averages reveal the pair only after both rate, with no automatic publication deadline. When the accepted helper cancels, points release without payment and the request reopens for fresh offers unless its deadline has passed. Creator-made quests for earning extra points remain later work. No quest or arbitrary client points-grant action is implemented.
 - Course membership persists; current/previous courses derive from membership and academic-term state.
 - Classmates load from real course membership with backend visibility rules.
 - Legacy classmate profile IDs such as `aisha-r`, `jordan-t`, and `mei-l` remain explicitly supported by the student-profile screen.
@@ -158,7 +160,7 @@ This means:
 - Public profile avatar rendering uses authenticated signed URLs.
 - Initials remain as a fallback when no avatar exists or avatar loading fails.
 - Task 6 migrations are applied and synchronized in both hosted Development and Preview.
-- Offers, conversations, messages, and notifications do not yet use persistent feature tables.
+- Offers and their notification events persist in local and hosted backends. Conversations, messages, and the notification UI still need backend integration.
 - There are no real push notifications.
 - There is no production reporting or moderation workflow.
 - The production Supabase project and production EAS variables are not configured.
@@ -360,8 +362,12 @@ CampusClutch/
 ├── docs/
 │   ├── backend-plan.md
 │   ├── backend-setup.md
-│   └── task-8-requests.md
+│   ├── task-8-requests.md
+│   └── task-9-offers.md
 ├── scripts/
+│   ├── test-offers-local.cjs
+│   ├── test-request-offers-concurrency.py
+│   ├── test-request-points-concurrency.py
 │   └── test-requests-local.cjs
 ├── src/
 │   ├── app/
@@ -389,7 +395,8 @@ CampusClutch/
 │   │   │   └── settings.tsx
 │   │   ├── requests/
 │   │   │   ├── [id].tsx
-│   │   │   └── create.tsx
+│   │   │   ├── create.tsx
+│   │   │   └── offers.tsx
 │   │   ├── students/
 │   │   │   └── [id].tsx
 │   │   ├── _layout.tsx
@@ -397,6 +404,12 @@ CampusClutch/
 │   ├── assets/
 │   │   └── images/
 │   ├── components/
+│   │   ├── PointsBalance.tsx
+│   │   ├── RatingSummary.tsx
+│   │   ├── ReopenRequest.tsx
+│   │   ├── RequestCompletion.tsx
+│   │   ├── RequestOffers.tsx
+│   │   └── RequestRating.tsx
 │   ├── constants/
 │   │   └── mockData.ts
 │   ├── context/
@@ -408,6 +421,9 @@ CampusClutch/
 │   │   ├── courses.ts
 │   │   ├── crypto.ts
 │   │   ├── crypto.native.ts
+│   │   ├── offers.ts
+│   │   ├── points.ts
+│   │   ├── ratings.ts
 │   │   ├── requests.ts
 │   │   ├── env.ts
 │   │   ├── profiles.ts
@@ -426,9 +442,21 @@ CampusClutch/
 │   │   ├── 20260805053323_replace_profile_social_links_atomically.sql
 │   │   ├── 20260805061611_allow_avatar_owner_cleanup.sql
 │   │   ├── 20260818072241_persist_courses_and_memberships.sql
-│   │   └── 20260907204626_persist_requests.sql
+│   │   ├── 20260907204626_persist_requests.sql
+│   │   ├── 20260912060259_persist_request_offers.sql
+│   │   ├── 20260912071410_offer_review_pages.sql
+│   │   ├── 20260924091300_reopen_request_offers.sql
+│   │   ├── 20260924235230_request_points.sql
+│   │   ├── 20260925085239_limit_request_points_to_balance.sql
+│   │   ├── 20260925165806_require_helper_reward_consent.sql
+│   │   └── 20260926000632_limit_active_requests.sql
 │   ├── tests/
 │   │   ├── course_memberships.test.sql
+│   │   ├── offer_pages.test.sql
+│   │   ├── reopen_request_offers.test.sql
+│   │   ├── request_offers.test.sql
+│   │   ├── request_points.test.sql
+│   │   ├── request_points_limit.test.sql
 │   │   └── requests.test.sql
 │   ├── config.toml
 │   └── seed.sql
@@ -1053,7 +1081,7 @@ Completed behavior:
 Known limitation:
 
 - Offset pagination can shift when other users post concurrently; refresh starts from the beginning.
-- Requester profile names and a real points/reward system remain future work.
+- Requester profile names remain future work. Task 9 checkpoint 4 links Home to the real points balance in Profile; creator-made quests remain planned.
 
 ---
 
@@ -1113,7 +1141,7 @@ Completed behavior:
 
 Known limitation:
 
-- Real Offer Help, offer acceptance/rejection, and completion are later workflows. The previous simulated Offer Sent confirmation has been removed.
+- This Task 8 section records the request-persistence baseline. Task 9 now connects real offers, reopening, points, poster-confirmed completion, and mutual ratings locally. Completed-work ratings passed local phone validation; the later Task 9 follow-up below also permits ratings after an accepted assignment is cancelled. The previous simulated Offer Sent confirmation remains removed.
 
 ---
 
@@ -1227,7 +1255,7 @@ Task 6 Android testing includes:
 
 ## Current Android Testing Setup
 
-The latest standalone Task 8 Preview APK contains its JavaScript bundle and uses hosted Preview. It launches without Metro, USB, or open laptop terminals. It still needs internet access for backend operations. Local accounts/requests are separate from hosted Preview accounts/requests.
+The standalone Task 8 Preview APK contains its JavaScript bundle and uses hosted Preview. It launches without Metro, USB, or open laptop terminals. It still needs internet access for backend operations. Local accounts/requests are separate from hosted Preview accounts/requests. The newer Task 9 build is linked in Next Action below.
 
 The development-client APK displays a development-server launcher and requires Metro. With the existing local backend configuration, connect the phone by USB and use:
 
@@ -1541,14 +1569,95 @@ This closes the Requests offline/retry test that was previously deferred during 
 
 # Task 9 — Implement Real Offer Help Workflow
 
-**Status: Next roadmap task — not started**
+**Status: Final review — implementation, hosted deployment and all phone validation passed September 26; CI and merge pending**
 
-Requests persistence is complete. Begin after this README closure update has passed the documentation PR workflow and local `main` is synchronized.
+Requests persistence and README closure are merged. Work is on `codex/persist-request-offers`, created from `main` at `9a87581`.
+
+Checkpoint 1 completed:
+
+- Persistent offers with caller-derived ownership and one permanent offer per helper/request.
+- Helper withdrawal and owner rejection/acceptance through authenticated functions.
+- Atomic acceptance, competing-offer rejection, and accepted-helper request access.
+- Cancellation/expiry settlement and recipient-only durable offer notification records.
+- 53 offer assertions, five concurrent-operation tests, 61 request regressions, and 13 course regressions passed locally.
+- ESLint, TypeScript, and exact migration replay passed.
+
+Checkpoint 2 completed locally and phone tests passed September 15, 2026:
+
+- Offer Help with an optional message, persistent status, withdrawal, and owner accept/decline confirmations.
+- My offers history, including accepted and closed requests after restart.
+- Paginated owner review with approved helper summaries and account-scoped client calls.
+- Refresh/error handling preserves unfinished messages; failed actions require refresh before retry.
+- 152 database assertions, five concurrency tests, 13 service checks, lint/typecheck, and Android Hermes export passed.
+
+Checkpoint 3 implemented locally on September 24, 2026:
+
+- Separate Campus feed and My requests tabs; owner history shows Open, Accepted, Completed, Cancelled, and Expired statuses. Accepted helpers can still find the work in My offers.
+- Poster-controlled Reopen for new offers with a new future deadline and explicit confirmation. Reopening ends the previous acceptance and closes pending offers; helpers must explicitly Offer again.
+- One permanent offer per helper/request, with fresh consent in a new offer round and earlier states/messages retained in protected audit history.
+- Round checks protect against old decisions and retries. Repeated reopening cannot undo a newer acceptance; notification events remain unique within each round.
+- Migration `20260924091300_reopen_request_offers.sql` is applied locally.
+- All 245 database assertions passed, including 93 new reopening checks and 152 earlier regressions. Nine concurrency races, 19 typed service/API checks, final lint/typecheck, and Android Hermes export passed. The exact final migration also passed replay with all 93 new assertions in a rollback-only transaction; existing local data was preserved.
+
+The user passed checkpoint 3 phone tests after the duplicate React key correction (`59aab33`). Adjacent reopening and offer sections use distinct keys.
+
+Checkpoint 4 implemented locally on September 24, 2026:
+
+- Every existing account receives a one-time 100-point welcome grant; each new profile receives the same grant. Reloads, sign-ins, reinstalls, and profile edits do not grant more points.
+- Accepting a helper reserves the request's points from the poster's available balance. The confirmation amount is checked under the request lock, so a stale confirmation cannot reserve a changed amount. Insufficient funds leave the request and offers unchanged.
+- Creating or editing a request also requires the offered points to fit the poster's current available balance. The form checks on every save, and the database checks again while locking the wallet. Saving does not reserve points; acceptance still rechecks and reserves them.
+- Reopening releases reserved points and requires fresh helper consent. The poster alone can confirm completed work; that action atomically completes the request, debits the poster, credits the helper, and records both ledger entries once.
+- Profile shows real available/reserved/total points and the latest 20 transactions. Home greets the signed-in user by their saved profile name and links to that balance; mock balance and reward-progress claims were removed.
+- Pre-points acceptances are not automatically charged. Reopen them and accept a fresh offer before confirming completion. Completed requests remain in participant history and cannot be reopened.
+- Migration `20260924235230_request_points.sql` is applied locally. Wallets and ledger entries are private; clients cannot directly change balances or award points.
+- Automated coverage includes one-time grants, balance privacy, reservations, insufficient funds, completion permissions, stale confirmations, rollback, retry safety, and concurrent payment/reopening.
+- All 359 database assertions, 28 typed service/API checks, and 13 concurrency races passed. Lint/typecheck and Android Hermes export passed; exact migration replay passed all 114 points assertions while preserving existing local data. Advisors reported only the two existing profile-policy warnings.
+- Phone testing found that an account with 110 points could post a 111-point request because affordability was only checked at acceptance. The September 25 follow-up adds posting/editing limits in the app and database (`20260925085239_limit_request_points_to_balance.sql`, initially local only). All 388 database assertions, 22 request API checks, 28 offer/points API checks, five points concurrency cases, lint/typecheck, Android export, and the exact follow-up migration replay passed. The later phone closure and hosted deployment are recorded below.
+- A second phone finding exposed an unfair reward change: the poster could change points after a helper offered and then accept that old offer. Migration `20260925165806_require_helper_reward_consent.sql` now starts a fresh offer round whenever points change and closes pending offers. Each helper must explicitly confirm the current amount before acceptance. First offers, renewed offers, and acceptance check the displayed round and amount under the request lock, including stale screens and changes back to the original price. Edits that keep the same points preserve offers.
+- Existing open pending offers require confirmation once because their original agreed amount was not recorded. Accepted/completed requests and balances are preserved. The app shows **Confirmation needed**, the current points, and a confirmation prompt. This correction was initially validated locally and is included in the hosted deployment below.
+- The reward-consent correction passed all 442 SQL assertions, 36 offer/points API checks, 22 request API checks, 17 concurrency cases, lint/typecheck, and Android export. Exact migration replay passed all 50 new assertions plus legacy-data preservation checks, with matching fingerprints for 13 data tables after rollback. The user explicitly confirmed the changed-reward phone tests passed on September 26.
+- The next local correction limits each poster to **three active requests across all categories**. Open requests with a future deadline and all accepted requests count; completed, cancelled, expired, and overdue open requests do not. Accepting a helper keeps the slot until the work is completed or reopened and cancelled. Helping on someone else's request does not use a posting slot.
+- Migration `20260926000632_limit_active_requests.sql` enforces the cap under the same wallet lock used by posting and points operations. Concurrent posts and reactivation cannot bypass it. Existing requests are preserved, including accounts already above the cap; they can edit or close those requests but must get below three before posting again. The form explains the rule and retains entered values when a capped save fails.
+- Phone testing of reward confirmation and the active-request cap was initially deferred until the user's phone was available. The user explicitly confirmed both passed on September 26. Both changes are now included in the hosted deployment below; the standalone build and phone checklist are recorded below.
+- The active-request cap passed all 490 SQL assertions, 61 combined request/offer API checks, 23 concurrency cases, lint/typecheck, and Android export. Exact migration replay passed all 47 new cap assertions with unchanged fingerprints for 13 existing data tables. Existing requests and balances were preserved.
+- A later phone finding exposed missing cancellation for accepted requests and no way to remove expired requests from the main list. Owners can now cancel accepted work to release reserved points without payment, and archive/restore closed requests through My requests → Archived. History is preserved for both participants; active requests cannot be archived. On September 25, the user passed the focused phone retest: accepted cancellation returns points and frees a slot, expired-request archiving survives restart, and restoring keeps the request expired. The broader [cancellation/archive checklist](docs/task-9-offers.md#cancellation-and-archive-phone-checklist) remains available for regression testing.
+
+Checkpoint 5 implemented locally on September 26, 2026:
+
+- The poster and the final selected helper can each rate the other from **1 to 5 stars** after the poster confirms completion and the points transfer settles. Open, accepted, cancelled, expired, unpaid, and unrelated requests cannot be rated.
+- The user chose publication **after both people rate**. A saved rating is visible to its author only until the second participant submits; neither the other score nor a changed public average can reveal it early. There is no automatic publication deadline. Each participant's rating is final after confirmation; retrying the same score does not create another rating.
+- Completed request details expose the rating action to eligible participants. The selected helper opens those details through **My offers → View request**, retaining access after completion and owner archiving. Profile, real student-profile, and authorized offer-related helper/poster summaries show the average and count of published ratings, or **No published ratings yet**. Hidden-profile access remains limited to authorized contexts.
+- Ratings preserve the existing points settlement: submitting, refreshing, or archiving never creates another payment or changes balances. Archiving completed work preserves its ratings and participant history.
+- Account-scoped calls pin the checked token. Failed/offline submissions keep the selected stars and require a status refresh before retrying, so a saved rating with a lost response can be reconciled.
+- Migration `20260926071307_completed_request_ratings.sql` is applied locally. All **657 SQL assertions** passed: 577 existing regressions and 80 new ratings checks. **105 typed API checks** passed: 36 request, 42 offer/points, and 27 ratings checks. Five ratings concurrency cases, lint/typecheck, and Android Hermes export passed. Exact migration replay passed all 80 ratings assertions inside a rollback-only transaction; nine existing data-table fingerprints were unchanged across application, testing, and replay. Local advisors report only the two existing profile-policy performance warnings.
+
+The first ratings phone run exposed a duplicate React key on Profile: the points and ratings sections shared the account UUID. Commit `d2e3cad` uses distinct section prefixes to prevent the collision while preserving account-specific remounting. The user first confirmed Profile worked, then confirmed all remaining ratings checks passed on September 26; no database change or APK reinstall was needed for that correction.
+
+**Local phone validation passed (September 26, 2026):** The user confirmed all remaining mutual-ratings checks and clarified that the earlier points-transfer, changed-reward confirmation, and three-active-request tests also passed. Together with the previous cancellation/archive pass, this closes the checkpoint 4–5 local phone gate. The [phone checklists](docs/task-9-offers.md#checkpoint-5-phone-checklist) remain available for regression testing.
+
+Checkpoint 6 hosted deployment and validation completed on September 26, 2026:
+
+- All nine Task 9 migrations through `20260926071307` are applied and verified in **Development** (`ayisjsajufjkebvbzpdr`) and **Preview** (`udbijakeasbvoycjyghe`). All **657 SQL assertions** passed in each hosted environment using rollback-only tests.
+- All 11 pre-existing data-table fingerprints remained unchanged in both projects. Development's one existing profile and Preview's three existing profiles each received exactly one 100-point starter wallet/ledger grant. Preview's existing request and detail were retained, and no test reservations, offers, or ratings remain.
+- Hosted advisors reported only eight previously known warnings per environment: anonymous/authenticated execution of `rls_auto_enable`, three course RPC definer findings, disabled leaked-password protection, and two multiple-SELECT-policy findings. No Task 9 object was flagged.
+- The repository is linked back to Development. The EAS Preview project, authentication, environment, and standalone internal-distribution profile are verified; the new [Task 9 Preview build `5dab754b`](https://expo.dev/accounts/marchosias405/projects/CampusClutch/builds/5dab754b-4ad7-446c-9272-5a30e7bd0a95) completed from app source `d2e3cad`. APK inspection confirmed non-debuggable release settings, an embedded Hermes bundle, the hosted Preview URL, and Task 9 rating/archive calls, with no development launcher or local Supabase endpoint.
+
+The user initially reported standalone tests **1–6 passed** on build `5dab754b`, then confirmed the full cancelled-assignment checklist on replacement build `016bd2fd`. The earlier offline refresh/save test and fresh password-reset email link were separately confirmed passed on September 26. The phone validation gate is complete; final review, CI and merge remain.
+
+Cancelled-assignment follow-up implemented September 26, 2026:
+
+- The user chose **reopen for new offers** when an accepted helper cancels. The reserved points return to the poster's available balance exactly once, with no payment. The original deadline is preserved; elapsed deadlines produce Expired instead of a new commitment.
+- Accepted assignments ended by helper cancellation, poster cancellation or reopening can be rated by their original poster/helper. Pending-only withdrawals and never-accepted expired requests remain ineligible. Each round keeps its own immutable 1–5-star pair, and the pair affects reliability only after both people rate; no automatic publication or cancellation penalty was added.
+- The poster and former accepted helper retain their rating history even after a replacement helper is selected or the poster archives the request. Paginated history, account/focus checks and retained offline selections protect older assignments. A rating refresh preserves any unsaved Offer again message.
+- Migration `20260926085648_cancelled_assignment_ratings.sql` was captured, narrowed to the reviewed change and replayed against 112 new SQL assertions. All **770 local SQL assertions**, **77 typed API checks**, **13 concurrency cases**, ESLint, TypeScript and Android Hermes export passed. Existing local data fingerprints remained unchanged; advisors reported only the two existing profile-policy warnings.
+- The tenth Task 9 migration is deployed and verified in hosted Development and Preview: **770 SQL assertions passed in each**, ten data-table fingerprints stayed unchanged, and only the eight previously recorded advisor warnings remain. The normal Supabase link is restored to Development. The replacement [Preview build `016bd2fd`](https://expo.dev/accounts/marchosias405/projects/CampusClutch/builds/016bd2fd-943b-4d6f-a69a-cde8eb90f935) is built from app source `4ee145d` and inspected: hosted Preview origin, embedded Hermes bundle, cancellation/history/v4 offer RPCs, no local backend or development launcher. Build `5dab754b` predates the new UI. The [cancelled-assignment phone checklist](docs/task-9-offers.md#cancelled-assignment-phone-checklist), standalone offline recovery and password-reset retest have all passed.
+
+Detailed contract and validation: [Task 9 checkpoint](docs/task-9-offers.md).
 
 Requirements:
 
 - Persist offers.
-- Prevent duplicate active offers.
+- Enforce one permanent offer per helper/request. Ordinary retries never reactivate rejected or withdrawn offers; after the poster reopens selection, a helper can explicitly offer again in the new round.
 - Store offering user.
 - Store request ID.
 - Support:
@@ -1559,12 +1668,26 @@ Requirements:
 - Notify request owner.
 - Allow owner acceptance/rejection.
 - Update request status.
+- Keep accepted requests reachable in poster/helper history.
+- Allow the poster to reopen selection with a new deadline, ending old acceptance and requiring fresh helper consent.
+- Require helpers to confirm any changed reward before their offer can be accepted.
+- Limit each poster to three active requests across categories, with completed/cancelled/expired work freeing slots.
+- Permit one immutable rating per participant for each completed or cancelled accepted assignment, publishing the pair and reliability averages only after both submit.
+- Let an accepted helper cancel, releasing reserved points and reopening for fresh offers while retaining both participants' rating history.
+
+Next validation checkpoints and later work:
+
+- All standalone and cancelled-assignment phone gates are passed; retain the documented checklists for regression testing.
+- Complete final review, required CI, merge, and documentation closure.
+- Add creator-managed miniature quests for earning extra points later, with controlled rewards and protection against duplicate claims. This checkpoint adds no quest administration or reward-claim feature.
 
 Completion condition:
 
 - Offer state persists.
 - Unauthorized management is blocked.
 - Duplicate offers are prevented.
+- Completed and cancelled accepted assignments allow ratings only from their own participants, with no score disclosure until both submit; replacement helpers and later rounds remain separate.
+- Local phone validation, hosted migration validation, standalone Preview testing, final review, and required CI pass before merge.
 
 ---
 
@@ -1746,8 +1869,8 @@ Possible work:
 - Backend decision: Supabase
 - Backend architecture: Approved and documented
 - Local Supabase: Initialized and tested
-- Hosted Development project: Task 7 and Task 8 migrations deployed and validated
-- Hosted Preview project: Task 7 and Task 8 migrations deployed and validated
+- Hosted Development project: Task 9 migrations deployed and validated through `20260926085648`
+- Hosted Preview project: Task 9 migrations deployed and validated through `20260926085648`
 - EAS Development variables: Configured
 - EAS Preview variables: Configured
 - Production Supabase project: Not created
@@ -1757,7 +1880,7 @@ Possible work:
 - Task 6 pull request: #22 merged into `main` at merge commit `870b6a7`
 - Courses/Classmates persistence: Task 7 complete, PR #24 (`13d2202`)
 - Requests persistence: Task 8 complete, PR #25 (`19f3e61`)
-- Offer Help persistence: Task 9 next; not started
+- Offer Help persistence: Task 9 implementation, local/hosted checks and all phone tests passed; final review, CI and merge pending
 - Messaging persistence: Task 10
 - Production Android build: Not started
 - Production iOS build: Not started
@@ -1772,7 +1895,7 @@ No secrets, private keys, database passwords, store credentials, or real environ
 
 CampusClutch still needs:
 
-- Real request offers
+- Task 9 final review, CI and merge; creator-managed quests remain later work
 - Persistent conversations and messages
 - Real notifications
 - Broader component/end-to-end tests and backend test execution in CI
@@ -1791,44 +1914,6 @@ CampusClutch still needs:
 
 # Next Action
 
-Finish the documentation-only closure update:
+Finish Task 9 final review, required CI and merge on `codex/persist-request-offers`. All phone gates have passed, including the cancelled-assignment follow-up on Preview build `016bd2fd`, offline refresh/save, and fresh-link password reset.
 
-```text
-codex/update-readme-task-8
-```
-
-Immediate steps:
-
-1. Review and push the README-only commit.
-2. Open a documentation-only pull request into `main`.
-3. Confirm CI passes, review, and merge the documentation update.
-4. Synchronize local `main` and clean up the documentation branch.
-
-Then begin:
-
-```text
-Task 9 — Implement Real Offer Help Workflow
-```
-
-Create the next feature branch from updated `main`:
-
-```powershell
-git switch main
-git pull --ff-only origin main
-git switch -c codex/persist-request-offers
-```
-
-Initial Task 9 work should:
-
-1. Inspect the current request details screen, request service, and Task 8 database contract.
-2. Review `docs/backend-plan.md` and existing migrations before designing offer tables.
-3. Define ownership, allowed status transitions, duplicate-active-offer prevention, and request eligibility.
-4. Specify how acceptance updates the request atomically, including concurrent offers and owner decisions.
-5. Define pending, accepted, rejected, and withdrawn behavior and the owner-facing offer list.
-6. Decide the owner notification behavior for this task while keeping the full notification system in Task 11 and persistent messaging in Task 10.
-7. Add backend authorization and lifecycle tests before connecting the UI.
-8. Implement one bounded checkpoint at a time, preserving the existing Expo Router navigation and red/white design.
-9. Stop at a working checkpoint for manual Android testing before advancing.
-10. Complete local/hosted validation, Preview tests, CI, review, merge, and documentation before Task 10.
-
-Task 9 implementation has not started. This update documents completed progress and the next plan only.
+After merging and recording Task 9 closure, Task 10 will persist conversations and messages. Creator-made quests remain later work. Do not begin the next implementation checkpoint before the current task is closed.
