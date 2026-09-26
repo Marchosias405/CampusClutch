@@ -2,9 +2,9 @@
 
 CampusClutch is an Expo React Native mobile app for university students to connect through courses, classmates, student profiles, campus help requests, direct messages, group conversations, notifications, and user profiles.
 
-Authentication, user profiles, courses, course memberships, classmates, and campus requests now use persistent Supabase data. Tasks 6–8 have been validated in hosted Development and Preview. Messages and notifications still use mock or local state. Task 9's local Android validation has passed, including offers, history, reopening, points transfers, changed-reward confirmation, the three-active-request cap, cancellation/archive, and mutual reliability ratings. Ratings reveal only after both participants submit. All nine Task 9 migrations are now deployed and validated in hosted Development and Preview. [Task 9 Preview build `5dab754b`](https://expo.dev/accounts/marchosias405/projects/CampusClutch/builds/5dab754b-4ad7-446c-9272-5a30e7bd0a95) is built and inspected; its standalone phone validation is next.
+Authentication, user profiles, courses, course memberships, classmates, and campus requests now use persistent Supabase data. Tasks 6–8 have been validated in hosted Development and Preview. Messages and notifications still use mock or local state. Task 9's local Android validation has passed, including offers, history, reopening, points transfers, changed-reward confirmation, the three-active-request cap, cancellation/archive, and mutual reliability ratings. Ratings reveal only after both participants submit. The user reported standalone Preview tests 1–6 passed on build `5dab754b`; offline test 7 remains unconfirmed. Task 9 now also implements helper cancellation and ratings for cancelled accepted assignments. The follow-up passed local checks and is being prepared for a replacement Preview APK and phone validation.
 
-> **Current status:** Tasks 1–8 are complete and merged. Task 7 merged through [PR #24](https://github.com/Marchosias405/CampusClutch/pull/24) at `13d2202`. Task 8 merged through [PR #25](https://github.com/Marchosias405/CampusClutch/pull/25) at `19f3e61`, after backend validation, all five standalone Preview phone tests, final code review, and passing GitHub CI. Local `main` was synchronized and the Task 8 feature branch deleted locally and remotely. The README closure merged through [PR #26](https://github.com/Marchosias405/CampusClutch/pull/26) at `9a87581`. Task 9—Implement Real Offer Help Workflow—is in progress on `codex/persist-request-offers`. On September 26, the user confirmed Profile and all remaining ratings tests passed after `d2e3cad`, and explicitly confirmed the earlier points-transfer, changed-reward, and three-active-request tests passed too. The local checkpoint 4–5 phone gate is complete. All nine Task 9 migrations are deployed in hosted Development and Preview, with 657 SQL assertions passing in each and existing data preserved. The new Preview APK is built and inspected; standalone phone testing, final review, CI, and merge remain pending; creator-made quests remain later work.
+> **Current status:** Tasks 1–8 are complete and merged. Task 7 merged through [PR #24](https://github.com/Marchosias405/CampusClutch/pull/24) at `13d2202`. Task 8 merged through [PR #25](https://github.com/Marchosias405/CampusClutch/pull/25) at `19f3e61`, after backend validation, all five standalone Preview phone tests, final code review, and passing GitHub CI. Local `main` was synchronized and the Task 8 feature branch deleted locally and remotely. The README closure merged through [PR #26](https://github.com/Marchosias405/CampusClutch/pull/26) at `9a87581`. Task 9—Implement Real Offer Help Workflow—is in progress on `codex/persist-request-offers`. On September 26, the user confirmed Profile and all remaining ratings tests passed after `d2e3cad`, and explicitly confirmed the earlier points-transfer, changed-reward, and three-active-request tests passed too. The local checkpoint 4–5 phone gate is complete. All nine Task 9 migrations are deployed in hosted Development and Preview, with 657 SQL assertions passing in each and existing data preserved. The user subsequently reported standalone Preview tests 1–6 passed on build `5dab754b`. The new cancelled-assignment follow-up has passed 770 local SQL assertions, 77 typed API checks and 13 concurrency cases. Its hosted rollout and replacement APK are in progress; follow-up phone testing, standalone offline test 7, final review, CI and merge remain pending. Creator-made quests remain later work.
 
 ---
 
@@ -113,7 +113,7 @@ Current roadmap position:
 Task 6 — Complete and merged (PR #22, 870b6a7)
 Task 7 — Complete and merged (PR #24, 13d2202)
 Task 8 — Complete and merged (PR #25, 19f3e61)
-Task 9 — In progress; local phone and hosted migration validation passed, new Preview APK validation next
+Task 9 — In progress; standalone tests 1–6 passed, cancelled-assignment follow-up awaiting phone validation
 ```
 
 Task 8 completion record:
@@ -138,9 +138,9 @@ This means:
 
 - Requests persist in the selected backend environment; local, hosted Development, and hosted Preview accounts/data are separate.
 - Locally sent messages reset when the conversation is reopened or the app reloads.
-- Task 9 local phone and hosted Development/Preview migration validation passed, including real points, reward-change confirmation, the active-request cap, and mutual ratings. The new Task 9 standalone Preview APK is ready for phone testing. Older development and Task 8 APKs must be replaced with this build.
+- Task 9 local phone and hosted Development/Preview migration validation passed, including real points, reward-change confirmation, the active-request cap, and mutual ratings. Standalone Task 9 tests 1–6 passed on build `5dab754b`. The cancelled-assignment follow-up requires updated source or its replacement Preview APK; offline test 7 remains pending.
 - Every existing and new account in each configured backend receives 100 welcome points once. Accepting reserves the poster's available points; reopening releases them; only poster-confirmed completion transfers them to the helper. Old acceptances without a reservation must be reopened and accepted again with fresh helper consent.
-- Mutual completed-request ratings are implemented in the current source and deployed backends. Only the poster and final paid helper can each submit one immutable 1–5-star rating; scores and profile averages reveal the pair only after both rate, with no automatic publication deadline. Creator-made quests for earning extra points remain later work. No quest or arbitrary client points-grant action is implemented.
+- Mutual ratings cover completed paid work and cancelled accepted assignments in the current source. Only the poster and accepted helper for that assignment can each submit one immutable 1–5-star rating; scores and profile averages reveal the pair only after both rate, with no automatic publication deadline. When the accepted helper cancels, points release without payment and the request reopens for fresh offers unless its deadline has passed. Creator-made quests for earning extra points remain later work. No quest or arbitrary client points-grant action is implemented.
 - Course membership persists; current/previous courses derive from membership and academic-term state.
 - Classmates load from real course membership with backend visibility rules.
 - Legacy classmate profile IDs such as `aisha-r`, `jordan-t`, and `mei-l` remain explicitly supported by the student-profile screen.
@@ -1141,7 +1141,7 @@ Completed behavior:
 
 Known limitation:
 
-- This Task 8 section records the request-persistence baseline. Task 9 now connects real offers, reopening, points, poster-confirmed completion, and mutual ratings locally. Ratings are available only after completed, paid work and passed local phone validation. The previous simulated Offer Sent confirmation remains removed.
+- This Task 8 section records the request-persistence baseline. Task 9 now connects real offers, reopening, points, poster-confirmed completion, and mutual ratings locally. Completed-work ratings passed local phone validation; the later Task 9 follow-up below also permits ratings after an accepted assignment is cancelled. The previous simulated Offer Sent confirmation remains removed.
 
 ---
 
@@ -1569,7 +1569,7 @@ This closes the Requests offline/retry test that was previously deferred during 
 
 # Task 9 — Implement Real Offer Help Workflow
 
-**Status: In progress — local phone and hosted Development/Preview migration validation passed September 26; new standalone Preview APK validation next**
+**Status: In progress — standalone tests 1–6 passed September 26; cancelled-assignment follow-up implemented, new phone gate pending**
 
 Requests persistence and README closure are merged. Work is on `codex/persist-request-offers`, created from `main` at `9a87581`.
 
@@ -1642,7 +1642,15 @@ Checkpoint 6 hosted deployment and validation completed on September 26, 2026:
 - Hosted advisors reported only eight previously known warnings per environment: anonymous/authenticated execution of `rls_auto_enable`, three course RPC definer findings, disabled leaked-password protection, and two multiple-SELECT-policy findings. No Task 9 object was flagged.
 - The repository is linked back to Development. The EAS Preview project, authentication, environment, and standalone internal-distribution profile are verified; the new [Task 9 Preview build `5dab754b`](https://expo.dev/accounts/marchosias405/projects/CampusClutch/builds/5dab754b-4ad7-446c-9272-5a30e7bd0a95) completed from app source `d2e3cad`. APK inspection confirmed non-debuggable release settings, an embedded Hermes bundle, the hosted Preview URL, and Task 9 rating/archive calls, with no development launcher or local Supabase endpoint.
 
-Standalone Preview phone validation, final review, CI, and merge remain pending. Task 9 is not complete or merged.
+The user reported standalone tests **1–6 passed** on build `5dab754b`. Test 7 (offline recovery) remains unconfirmed. The following cancelled-assignment extension was requested during that phone run and needs a replacement APK and its own manual validation. Task 9 is not complete or merged.
+
+Cancelled-assignment follow-up implemented September 26, 2026:
+
+- The user chose **reopen for new offers** when an accepted helper cancels. The reserved points return to the poster's available balance exactly once, with no payment. The original deadline is preserved; elapsed deadlines produce Expired instead of a new commitment.
+- Accepted assignments ended by helper cancellation, poster cancellation or reopening can be rated by their original poster/helper. Pending-only withdrawals and never-accepted expired requests remain ineligible. Each round keeps its own immutable 1–5-star pair, and the pair affects reliability only after both people rate; no automatic publication or cancellation penalty was added.
+- The poster and former accepted helper retain their rating history even after a replacement helper is selected or the poster archives the request. Paginated history, account/focus checks and retained offline selections protect older assignments. A rating refresh preserves any unsaved Offer again message.
+- Migration `20260926085648_cancelled_assignment_ratings.sql` was captured, narrowed to the reviewed change and replayed against 112 new SQL assertions. All **770 local SQL assertions**, **77 typed API checks**, **13 concurrency cases**, ESLint, TypeScript and Android Hermes export passed. Existing local data fingerprints remained unchanged; advisors reported only the two existing profile-policy warnings.
+- Hosted rollout and the replacement Preview build are in progress. Build `5dab754b` predates the new UI. The [cancelled-assignment phone checklist](docs/task-9-offers.md#cancelled-assignment-phone-checklist) is the next device gate, alongside standalone offline test 7 and the separate password-reset retest.
 
 Detailed contract and validation: [Task 9 checkpoint](docs/task-9-offers.md).
 
@@ -1664,11 +1672,12 @@ Requirements:
 - Allow the poster to reopen selection with a new deadline, ending old acceptance and requiring fresh helper consent.
 - Require helpers to confirm any changed reward before their offer can be accepted.
 - Limit each poster to three active requests across categories, with completed/cancelled/expired work freeing slots.
-- Permit one immutable rating per participant after final completion/payment, publishing the pair and reliability averages only after both submit.
+- Permit one immutable rating per participant for each completed or cancelled accepted assignment, publishing the pair and reliability averages only after both submit.
+- Let an accepted helper cancel, releasing reserved points and reopening for fresh offers while retaining both participants' rating history.
 
 Next validation checkpoints and later work:
 
-- Install the new Preview APK and run the [standalone phone checklist](docs/task-9-offers.md#standalone-preview-phone-checklist) without Metro or USB forwarding.
+- Install the replacement Preview APK for the [cancelled-assignment phone checklist](docs/task-9-offers.md#cancelled-assignment-phone-checklist), then finish standalone offline test 7 without Metro or USB forwarding.
 - Complete final review, required CI, merge, and documentation closure.
 - Add creator-managed miniature quests for earning extra points later, with controlled rewards and protection against duplicate claims. This checkpoint adds no quest administration or reward-claim feature.
 
@@ -1677,7 +1686,7 @@ Completion condition:
 - Offer state persists.
 - Unauthorized management is blocked.
 - Duplicate offers are prevented.
-- Completed paid requests allow ratings only from their final participants, with no score disclosure until both submit.
+- Completed and cancelled accepted assignments allow ratings only from their own participants, with no score disclosure until both submit; replacement helpers and later rounds remain separate.
 - Local phone validation, hosted migration validation, standalone Preview testing, final review, and required CI pass before merge.
 
 ---
@@ -1871,7 +1880,7 @@ Possible work:
 - Task 6 pull request: #22 merged into `main` at merge commit `870b6a7`
 - Courses/Classmates persistence: Task 7 complete, PR #24 (`13d2202`)
 - Requests persistence: Task 8 complete, PR #25 (`19f3e61`)
-- Offer Help persistence: Task 9 local Android and hosted migration validation passed; new standalone Preview APK built and inspected; phone validation pending
+- Offer Help persistence: Task 9 standalone tests 1–6 passed; cancelled-assignment follow-up implemented, replacement build/manual checks pending
 - Messaging persistence: Task 10
 - Production Android build: Not started
 - Production iOS build: Not started
@@ -1886,9 +1895,9 @@ No secrets, private keys, database passwords, store credentials, or real environ
 
 CampusClutch still needs:
 
-- Standalone Preview and final validation of real request offers
-- Standalone Preview validation of poster-confirmed completion and points reservations/transfers
-- Standalone Preview validation of mutual completed-request ratings; creator-managed quests remain later work
+- Phone validation of accepted-helper cancellation and mutual cancelled-assignment ratings
+- Standalone offline recovery test 7 and a fresh-link password-reset retest
+- Task 9 final review, CI and merge; creator-managed quests remain later work
 - Persistent conversations and messages
 - Real notifications
 - Broader component/end-to-end tests and backend test execution in CI
@@ -1907,16 +1916,16 @@ CampusClutch still needs:
 
 # Next Action
 
-Install and test the [Task 9 Preview build `5dab754b`](https://expo.dev/accounts/marchosias405/projects/CampusClutch/builds/5dab754b-4ad7-446c-9272-5a30e7bd0a95). Its app source is `d2e3cad` on:
+Use the updated Task 9 source on:
 
 ```text
 codex/persist-request-offers
 ```
 
-The user confirmed local phone tests passed on September 26 after the Profile key correction (`d2e3cad`), including the earlier points-transfer, changed-reward, and active-request-limit tests. All nine Task 9 migrations and 657 SQL assertions are now validated in hosted Development and Preview. The detailed [Task 9 checklists](docs/task-9-offers.md#checkpoint-5-phone-checklist) remain regression references.
+Standalone tests 1–6 passed on build `5dab754b`. That APK does not include the new accepted-helper cancellation and cancelled-assignment rating screens. A replacement Preview build is being prepared; use its build page once recorded here. Local development accounts/data remain separate from hosted Preview.
 
-1. Install the [Task 9 Preview build `5dab754b`](https://expo.dev/accounts/marchosias405/projects/CampusClutch/builds/5dab754b-4ad7-446c-9272-5a30e7bd0a95) on the phone.
-2. Run the [standalone phone checklist](docs/task-9-offers.md#standalone-preview-phone-checklist) with laptop terminals closed and USB disconnected, covering request history, reward consent, points, ratings, limits, and offline recovery.
-3. Complete final review, required CI, merge, and documentation before Task 10. Creator-made quests remain later work.
+1. Install the replacement APK and run the [cancelled-assignment checklist](docs/task-9-offers.md#cancelled-assignment-phone-checklist): helper cancellation/reopening, points release, blind ratings, replacement history and draft preservation.
+2. Finish [standalone offline test 7](docs/task-9-offers.md#standalone-preview-phone-checklist), and retry a fresh password-reset link after the separate redirect correction.
+3. Complete final review, required CI, merge and documentation before Task 10. Creator-made quests remain later work.
 
-The new Task 9 Preview APK completed successfully and passed static inspection. Both hosted backends include Task 9. Use hosted Preview accounts and the new build; local development accounts/data are separate. Standalone phone validation remains the next gate.
+Task 9 remains in progress until the new phone checks and final merge gates pass.

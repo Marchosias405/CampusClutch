@@ -33,11 +33,20 @@ export async function completeRequest(userId: string, requestId: string, expecte
   await assertOfferSession(userId);
 }
 
+export async function cancelAcceptedHelp(userId: string, requestId: string, expectedRound: number): Promise<void> {
+  const session = await assertOfferSession(userId);
+  const { error } = await supabase.rpc('cancel_my_accepted_help', {
+    p_request_id: requestId, p_expected_round: expectedRound,
+  }).setHeader('Authorization', `Bearer ${session.access_token}`);
+  if (error) throw error;
+  await assertOfferSession(userId);
+}
+
 export function pointsError(error: unknown): string {
   const code = error && typeof error === 'object' && 'code' in error ? error.code : null;
   if (code === 'P0002') return 'Not enough available points. Check your balance and reserved points in Profile.';
   if (code === 'P0003') return 'This request has no reserved points. Reopen it and accept a fresh offer before confirming completion.';
   if (code === '22023') return 'This request has changed. Refresh before continuing.';
   if (code === '42501') return 'This action is unavailable to your account. Refresh or sign in again.';
-  return 'Unable to confirm your points or completion status. Check your connection and refresh before retrying; the action may already have saved.';
+  return 'Unable to confirm your points or assignment status. Check your connection and refresh before retrying; the action may already have saved.';
 }

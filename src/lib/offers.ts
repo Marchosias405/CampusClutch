@@ -14,6 +14,7 @@ export type RequestOffer = {
   request_title: string;
   request_status: 'open' | 'accepted' | 'completed' | 'cancelled' | 'expired';
   request_deadline_at: string;
+  has_assignment_history: boolean;
   helper_display_name: string | null;
   helper_major: string | null;
   helper_year: number | null;
@@ -31,7 +32,7 @@ export async function assertOfferSession(expectedUserId: string) {
 
 export async function loadOfferPage(userId: string, requestId: string | null, offset = 0) {
   const session = await assertOfferSession(userId);
-  const { data, error } = await supabase.rpc('get_request_offer_page_v3', {
+  const { data, error } = await supabase.rpc('get_request_offer_page_v4', {
     p_request_id: requestId, p_limit: 20, p_offset: offset,
   }).setHeader('Authorization', `Bearer ${session.access_token}`);
   if (error) throw error;

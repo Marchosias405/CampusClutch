@@ -13,6 +13,8 @@ export type RequestRatingContext = {
   received_score: number | null;
 };
 
+export type AssignmentRatingContext = RequestRatingContext & { outcome: 'completed' | 'cancelled' };
+
 export type ProfileRatingSummary = {
   profile_id: string;
   average_score: number | null;
@@ -27,6 +29,17 @@ export async function loadRequestRating(userId: string, requestId: string): Prom
   if (error) throw error;
   await assertOfferSession(userId);
   return data as RequestRatingContext | null;
+}
+
+export async function loadRequestRatingPage(userId: string, requestId: string, offset = 0) {
+  const session = await assertOfferSession(userId);
+  const { data, error } = await supabase.rpc('get_my_request_rating_contexts', {
+    p_request_id: requestId, p_limit: 20, p_offset: offset,
+  }).setHeader('Authorization', `Bearer ${session.access_token}`);
+  if (error) throw error;
+  await assertOfferSession(userId);
+  const items = (data ?? []) as AssignmentRatingContext[];
+  return { items, hasMore: items.length === 20, nextOffset: offset + items.length };
 }
 
 export async function submitRequestRating(userId: string, requestId: string, expectedRound: number, score: number): Promise<void> {
@@ -51,8 +64,8 @@ export async function loadProfileRatingSummary(userId: string, profileId: string
 
 export function ratingError(error: unknown): string {
   const code = error && typeof error === 'object' && 'code' in error ? error.code : null;
-  if (code === '23505') return 'You already rated this request. Your saved rating cannot be changed. Refresh to see it.';
-  if (code === '22023') return 'This request is not ready to rate or has changed. Refresh its status before continuing.';
+  if (code === '23505') return 'You already rated this assignment. Your saved rating cannot be changed. Refresh to see it.';
+  if (code === '22023') return 'This assignment is not ready to rate or has changed. Refresh its status before continuing.';
   if (code === '42501') return 'These ratings are unavailable to your account. Refresh or sign in again.';
   return 'Unable to confirm the rating status. Check your connection and refresh before retrying; your rating may already have been saved.';
 }

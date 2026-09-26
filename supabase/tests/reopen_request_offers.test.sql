@@ -146,8 +146,8 @@ SELECT is((SELECT offer_round FROM public.get_request_offer_page_v3(NULL) WHERE 
 SELECT is((SELECT count(*) FROM public.request_offer_history WHERE offer_id=pg_temp.fixture('selected')),0::bigint,'Helper cannot read another helper audit history');
 SELECT ok((SELECT count(*)>0 FROM public.request_offer_history WHERE offer_id=pg_temp.fixture('declined')),'Helper can read their own earlier audit history');
 SELECT pg_temp.login(2);
-SELECT is((SELECT count(*) FROM public.requests WHERE id=pg_temp.fixture('accepted')),0::bigint,'Former helper loses selected-helper access after another helper is accepted');
-SELECT is((SELECT count(*) FROM public.get_request_offer_page_v3(NULL) WHERE id=pg_temp.fixture('selected')),1::bigint,'Former helper retains their offer summary after losing detail access');
+SELECT is((SELECT count(*) FROM public.requests WHERE id=pg_temp.fixture('accepted')),1::bigint,'Former accepted helper retains request access for their historical assignment and rating');
+SELECT is((SELECT count(*) FROM public.get_request_offer_page_v3(NULL) WHERE id=pg_temp.fixture('selected')),1::bigint,'Former accepted helper retains their offer summary after replacement');
 SELECT pg_temp.login(5);
 SELECT is((SELECT count(*) FROM public.request_offer_history WHERE offer_id IN (SELECT id FROM fixtures)),0::bigint,'Unrelated accounts cannot read fixture offer histories');
 SELECT is((SELECT count(*) FROM public.get_request_offer_page_v3(pg_temp.fixture('accepted'))),0::bigint,'Unrelated account cannot list reopened-request offers');

@@ -162,7 +162,7 @@ SELECT is((public.get_profile_rating_summary(pg_temp.uid(2))->>'average_score'):
 SELECT pg_temp.login(1);
 SELECT is((public.get_profile_rating_summary(pg_temp.uid(1))->>'average_score')::numeric,3::numeric,'Poster average combines only the helper scores');
 
--- A replaced helper never gains rating permission from their old accepted round.
+-- Replaced helpers may rate their cancelled assignment, but not its replacement.
 SELECT pg_temp.login(4);
 INSERT INTO fixtures VALUES('reassigned',public.save_my_request(pg_temp.payload()));
 SELECT pg_temp.login(5);
@@ -175,9 +175,10 @@ INSERT INTO fixtures VALUES('new-offer',public.create_my_request_offer_for_terms
 SELECT pg_temp.login(4);
 SELECT public.decide_request_offer_for_round(pg_temp.fixture('new-offer'),'accepted',2,10);
 SELECT public.complete_my_request(pg_temp.fixture('reassigned'),2);
-SELECT throws_ok($$SELECT public.submit_request_rating(pg_temp.fixture('reassigned'),1,5)$$,'22023',NULL,'Poster cannot rate a released historical round');
+SELECT lives_ok($$SELECT public.submit_request_rating(pg_temp.fixture('reassigned'),1,5)$$,'Poster can rate a released historical accepted round');
 SELECT pg_temp.login(5);
-SELECT ok(public.get_request_rating_context(pg_temp.fixture('reassigned')) IS NULL,'Replaced helper has no rating context');
+SELECT ok(public.get_request_rating_context(pg_temp.fixture('reassigned')) IS NULL,'Replaced helper has no current-round rating context');
+SELECT is((SELECT count(*) FROM public.get_my_request_rating_contexts(pg_temp.fixture('reassigned'))),1::bigint,'Replaced helper retains their historical rating context');
 SELECT throws_ok($$SELECT public.submit_request_rating(pg_temp.fixture('reassigned'),2,5)$$,'42501',NULL,'Replaced helper cannot rate the new settled assignment');
 SELECT pg_temp.login(6);
 SELECT is((public.get_request_rating_context(pg_temp.fixture('reassigned'))->>'offer_round')::integer,2,'Only the final settled helper has the current rating round');

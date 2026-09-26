@@ -14,7 +14,7 @@ const env = Object.fromEntries(fs.readFileSync(root + '/.env.local', 'utf8').spl
 if (env.EXPO_PUBLIC_SUPABASE_URL !== 'http://127.0.0.1:54321') throw Error('Local API required');
 const key = env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
 const users = [];
-const compiled = Object.fromEntries(['offers', 'ratings'].map(name => [name, ts.transpileModule(
+const compiled = Object.fromEntries(['offers', 'ratings', 'points'].map(name => [name, ts.transpileModule(
   fs.readFileSync(root + '/src/lib/' + name + '.ts', 'utf8'),
   { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText]));
 let checks = 0;
@@ -191,12 +191,64 @@ async function fixture(owner, helper, campus) {
     assert.equal((await summary(owner, owner)).average_score, 4);
     pass('second request changes each average only after mutual publication');
 
+    const cancelled = await fixture(owner, helper, campus.data.id);
+    const cancellationOwnerWallet = await rpc(owner, 'get_my_points');
+    const cancellationHelperWallet = await rpc(helper, 'get_my_points');
+    await rpc(owner, 'decide_request_offer_for_round', { p_offer_id: cancelled.offer, p_action: 'accepted', p_expected_round: 1, p_expected_points: 10 });
+    await service(helper.client, 'points').cancelAcceptedHelp(helper.id, cancelled.request, 1);
+    await service(helper.client, 'points').cancelAcceptedHelp(helper.id, cancelled.request, 1);
+    assert.deepEqual(await rpc(owner, 'get_my_points'), cancellationOwnerWallet);
+    assert.deepEqual(await rpc(helper, 'get_my_points'), cancellationHelperWallet);
+    pass('typed helper cancellation and retry release the reservation once without a payment');
+    const reopened = await owner.client.from('requests').select('status,offer_round').eq('id', cancelled.request).single();
+    if (reopened.error) throw reopened.error;
+    assert.equal(reopened.data.status, 'open'); assert.equal(reopened.data.offer_round, 2);
+    const cancelledPage = await helper.api.loadRequestRatingPage(helper.id, cancelled.request);
+    assert.equal(cancelledPage.items.length, 1); assert.equal(cancelledPage.items[0].outcome, 'cancelled');
+    assert.equal(cancelledPage.items[0].counterparty_id, owner.id); assert.equal(cancelledPage.items[0].offer_round, 1);
+    assert.equal(cancelledPage.hasMore, false); assert.equal(cancelledPage.nextOffset, 1);
+    assert.equal((await helper.api.loadRequestRatingPage(helper.id, cancelled.request, 1)).items.length, 0);
+    assert.equal(await helper.api.loadRequestRating(helper.id, cancelled.request), null);
+    assert.equal((await other.api.loadRequestRatingPage(other.id, cancelled.request)).items.length, 0);
+    pass('cancelled history is paged by assignment and never substituted into the current-round context');
+    await owner.api.submitRequestRating(owner.id, cancelled.request, 1, 2);
+    const cancelledHidden = (await helper.api.loadRequestRatingPage(helper.id, cancelled.request)).items[0];
+    assert.equal(cancelledHidden.received_score, null); assert.equal(cancelledHidden.published, false);
+    await helper.api.submitRequestRating(helper.id, cancelled.request, 1, 4);
+    const cancelledPublished = (await helper.api.loadRequestRatingPage(helper.id, cancelled.request)).items[0];
+    assert.equal(cancelledPublished.received_score, 2); assert.equal(cancelledPublished.published, true);
+    pass('cancelled assignment scores stay private until both participants rate');
+    const replacementOffer = await rpc(other, 'create_my_request_offer_for_terms', { p_request_id: cancelled.request, p_expected_round: 2, p_expected_points: 10 });
+    await rpc(owner, 'decide_request_offer_for_round', { p_offer_id: replacementOffer, p_action: 'accepted', p_expected_round: 2, p_expected_points: 10 });
+    await service(helper.client, 'points').cancelAcceptedHelp(helper.id, cancelled.request, 1);
+    const replacement = await owner.client.from('requests').select('status,offer_round').eq('id', cancelled.request).single();
+    assert.equal(replacement.data.status, 'accepted'); assert.equal(replacement.data.offer_round, 2);
+    const oldHelperAccess = await helper.client.from('requests').select('id').eq('id', cancelled.request).single();
+    assert.equal(oldHelperAccess.data?.id, cancelled.request);
+    const myOffers = await service(helper.client, 'offers').loadOfferPage(helper.id, null);
+    assert.equal(myOffers.items.find(item => item.request_id === cancelled.request)?.has_assignment_history, true);
+    pass('former helper keeps a history link and a lost-response retry cannot cancel the replacement');
+    await rpc(owner, 'complete_my_request', { p_request_id: cancelled.request, p_expected_round: 2 });
+    const ownerHistory = await owner.api.loadRequestRatingPage(owner.id, cancelled.request);
+    assert.deepEqual(Array.from(ownerHistory.items, item => [item.offer_round, item.outcome, item.counterparty_id]),
+      [[2, 'completed', other.id], [1, 'cancelled', helper.id]]);
+    assert.equal((await helper.api.loadRequestRatingPage(helper.id, cancelled.request)).items.length, 1);
+    assert.equal((await other.api.loadRequestRatingPage(other.id, cancelled.request)).items.length, 1);
+    await assert.rejects(() => other.api.submitRequestRating(other.id, cancelled.request, 1, 5), error => error.code === '42501');
+    pass('completed replacement and cancelled assignment have separate counterparties and rating permissions');
+    const anonHistory = await anon.rpc('get_my_request_rating_contexts', { p_request_id: cancelled.request });
+    const anonCancel = await anon.rpc('cancel_my_accepted_help', { p_request_id: cancelled.request, p_expected_round: 1 });
+    assert.equal(anonHistory.error?.code, '42501'); assert.equal(anonCancel.error?.code, '42501');
+    pass('new history and helper-cancellation endpoints reject anonymous API callers');
+
     let attempts = 0;
     const mismatch = { auth: { getSession: async () => ({ data: { session: { user: { id: other.id }, access_token: 'other-token' } } }) }, rpc: () => { attempts += 1; throw Error('Unexpected API call'); } };
     const wrongAccount = service(mismatch);
     await assert.rejects(() => wrongAccount.loadRequestRating(owner.id, request));
     await assert.rejects(() => wrongAccount.loadProfileRatingSummary(owner.id, helper.id, request));
     await assert.rejects(() => wrongAccount.submitRequestRating(owner.id, request, 1, 4));
+    await assert.rejects(() => wrongAccount.loadRequestRatingPage(owner.id, request));
+    await assert.rejects(() => service(mismatch, 'points').cancelAcceptedHelp(owner.id, request, 1));
     assert.equal(attempts, 0);
     pass('account mismatch blocks all rating reads and writes before any API call');
     for (const score of [0, 6, 1.5, NaN, Infinity]) {
@@ -204,7 +256,7 @@ async function fixture(owner, helper, campus) {
     }
     assert.equal(attempts, 0);
     pass('client rejects fractional, non-finite and out-of-range scores');
-    for (const operation of ['context', 'summary', 'submit']) {
+    for (const operation of ['context', 'summary', 'submit', 'history', 'cancel']) {
       let sessionReads = 0, pinnedHeader;
       const switching = {
         auth: { getSession: async () => ({ data: { session: ++sessionReads === 1
@@ -215,7 +267,9 @@ async function fixture(owner, helper, campus) {
       const api = service(switching);
       await assert.rejects(() => operation === 'context' ? api.loadRequestRating(owner.id, request)
         : operation === 'summary' ? api.loadProfileRatingSummary(owner.id, helper.id, request)
-          : api.submitRequestRating(owner.id, request, 1, 4));
+          : operation === 'history' ? api.loadRequestRatingPage(owner.id, request)
+            : operation === 'cancel' ? service(switching, 'points').cancelAcceptedHelp(owner.id, request, 1)
+              : api.submitRequestRating(owner.id, request, 1, 4));
       assert.deepEqual(pinnedHeader, ['Authorization', 'Bearer original-token']);
       pass('in-flight ' + operation + ' pins original credentials and rejects account-switch results');
     }

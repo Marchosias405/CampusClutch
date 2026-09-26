@@ -7,11 +7,11 @@ import { decideOffer, loadOfferPage, offerError, renewOffer, submitOffer, type O
 import type { CampusRequest } from '../types';
 import RatingSummary from './RatingSummary';
 
-type Props = { request?: CampusRequest; requestId?: string; onChanged?: () => Promise<void> };
+type Props = { request?: CampusRequest; requestId?: string; ratingsRevision?: number; onChanged?: () => Promise<void> };
 type OfferTerms = { round: number; points: number };
 const labels = { pending: 'Pending', accepted: 'Accepted', rejected: 'Not selected', withdrawn: 'Withdrawn' };
 
-export default function RequestOffers({ request, requestId, onChanged }: Props) {
+export default function RequestOffers({ request, requestId, ratingsRevision = 0, onChanged }: Props) {
   const { user } = useAuth();
   const router = useRouter();
   const { invalidate } = useRequests();
@@ -130,7 +130,7 @@ export default function RequestOffers({ request, requestId, onChanged }: Props) 
     {saving && <Text accessibilityRole="alert" style={styles.text}>Saving…</Text>}
     {!owner && request?.ownerId && visible.length > 0 && <View style={styles.card}>
       <Text style={styles.title}>Request poster</Text>
-      <RatingSummary profileId={request.ownerId} requestId={request.id} />
+      <RatingSummary key={`poster-rating:${request.ownerId}:${ratingsRevision}`} profileId={request.ownerId} requestId={request.id} />
     </View>}
     {!loading && !error && !visible.length && <Text style={styles.text}>{owner ? 'No offers yet.' : requestId ? 'You have not offered help for this request.' : 'Your offers will appear here, including accepted and closed requests.'}</Text>}
     {requestId && request && !owner && visible.length === 0 && <View style={styles.card}>
@@ -155,7 +155,7 @@ export default function RequestOffers({ request, requestId, onChanged }: Props) 
         {!currentRound && <Text style={styles.text}>The poster changed the reward or reopened this request. This earlier offer is closed; the helper must confirm the current reward to be considered again.</Text>}
         {!open && <Text style={styles.text}>Request {offer.request_status === 'open' ? 'expired' : offer.request_status}.</Text>}
         {owner && <Text style={styles.text}>{[offer.helper_major, offer.helper_year ? `Year ${offer.helper_year}` : null, offer.helper_campus].filter(Boolean).join(' • ')}</Text>}
-        {owner && <RatingSummary profileId={offer.offering_user_id} requestId={offer.request_id} />}
+        {owner && <RatingSummary key={`helper-rating:${offer.offering_user_id}:${ratingsRevision}`} profileId={offer.offering_user_id} requestId={offer.request_id} />}
         {!!offer.message && <Text style={styles.text}>{offer.message}</Text>}
         <Text style={styles.text}>First offered {new Date(offer.created_at).toLocaleString()}</Text>
         {owner && offer.status === 'pending' && open && currentRound && <>
@@ -168,7 +168,8 @@ export default function RequestOffers({ request, requestId, onChanged }: Props) 
           <TextInput accessibilityLabel={`New offer message for ${offer.request_title}`} style={styles.input} multiline maxLength={1000} value={renewMessages[offer.id] ?? ''} editable={!saving} onChangeText={value => setRenewMessages(previous => ({ ...previous, [offer.id]: value }))} placeholder="Confirm you are available to help" textAlignVertical="top" />
           <Pressable accessibilityRole="button" disabled={!ready} style={[styles.primary, !ready && styles.disabled]} onPress={() => confirmOffer(offer)}><Text style={styles.primaryText}>Offer again</Text></Pressable>
         </>}
-        {!requestId && (open || offer.status === 'accepted') && <Pressable accessibilityRole="button" style={styles.secondary} onPress={() => router.push({ pathname: '/requests/[id]', params: { id: offer.request_id } })}><Text style={styles.secondaryText}>View request</Text></Pressable>}
+        {!requestId && (open || offer.status === 'accepted' || offer.has_assignment_history) && <Pressable accessibilityRole="button" style={styles.secondary} onPress={() => router.push({ pathname: '/requests/[id]', params: { id: offer.request_id } })}><Text style={styles.secondaryText}>View request</Text></Pressable>}
+        {offer.has_assignment_history && <Text style={styles.text}>Open request details to view your completed or cancelled assignments and rate the other participant after an assignment ends.</Text>}
         {offer.status === 'accepted' && <Text style={styles.text}>{offer.request_status === 'completed' ? 'Request completed. Open its details to rate the other participant.' : 'Help confirmed. Find this request in My offers as the helper, or My requests as the poster.'}</Text>}
       </View>;
     })}

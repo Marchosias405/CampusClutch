@@ -383,7 +383,7 @@ npx expo start --dev-client --localhost
 3. **No early disclosure to B:** Switch to B and open the completed request from My offers. B must not see A's score before submitting, and either profile's published rating count/average must still match the starting value. B can choose their own score independently.
 4. **Second rating publishes both:** B gives A **4 stars**. Refresh both accounts' rating panels: A sees their 5-star score and B's 4-star score; B sees their 4-star score and A's 5-star score. Each profile's published rating count increases by one. If this is the first published pair, A's average is 4.0 and B's is 5.0; otherwise each average includes the new score with the earlier ratings. Check an authorized helper-offer summary when available.
 5. **Final scores, restart, and archive:** Neither account can edit or submit another score for that completed request. Restart and sign back in; both scores and summaries persist. A archives the request, then opens it from Archived and restores it: ratings and the completed status remain unchanged. B's history remains available. Points and payment entries must stay exactly as they were after step 1.
-6. **Participant permissions:** C, if they offered but were not selected, cannot rate this request. An unrelated account also has no rating action. Cancelled/expired requests must not gain rating controls. Check both public and hidden-profile cases without exposing an unrelated hidden student's profile.
+6. **Participant permissions:** C, if they offered but were not selected, cannot rate this request. An unrelated account also has no rating action. Requests cancelled/expired without an accepted assignment must not gain rating controls. Checkpoint 8 below extends ratings to cancelled accepted assignments. Check both public and hidden-profile cases without exposing an unrelated hidden student's profile.
 7. **Offline selection and safe retry:** On a separate completed, paid request with no rating from the current account, select stars. Keep Metro/USB connected and run `adb reverse --remove tcp:54321` in another terminal. Submit and confirm; expect a connection/status error with the selection retained. Restore `adb reverse tcp:54321 tcp:54321` and choose **Retry rating status**. If the rating already saved, do not resubmit; otherwise submit the retained selection once. Confirm one saved rating and no point change.
 
 ### Profile key correction during ratings phone testing
@@ -404,7 +404,7 @@ All nine Task 9 migrations are applied successfully to **Development** (`ayisjsa
 
 ## Checkpoint 7: standalone Preview APK (2026-09-26, America/Vancouver)
 
-EAS build [`5dab754b-4ad7-446c-9272-5a30e7bd0a95`](https://expo.dev/accounts/marchosias405/projects/CampusClutch/builds/5dab754b-4ad7-446c-9272-5a30e7bd0a95) uses the Android `preview` profile, internal distribution, app source `d2e3cad`, and hosted Preview (`udbijakeasbvoycjyghe`). The build completed successfully and passed APK inspection; phone validation is pending. Use this build page for installation; old development and Task 8 APK links above are historical references.
+EAS build [`5dab754b-4ad7-446c-9272-5a30e7bd0a95`](https://expo.dev/accounts/marchosias405/projects/CampusClutch/builds/5dab754b-4ad7-446c-9272-5a30e7bd0a95) uses the Android `preview` profile, internal distribution, app source `d2e3cad`, and hosted Preview (`udbijakeasbvoycjyghe`). The build completed successfully and passed APK inspection. The user reported phone tests **1–6 passed**; test 7 (offline recovery) remains unconfirmed. This build predates the cancelled-assignment UI in checkpoint 8 and must be replaced to test that follow-up.
 
 - The downloaded APK is 154,057,322 bytes, package `com.marchosias405.campusclutch`, version `1.0.0` / code `1`. Its application is non-debuggable and not test-only, with no development-launcher components.
 - The APK contains `assets/index.android.bundle` as Hermes bytecode. Its embedded Supabase origin is only `https://udbijakeasbvoycjyghe.supabase.co`; no local Supabase endpoint was found. Rating, reliability-summary, cancellation, and archive RPC names are present. ZIP integrity passed.
@@ -412,6 +412,8 @@ EAS build [`5dab754b-4ad7-446c-9272-5a30e7bd0a95`](https://expo.dev/accounts/mar
 - Hosted Preview Auth returned HTTP 200. The ratings RPC rejected an unauthenticated caller with HTTP 401 / `42501`, confirming API availability and its anonymous-access restriction. These checks do not replace the phone test below.
 
 ### Standalone Preview phone checklist
+
+**Tests 1–6 passed, user-reported September 26, 2026. Test 7 remains unconfirmed.** These results apply to build `5dab754b`; the additional checkpoint 8 cases below need updated app source.
 
 Use two **hosted Preview accounts**, A (poster) and B (helper). Preview accounts and data are separate from the local development database. Leave the laptop terminals closed and disconnect USB. Record each account's starting balance; existing Preview profiles received 100 points once during deployment. Signing in again must not grant another 100.
 
@@ -423,6 +425,45 @@ Use two **hosted Preview accounts**, A (poster) and B (helper). Preview accounts
 6. **Posting limits and ownership:** An amount greater than available points must be rejected with the draft retained. Three active posts (including accepted work) block a fourth; cancel or complete one to free a slot. Closed/expired history and helping on somebody else's request do not consume a posting slot. B must not see edit/cancel/archive controls for A's requests; unrelated or nonselected users cannot confirm completion or rate them.
 7. **Offline recovery:** Turn off Wi-Fi and mobile data, refresh, and attempt a save. Expect a connection error and retained draft values. On another completed request, an offline rating attempt must retain the selected stars. Reconnect and refresh status before retrying; confirm one saved request/rating, no duplicate payment, and preserved earlier data.
 
+## Checkpoint 8: cancelled assignments and helper cancellation (2026-09-26, America/Vancouver)
+
+The user requested reliability ratings when accepted help ends without completion and chose **reopen for new offers** when the accepted helper backs out.
+
+- The selected helper can choose **Cancel my accepted help** from request details. The poster's reservation releases exactly once, with no point transfer or payment history. The request starts a fresh offer round and reopens if its original deadline is still future; otherwise it expires. Helpers must offer again before another acceptance.
+- The poster and helper can each rate a cancelled accepted assignment, including when the poster cancels or reopens it. The saved reservation identifies that round's participants even when an offer row is renewed or another helper is selected. Pending-only offers and requests that expired without an accepted assignment remain ineligible.
+- Each round has its own immutable 1–5-star pair. Scores and profile aggregates still reveal only after **both participants rate**, with no automatic publication deadline or cancellation penalty. A completed replacement assignment is rated separately from earlier cancelled work.
+- Former accepted helpers retain **My offers → View request** access to their rating history after replacement, closure and poster archiving. Rating history is paginated. Account/focus checks, retained offline star selections and status reconciliation prevent stale actions. Submitting a rating refreshes only reliability summaries, preserving an unfinished **Offer again** message.
+- Migration `20260926085648_cancelled_assignment_ratings.sql` was captured with `supabase db pull`, narrowed to this change, and replayed with all 112 new assertions inside a rollback-only transaction. Local migration history is synchronized. Existing local data fingerprints stayed unchanged.
+
+### Additional API contracts
+
+| Function | Purpose |
+| --- | --- |
+| `cancel_my_accepted_help(p_request_id, p_expected_round)` | Ends only the caller's selected, reserved assignment; exact historical retries cannot affect a later helper |
+| `get_my_request_rating_contexts(p_request_id, p_limit = 20, p_offset = 0)` | Pages the caller's eligible rounds with `outcome` (`completed` or `cancelled`) and blind mutual rating fields |
+| `get_request_offer_page_v4(...)` | Adds `has_assignment_history` for authorized links from My offers |
+
+`submit_request_rating` now accepts a historical released assignment belonging to the caller. The older single-context API keeps its original fields and returns only the current round, never silently substituting a previous helper.
+
+### Validation
+
+- All **770 local SQL assertions** passed, including **112 new cancelled-assignment checks** and updated historical-access regressions.
+- **77 local typed API checks** passed: 42 offer/points and 35 ratings checks, including helper cancellation, replacement safety, paged history, privacy, and token pinning.
+- **13 concurrency cases** passed: eight cancellation/history races and the five existing mutual-rating races. Cancellation versus completion produces one release or one payment, never both.
+- TypeScript, ESLint and Android Hermes export passed. Independent review caught and fixed offer-draft loss during rating refresh. Local advisors reported only the two existing profile-policy performance warnings.
+- Hosted deployment and the replacement Preview APK are being prepared for this checkpoint. Build `5dab754b` does not contain its app changes.
+
+### Cancelled-assignment phone checklist
+
+Use the replacement Preview APK when linked below, or the current development source with local Supabase. A is the poster, B the accepted helper, and C an optional replacement/nonselected helper. Keep each reward within A's available points.
+
+1. **Helper backs out:** A posts a future-dated request, B offers, A accepts. B opens it from My offers and cancels accepted help. The request returns to Open; A's reserved points return to available and B receives no payment. Restart and refresh: one release, no duplicate notifications or transfer.
+2. **Blind cancelled ratings:** A and B can open the cancelled assignment in request details. A rates B; B must not see that score and published counts stay unchanged. B rates A; both scores reveal and each profile gains one received rating. Scores cannot be edited and points do not change.
+3. **Fresh agreement and separate history:** B offers again, or C offers and A accepts. The new assignment stays separate from the old rating pair. A can still see the old assignment; B retains it through My offers. Completing the replacement pays once and creates its own rating opportunity. C cannot rate A/B's earlier assignment.
+4. **Poster cancellation/reopening:** On another accepted request, A cancels or reopens. Both original participants can rate that ended assignment and the reservation releases without payment. Archive a cancelled request and verify B still reaches its ratings. If a helper backs out after the deadline, the request expires rather than inventing a new deadline.
+5. **Ineligible offers and drafts:** An offer withdrawn before acceptance or a never-accepted expired/cancelled request gives no rating action. On a reopened request, B types an Offer again message, then submits a rating for the earlier assignment; the draft must remain. Star selections for older assignments must remain when refreshing current request status.
+6. **Offline recovery:** Select stars for an unrated cancelled assignment, disable Wi-Fi/mobile data, and submit. The selection remains with a connection/status error. Reconnect and refresh rating history before retrying; confirm one immutable score and no point transfer. Also finish standalone test 7 above.
+
 ### Next checkpoints
 
-Run the standalone Preview phone checklist above. Final review, required CI, merge, and documentation closure remain before Task 9 is complete. Creator-managed miniature quests and controlled points rewards remain later work.
+Validate checkpoint 8 on the phone and finish standalone offline test 7. The separate reported password-reset email issue still needs a fresh-link phone retest after its redirect correction. Final review, required CI, merge and documentation closure remain before Task 9 is complete. Creator-managed miniature quests and controlled points rewards remain later work.

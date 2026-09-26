@@ -59,7 +59,7 @@ export default function RatingSummary({ profileId, requestId }: Props) {
         <Ionicons name="star" size={20} color="#9B1C31" />
         <Text style={styles.score}>{Number(visible.average_score).toFixed(1)} / 5 · {visible.rating_count} {visible.rating_count === 1 ? 'rating' : 'ratings'}</Text>
       </View> : <Text style={styles.text}>No published ratings yet.</Text>}
-      <Text style={styles.text}>Only completed requests where both people rated count toward this score.</Text>
+      <Text style={styles.text}>Completed and cancelled accepted assignments count toward this score once both people have rated.</Text>
     </>}
   </View>;
 }

@@ -88,7 +88,7 @@ export default function RequestDetailsScreen() {
   const handleCancel = () => {
     const accepted = request?.status === 'accepted';
     Alert.alert(accepted ? 'Cancel accepted request?' : 'Cancel request?', accepted
-      ? 'This ends the arrangement with your helper and releases reserved points to your available balance. No points will be paid. If the work is finished, use Confirm completion instead.'
+      ? 'This ends the arrangement with your helper and releases reserved points to your available balance. No points will be paid. You can both rate the cancelled assignment. If the work is finished, use Confirm completion instead.'
       : 'It will leave the campus feed and remain in your history.', [
       { text: 'Keep request', style: 'cancel' },
       { text: 'Cancel request', style: 'destructive', onPress: () => { void performOwnerAction('cancel'); } },
@@ -381,8 +381,8 @@ export default function RequestDetailsScreen() {
           </Text>}
           <ReopenRequest key={`reopen:${user?.id}:${request.id}:${request.offerRound ?? 1}`} request={request} disabled={loading || !!ownerAction} onChanged={refresh} />
           {(request.status === 'accepted' || request.status === 'completed') && <RequestCompletion key={`completion:${user?.id}:${request.id}:${request.offerRound ?? 1}`} request={request} disabled={loading || !!ownerAction} onChanged={refresh} />}
-          {request.status === 'completed' && <RequestRating key={`rating:${user?.id}:${request.id}:${request.offerRound ?? 1}`} requestId={request.id} expectedRound={request.offerRound ?? 1} disabled={loading || !!ownerAction} onChanged={async () => { setRatingsRevision(value => value + 1); }} />}
-          <RequestOffers key={`offers:${user?.id}:${requestId}:${request.offerRound ?? 1}:${ratingsRevision}`} request={request} requestId={requestId} onChanged={refresh} />
+          <RequestRating key={`rating:${user?.id}:${request.id}`} requestId={request.id} requestRevision={`${request.offerRound ?? 1}:${request.status}`} disabled={loading || !!ownerAction} onChanged={async () => { setRatingsRevision(value => value + 1); }} />
+          <RequestOffers key={`offers:${user?.id}:${requestId}:${request.offerRound ?? 1}`} request={request} requestId={requestId} ratingsRevision={ratingsRevision} onChanged={refresh} />
         </View>
       </ScrollView>
     </View>
