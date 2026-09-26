@@ -17,6 +17,7 @@ import ScreenHeader from "../../components/ScreenHeader";
 import RequestOffers from "../../components/RequestOffers";
 import ReopenRequest from "../../components/ReopenRequest";
 import RequestCompletion from "../../components/RequestCompletion";
+import RequestRating from "../../components/RequestRating";
 import { useRequests } from "../../context/RequestsContext";
 
 const COLORS = {
@@ -43,6 +44,7 @@ export default function RequestDetailsScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [ownerAction, setOwnerAction] = useState<'cancel' | 'archive' | 'restore' | null>(null);
+  const [ratingsRevision, setRatingsRevision] = useState(0);
   const lock = useRef(false);
   const focused = useRef(false);
   const scope = `${user?.id}:${requestId}`;
@@ -379,7 +381,8 @@ export default function RequestDetailsScreen() {
           </Text>}
           <ReopenRequest key={`reopen:${user?.id}:${request.id}:${request.offerRound ?? 1}`} request={request} disabled={loading || !!ownerAction} onChanged={refresh} />
           {(request.status === 'accepted' || request.status === 'completed') && <RequestCompletion key={`completion:${user?.id}:${request.id}:${request.offerRound ?? 1}`} request={request} disabled={loading || !!ownerAction} onChanged={refresh} />}
-          <RequestOffers key={`offers:${user?.id}:${requestId}:${request.offerRound ?? 1}`} request={request} requestId={requestId} onChanged={refresh} />
+          {request.status === 'completed' && <RequestRating key={`rating:${user?.id}:${request.id}:${request.offerRound ?? 1}`} requestId={request.id} expectedRound={request.offerRound ?? 1} disabled={loading || !!ownerAction} onChanged={async () => { setRatingsRevision(value => value + 1); }} />}
+          <RequestOffers key={`offers:${user?.id}:${requestId}:${request.offerRound ?? 1}:${ratingsRevision}`} request={request} requestId={requestId} onChanged={refresh} />
         </View>
       </ScrollView>
     </View>

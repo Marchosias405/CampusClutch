@@ -2,9 +2,9 @@
 
 CampusClutch is an Expo React Native mobile app for university students to connect through courses, classmates, student profiles, campus help requests, direct messages, group conversations, notifications, and user profiles.
 
-Authentication, user profiles, courses, course memberships, classmates, and campus requests now use persistent Supabase data. Tasks 6–8 have been validated in hosted Development and Preview. Messages and notifications still use mock or local state. Task 9's offers, request history, and reopening passed local Android testing. Checkpoint 4 adds one-time 100-point starting balances, reservations on acceptance, and payment after poster-confirmed completion. Its phone validation and hosted deployment remain pending.
+Authentication, user profiles, courses, course memberships, classmates, and campus requests now use persistent Supabase data. Tasks 6–8 have been validated in hosted Development and Preview. Messages and notifications still use mock or local state. Task 9's offers, request history, reopening, and focused cancellation/archive checks passed local Android testing. Checkpoint 4 adds one-time 100-point starting balances, reservations on acceptance, and payment after poster-confirmed completion. Checkpoint 5 adds mutual reliability ratings locally, revealed only after both participants rate. Ratings phone validation, any remaining checkpoint 4 phone cases, and hosted deployment remain pending.
 
-> **Current status:** Tasks 1–8 are complete and merged. Task 7 merged through [PR #24](https://github.com/Marchosias405/CampusClutch/pull/24) at `13d2202`. Task 8 merged through [PR #25](https://github.com/Marchosias405/CampusClutch/pull/25) at `19f3e61`, after backend validation, all five standalone Preview phone tests, final code review, and passing GitHub CI. Local `main` was synchronized and the Task 8 feature branch deleted locally and remotely. The README closure merged through [PR #26](https://github.com/Marchosias405/CampusClutch/pull/26) at `9a87581`. Task 9—Implement Real Offer Help Workflow—is in progress on `codex/persist-request-offers`. Checkpoints 2 and 3 passed local phone tests, including the request-details React key correction. Checkpoint 4 points and completion are implemented locally for the next phone test; mutual ratings and creator-made quests remain later work.
+> **Current status:** Tasks 1–8 are complete and merged. Task 7 merged through [PR #24](https://github.com/Marchosias405/CampusClutch/pull/24) at `13d2202`. Task 8 merged through [PR #25](https://github.com/Marchosias405/CampusClutch/pull/25) at `19f3e61`, after backend validation, all five standalone Preview phone tests, final code review, and passing GitHub CI. Local `main` was synchronized and the Task 8 feature branch deleted locally and remotely. The README closure merged through [PR #26](https://github.com/Marchosias405/CampusClutch/pull/26) at `9a87581`. Task 9—Implement Real Offer Help Workflow—is in progress on `codex/persist-request-offers`. Checkpoints 2 and 3 and the focused cancellation/archive retest passed local phone tests. Checkpoint 5 mutual ratings are implemented and automatically tested locally, ready for phone validation. Remaining checkpoint 4 phone cases and hosted/Preview release validation still need confirmation; creator-made quests remain later work.
 
 ---
 
@@ -113,7 +113,7 @@ Current roadmap position:
 Task 6 — Complete and merged (PR #22, 870b6a7)
 Task 7 — Complete and merged (PR #24, 13d2202)
 Task 8 — Complete and merged (PR #25, 19f3e61)
-Task 9 — In progress; checkpoints 2–3 phone tests passed, checkpoint 4 points/completion awaiting phone tests
+Task 9 — In progress; checkpoint 5 mutual ratings ready for phone tests, hosted/Preview validation pending
 ```
 
 Task 8 completion record:
@@ -138,9 +138,9 @@ This means:
 
 - Requests persist in the selected backend environment; local, hosted Development, and hosted Preview accounts/data are separate.
 - Locally sent messages reset when the conversation is reopened or the app reloads.
-- Task 9 offers, My requests/My offers history, and reopening passed local phone testing. Checkpoint 4 adds real points and poster-confirmed completion locally; its phone tests and hosted deployment remain pending. The installed standalone Preview APK still has Task 8 behavior.
+- Task 9 offers, My requests/My offers history, reopening, and the focused cancellation/archive retest passed local phone testing. Checkpoints 4–5 add real points, poster-confirmed completion, and mutual ratings locally; ratings and remaining points phone checks plus hosted deployment remain pending. The installed standalone Preview APK still has Task 8 behavior.
 - Every existing and new local account receives 100 welcome points once. Accepting reserves the poster's available points; reopening releases them; only poster-confirmed completion transfers them to the helper. Old acceptances without a reservation must be reopened and accepted again with fresh helper consent.
-- Mutual completed-request ratings and creator-made quests for earning extra points are planned later. No quest or arbitrary client points-grant action is implemented.
+- Mutual completed-request ratings are implemented locally. Only the poster and final paid helper can each submit one immutable 1–5-star rating; scores and profile averages reveal the pair only after both rate, with no automatic publication deadline. Creator-made quests for earning extra points remain later work. No quest or arbitrary client points-grant action is implemented.
 - Course membership persists; current/previous courses derive from membership and academic-term state.
 - Classmates load from real course membership with backend visibility rules.
 - Legacy classmate profile IDs such as `aisha-r`, `jordan-t`, and `mei-l` remain explicitly supported by the student-profile screen.
@@ -405,9 +405,11 @@ CampusClutch/
 │   │   └── images/
 │   ├── components/
 │   │   ├── PointsBalance.tsx
+│   │   ├── RatingSummary.tsx
 │   │   ├── ReopenRequest.tsx
 │   │   ├── RequestCompletion.tsx
-│   │   └── RequestOffers.tsx
+│   │   ├── RequestOffers.tsx
+│   │   └── RequestRating.tsx
 │   ├── constants/
 │   │   └── mockData.ts
 │   ├── context/
@@ -421,6 +423,7 @@ CampusClutch/
 │   │   ├── crypto.native.ts
 │   │   ├── offers.ts
 │   │   ├── points.ts
+│   │   ├── ratings.ts
 │   │   ├── requests.ts
 │   │   ├── env.ts
 │   │   ├── profiles.ts
@@ -1138,7 +1141,7 @@ Completed behavior:
 
 Known limitation:
 
-- This Task 8 section records the request-persistence baseline. Task 9 now connects real offers, reopening, points, and poster-confirmed completion locally; mutual ratings remain planned. The previous simulated Offer Sent confirmation remains removed.
+- This Task 8 section records the request-persistence baseline. Task 9 now connects real offers, reopening, points, poster-confirmed completion, and mutual ratings locally. Ratings are available only after completed, paid work and await phone validation. The previous simulated Offer Sent confirmation remains removed.
 
 ---
 
@@ -1566,7 +1569,7 @@ This closes the Requests offline/retry test that was previously deferred during 
 
 # Task 9 — Implement Real Offer Help Workflow
 
-**Status: In progress — checkpoints 2–3 phone tests passed; checkpoint 4 points and completion ready for local phone testing**
+**Status: In progress — checkpoint 5 mutual ratings implemented locally and ready for phone testing; hosted/Preview validation pending**
 
 Requests persistence and README closure are merged. Work is on `codex/persist-request-offers`, created from `main` at `9a87581`.
 
@@ -1612,14 +1615,23 @@ Checkpoint 4 implemented locally on September 24, 2026:
 - Phone testing found that an account with 110 points could post a 111-point request because affordability was only checked at acceptance. The September 25 follow-up adds posting/editing limits in the app and database (`20260925085239_limit_request_points_to_balance.sql`, local only). All 388 database assertions, 22 request API checks, 28 offer/points API checks, five points concurrency cases, lint/typecheck, Android export, and the exact follow-up migration replay passed. Phone retesting is next.
 - A second phone finding exposed an unfair reward change: the poster could change points after a helper offered and then accept that old offer. Migration `20260925165806_require_helper_reward_consent.sql` now starts a fresh offer round whenever points change and closes pending offers. Each helper must explicitly confirm the current amount before acceptance. First offers, renewed offers, and acceptance check the displayed round and amount under the request lock, including stale screens and changes back to the original price. Edits that keep the same points preserve offers.
 - Existing open pending offers require confirmation once because their original agreed amount was not recorded. Accepted/completed requests and balances are preserved. The app shows **Confirmation needed**, the current points, and a confirmation prompt. This correction is local only; reload the development app before testing.
-- The reward-consent correction passed all 442 SQL assertions, 36 offer/points API checks, 22 request API checks, 17 concurrency cases, lint/typecheck, and Android export. Exact migration replay passed all 50 new assertions plus legacy-data preservation checks, with matching fingerprints for 13 data tables after rollback. The two-account phone retest below is the next checkpoint.
+- The reward-consent correction passed all 442 SQL assertions, 36 offer/points API checks, 22 request API checks, 17 concurrency cases, lint/typecheck, and Android export. Exact migration replay passed all 50 new assertions plus legacy-data preservation checks, with matching fingerprints for 13 data tables after rollback. Its two-account phone retest remains part of the outstanding checkpoint 4 validation.
 - The next local correction limits each poster to **three active requests across all categories**. Open requests with a future deadline and all accepted requests count; completed, cancelled, expired, and overdue open requests do not. Accepting a helper keeps the slot until the work is completed or reopened and cancelled. Helping on someone else's request does not use a posting slot.
 - Migration `20260926000632_limit_active_requests.sql` enforces the cap under the same wallet lock used by posting and points operations. Concurrent posts and reactivation cannot bypass it. Existing requests are preserved, including accounts already above the cap; they can edit or close those requests but must get below three before posting again. The form explains the rule and retains entered values when a capped save fails.
 - Phone testing of reward confirmation and the active-request cap is deferred until the user's phone is available. Both changes are local; no new Preview APK or hosted deployment is included.
 - The active-request cap passed all 490 SQL assertions, 61 combined request/offer API checks, 23 concurrency cases, lint/typecheck, and Android export. Exact migration replay passed all 47 new cap assertions with unchanged fingerprints for 13 existing data tables. Existing requests and balances were preserved.
 - A later phone finding exposed missing cancellation for accepted requests and no way to remove expired requests from the main list. Owners can now cancel accepted work to release reserved points without payment, and archive/restore closed requests through My requests → Archived. History is preserved for both participants; active requests cannot be archived. On September 25, the user passed the focused phone retest: accepted cancellation returns points and frees a slot, expired-request archiving survives restart, and restoring keeps the request expired. The broader [cancellation/archive checklist](docs/task-9-offers.md#cancellation-and-archive-phone-checklist) remains available for regression testing.
 
-The cancellation/archive fix has passed its focused phone checkpoint. Mutual ratings are the next implementation checkpoint; any remaining checkpoint 4 phone cases still need confirmation before hosted validation. Hosted deployment, Preview testing, final review, CI, and merge are still pending. Task 9 is not complete or merged; no new APK is required for this local source update.
+Checkpoint 5 implemented locally on September 26, 2026:
+
+- The poster and the final selected helper can each rate the other from **1 to 5 stars** after the poster confirms completion and the points transfer settles. Open, accepted, cancelled, expired, unpaid, and unrelated requests cannot be rated.
+- The user chose publication **after both people rate**. A saved rating is visible to its author only until the second participant submits; neither the other score nor a changed public average can reveal it early. There is no automatic publication deadline. Each participant's rating is final after confirmation; retrying the same score does not create another rating.
+- Completed request details expose the rating action to eligible participants. The selected helper opens those details through **My offers → View request**, retaining access after completion and owner archiving. Profile, real student-profile, and authorized offer-related helper/poster summaries show the average and count of published ratings, or **No published ratings yet**. Hidden-profile access remains limited to authorized contexts.
+- Ratings preserve the existing points settlement: submitting, refreshing, or archiving never creates another payment or changes balances. Archiving completed work preserves its ratings and participant history.
+- Account-scoped calls pin the checked token. Failed/offline submissions keep the selected stars and require a status refresh before retrying, so a saved rating with a lost response can be reconciled.
+- Migration `20260926071307_completed_request_ratings.sql` is applied locally. All **657 SQL assertions** passed: 577 existing regressions and 80 new ratings checks. **105 typed API checks** passed: 36 request, 42 offer/points, and 27 ratings checks. Five ratings concurrency cases, lint/typecheck, and Android Hermes export passed. Exact migration replay passed all 80 ratings assertions inside a rollback-only transaction; nine existing data-table fingerprints were unchanged across application, testing, and replay. Local advisors report only the two existing profile-policy performance warnings.
+
+The cancellation/archive fix has passed its focused phone checkpoint. Checkpoint 5 ratings now need the [mutual-ratings phone checklist](docs/task-9-offers.md#checkpoint-5-phone-checklist); any remaining checkpoint 4 phone cases still need confirmation before hosted validation. Hosted deployment, Preview testing, final review, CI, and merge are still pending. Task 9 is not complete or merged; no new APK is required for this local source update.
 
 Detailed contract and validation: [Task 9 checkpoint](docs/task-9-offers.md).
 
@@ -1641,12 +1653,13 @@ Requirements:
 - Allow the poster to reopen selection with a new deadline, ending old acceptance and requiring fresh helper consent.
 - Require helpers to confirm any changed reward before their offer can be accepted.
 - Limit each poster to three active requests across categories, with completed/cancelled/expired work freeing slots.
+- Permit one immutable rating per participant after final completion/payment, publishing the pair and reliability averages only after both submit.
 
-Next planned checkpoints requested during phone review:
+Next validation checkpoints and later work:
 
 - Validate checkpoint 4's 100-point starting balances, reservations, transfers, and offline recovery on Android.
 - Retest reward changes with two accounts: old offers must become unavailable for acceptance until each helper confirms the new amount; stale confirmation screens must fail safely.
-- Allow both participants to rate each other after completion, with backend checks for participation and duplicate ratings.
+- Validate checkpoint 5's mutual ratings on Android: private first submission, publication after the second, unchanged payments, restart/archive persistence, participant permissions, and offline recovery.
 - Add creator-managed miniature quests for earning extra points later, with controlled rewards and protection against duplicate claims. This checkpoint adds no quest administration or reward-claim feature.
 
 Completion condition:
@@ -1654,6 +1667,8 @@ Completion condition:
 - Offer state persists.
 - Unauthorized management is blocked.
 - Duplicate offers are prevented.
+- Completed paid requests allow ratings only from their final participants, with no score disclosure until both submit.
+- Local phone validation, hosted migration validation, standalone Preview testing, final review, and required CI pass before merge.
 
 ---
 
@@ -1846,7 +1861,7 @@ Possible work:
 - Task 6 pull request: #22 merged into `main` at merge commit `870b6a7`
 - Courses/Classmates persistence: Task 7 complete, PR #24 (`13d2202`)
 - Requests persistence: Task 8 complete, PR #25 (`19f3e61`)
-- Offer Help persistence: Task 9 checkpoints 2–3 Android tests passed; checkpoint 4 points/completion phone tests and hosted validation pending
+- Offer Help persistence: Task 9 checkpoints 2–3 and focused cancellation/archive Android tests passed; checkpoint 5 ratings phone tests, remaining checkpoint 4 cases, and hosted validation pending
 - Messaging persistence: Task 10
 - Production Android build: Not started
 - Production iOS build: Not started
@@ -1863,7 +1878,7 @@ CampusClutch still needs:
 
 - Hosted deployment and final validation of real request offers
 - Phone/hosted validation of poster-confirmed completion and points reservations/transfers
-- Mutual completed-request ratings and later creator-managed quests
+- Phone/hosted validation of mutual completed-request ratings; creator-managed quests remain later work
 - Persistent conversations and messages
 - Real notifications
 - Broader component/end-to-end tests and backend test execution in CI
@@ -1882,20 +1897,20 @@ CampusClutch still needs:
 
 # Next Action
 
-Test Task 9 checkpoint 4 on Android using the existing development build and local Supabase:
+Test Task 9 checkpoint 5 mutual ratings on Android using the existing development build and local Supabase:
 
 ```text
 codex/persist-request-offers
 ```
 
-Follow the setup, [checkpoint 4 phone checklist](docs/task-9-offers.md#checkpoint-4-phone-checklist), [reward-consent phone retest](docs/task-9-offers.md#reward-consent-phone-retest), [active-request limit checklist](docs/task-9-offers.md#active-request-limit-phone-checklist), and [cancellation/archive phone retest](docs/task-9-offers.md#cancellation-and-archive-phone-checklist). Reload Metro for the new source; no new APK is needed.
+Follow the setup and [checkpoint 5 phone checklist](docs/task-9-offers.md#checkpoint-5-phone-checklist). Also confirm any remaining [checkpoint 4 phone cases](docs/task-9-offers.md#checkpoint-4-phone-checklist), [reward-consent retest](docs/task-9-offers.md#reward-consent-phone-retest), and [active-request limit cases](docs/task-9-offers.md#active-request-limit-phone-checklist). The focused [cancellation/archive retest](docs/task-9-offers.md#cancellation-and-archive-phone-checklist) has passed. Reload Metro for the new source; no new APK is needed.
 
-1. Verify 100 welcome points per account and no extra grant after restart or sign-in.
-2. Accept a 30-point request: the poster has 70 available and 30 reserved; the helper is not paid yet.
-3. Reopen to release the reservation, then accept a fresh offer. Test the posting/editing balance limit, insufficient funds at acceptance, and cancelling confirmation.
-4. Confirm completion as the poster: exactly 30 points transfer, and both balances/history persist after reload. The helper cannot confirm completion.
-5. Test offline recovery by removing only USB forwarding for port 54321, then restore and refresh before retrying; no duplicate payment should appear.
-6. After this checkpoint passes, implement mutual ratings as a separately tested stage. Creator-made quests remain later work.
+1. Complete a request as poster A with selected helper B; confirm points transfer once and ratings were unavailable while merely accepted.
+2. A gives B 5 stars. A can see that saved score; B cannot see it and published averages/counts remain unchanged.
+3. B gives A 4 stars. Both scores now become visible and each participant's published rating count increases by one.
+4. Restart, revisit, and archive/restore the request. Scores stay final, history persists, and rating actions do not change points. A nonselected helper or unrelated account cannot rate it.
+5. Test an offline submission on a separate completed request by removing only USB forwarding for port 54321. Keep the selected stars; restore forwarding and refresh first, then retry only if no rating was saved.
+6. Confirm any remaining checkpoint 4 phone tests. Creator-made quests remain later work.
 7. Complete hosted validation, a new Preview APK, Preview tests, CI, review, merge, and documentation before Task 10.
 
 No new Preview APK has been built, and no Task 9 migration has been applied to hosted Development or Preview. The installed Task 8 Preview app does not include this local checkpoint.

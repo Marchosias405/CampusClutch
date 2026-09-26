@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { useRequests } from '../context/RequestsContext';
 import { decideOffer, loadOfferPage, offerError, renewOffer, submitOffer, type OfferAction, type RequestOffer } from '../lib/offers';
 import type { CampusRequest } from '../types';
+import RatingSummary from './RatingSummary';
 
 type Props = { request?: CampusRequest; requestId?: string; onChanged?: () => Promise<void> };
 type OfferTerms = { round: number; points: number };
@@ -127,11 +128,15 @@ export default function RequestOffers({ request, requestId, onChanged }: Props) 
     {!!notice && <Text accessibilityRole="alert" style={styles.text}>{notice}</Text>}
     {!!error && <Text accessibilityRole="alert" style={styles.error}>{error}</Text>}
     {saving && <Text accessibilityRole="alert" style={styles.text}>Saving…</Text>}
+    {!owner && request?.ownerId && visible.length > 0 && <View style={styles.card}>
+      <Text style={styles.title}>Request poster</Text>
+      <RatingSummary profileId={request.ownerId} requestId={request.id} />
+    </View>}
     {!loading && !error && !visible.length && <Text style={styles.text}>{owner ? 'No offers yet.' : requestId ? 'You have not offered help for this request.' : 'Your offers will appear here, including accepted and closed requests.'}</Text>}
     {requestId && request && !owner && visible.length === 0 && <View style={styles.card}>
       {canOffer ? <>
         <Text style={styles.label}>Current reward: {request.points} points</Text>
-        <Text style={styles.text}>Offer to help with this request. The owner will see your name, major, year and campus, even if your profile is hidden from discovery.</Text>
+        <Text style={styles.text}>Offer to help with this request. The owner will see your name, major, year, campus and published reliability rating, even if your profile is hidden from discovery.</Text>
         <Text style={styles.label}>Message (optional)</Text>
         <TextInput accessibilityLabel="Optional offer message" style={styles.input} multiline maxLength={1000} value={message} editable={!saving} onChangeText={setMessage} placeholder="Let the owner know how you can help" textAlignVertical="top" />
         <Text style={styles.text}>{message.length}/1000</Text>
@@ -150,6 +155,7 @@ export default function RequestOffers({ request, requestId, onChanged }: Props) 
         {!currentRound && <Text style={styles.text}>The poster changed the reward or reopened this request. This earlier offer is closed; the helper must confirm the current reward to be considered again.</Text>}
         {!open && <Text style={styles.text}>Request {offer.request_status === 'open' ? 'expired' : offer.request_status}.</Text>}
         {owner && <Text style={styles.text}>{[offer.helper_major, offer.helper_year ? `Year ${offer.helper_year}` : null, offer.helper_campus].filter(Boolean).join(' • ')}</Text>}
+        {owner && <RatingSummary profileId={offer.offering_user_id} requestId={offer.request_id} />}
         {!!offer.message && <Text style={styles.text}>{offer.message}</Text>}
         <Text style={styles.text}>First offered {new Date(offer.created_at).toLocaleString()}</Text>
         {owner && offer.status === 'pending' && open && currentRound && <>
@@ -163,7 +169,7 @@ export default function RequestOffers({ request, requestId, onChanged }: Props) 
           <Pressable accessibilityRole="button" disabled={!ready} style={[styles.primary, !ready && styles.disabled]} onPress={() => confirmOffer(offer)}><Text style={styles.primaryText}>Offer again</Text></Pressable>
         </>}
         {!requestId && (open || offer.status === 'accepted') && <Pressable accessibilityRole="button" style={styles.secondary} onPress={() => router.push({ pathname: '/requests/[id]', params: { id: offer.request_id } })}><Text style={styles.secondaryText}>View request</Text></Pressable>}
-        {offer.status === 'accepted' && <Text style={styles.text}>Help confirmed. Find this request in My offers as the helper, or My requests as the poster.</Text>}
+        {offer.status === 'accepted' && <Text style={styles.text}>{offer.request_status === 'completed' ? 'Request completed. Open its details to rate the other participant.' : 'Help confirmed. Find this request in My offers as the helper, or My requests as the poster.'}</Text>}
       </View>;
     })}
     {hasMore && <Pressable accessibilityRole="button" disabled={loading || saving} style={styles.secondary} onPress={() => { void fetchPage(true); }}><Text style={styles.secondaryText}>Load more offers</Text></Pressable>}

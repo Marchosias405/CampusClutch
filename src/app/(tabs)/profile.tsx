@@ -15,6 +15,7 @@ import {
 } from "react-native";
 import ScreenHeader from "../../components/ScreenHeader";
 import PointsBalance from "../../components/PointsBalance";
+import RatingSummary from "../../components/RatingSummary";
 
 const COLORS = {
   primary: "#9B1C31",
@@ -154,6 +155,7 @@ export default function ProfileScreen() {
           </View>
 
           <PointsBalance key={user?.id} />
+          {user && <RatingSummary key={user.id} profileId={user.id} />}
 
           {signOutError ? (
             <Text style={styles.signOutError}>{signOutError}</Text>

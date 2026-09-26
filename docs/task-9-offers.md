@@ -1,5 +1,7 @@
 # Task 9 — Request Offers
 
+**Current status (September 26, 2026):** Checkpoint 5 mutual ratings are implemented and automatically tested locally, ready for Android phone validation. Checkpoints 2–3 and the focused cancellation/archive retest passed phone testing. Any remaining checkpoint 4 phone cases, hosted deployment, standalone Preview validation, final review, CI, and merge remain pending. Task 9 is **not complete**. Earlier sections below retain the results and scope of each historical checkpoint.
+
 ## Checkpoint 1: local backend (2026-09-11, America/Vancouver)
 
 Branch: `codex/persist-request-offers`, based on `9a87581` after README PR #26 merged.
@@ -64,7 +66,7 @@ There is no new phone test to run for checkpoint 1: the app has not been connect
 
 Implemented on the same Task 9 branch. Migration `20260912071410_offer_review_pages.sql` is applied locally; both hosted projects remain unchanged.
 
-The user reported the checkpoint 2 phone tests passed on September 15, 2026. Their feedback identified two follow-ups: make accepted requests easier to find and allow the poster to reopen selection when they change their mind. Checkpoint 3 below addresses those follow-ups. Checkpoint 4 adds points and poster-confirmed completion; mutual ratings remain later work.
+The user reported the checkpoint 2 phone tests passed on September 15, 2026. Their feedback identified two follow-ups: make accepted requests easier to find and allow the poster to reopen selection when they change their mind. Checkpoint 3 below addresses those follow-ups. Checkpoint 4 adds points and poster-confirmed completion; checkpoint 5 adds mutual ratings.
 
 - Request details include Offer Help, optional message, existing offer status, withdrawal, and owner accept/decline confirmations.
 - Requests links to **My offers**, which keeps accepted/closed history reachable after restart. Accepted helpers can open the request details from that history.
@@ -245,7 +247,7 @@ Phone testing found that a poster could change the points after a helper offered
 - `get_request_offer_page_v3` returns offer state, request round, and `request_points` together. Renewal and acceptance use that same row's amount in both the confirmation and request. A reward edit while a confirmation dialog is open cannot silently change the agreed amount.
 - The migration requires fresh confirmation once for existing open pending offers, whose original agreed amounts were not recorded. It locks and rechecks each parent before retiring those offers. One existing local open request needed this transition. It does not change accepted/completed work, wallets, reservations, or payment entries.
 - A stale reopen retry must also match the saved deadline before returning success; a reward edit must not make an unapplied deadline change look successful.
-- The correction is applied locally only. Mutual ratings, quests, hosted deployment, and a new Preview APK remain later checkpoints.
+- The correction is applied locally only. Mutual ratings follow in checkpoint 5 below. Quests, hosted deployment, and a new Preview APK were outside this correction's scope.
 
 Validation:
 
@@ -326,6 +328,62 @@ Reload the existing development app with local Supabase running; no new APK is n
 
 These changes are local only. Hosted deployment and a new Preview APK remain pending.
 
+## Checkpoint 5: mutual reliability ratings (2026-09-26, America/Vancouver)
+
+Status: implemented and automatically tested locally; phone validation is next. The user chose **reveal both scores only after both people rate**, with no automatic publication deadline. This checkpoint does not change the 100-point welcome grant, reservations, completion payment, or archive behavior. Hosted databases and the standalone Preview APK remain unchanged.
+
+### Ratings policy and app behavior
+
+- Only the poster and final selected helper of a completed request with a settled points reservation can rate one another. The backend derives the other participant; the caller cannot choose an arbitrary recipient. Merely accepted, cancelled, expired, unpaid, or unrelated work cannot be rated. Nonselected helpers retain their offer history but gain no rating permission.
+- Each participant submits one whole-number score from **1 to 5 stars**. The confirmation explains that the score cannot be changed. An exact retry returns the saved result without adding a second rating; a different-score retry is rejected. Completed work from before this checkpoint is eligible only if it has the required final settled reservation.
+- The author can see their own saved score while waiting. The other participant cannot see that score, and it does not affect profile averages or counts until both ratings exist. The second submission publishes both scores together. If only one person ever rates, that score stays private indefinitely.
+- Completed request details provide the rating panel. The selected helper opens those details through **My offers → View request**; their accepted offer retains detail access after completion and owner archiving. Ineligible accounts receive no rating panel.
+- Profile, real UUID student profiles, and authorized offer-related helper/poster summaries show the average and count of **published** ratings, with **No published ratings yet** as the empty state. Posters can review a helper's summary on the offer card, and helpers who have offered can see the poster's summary in that request context. Summary access respects discoverability and the explicit request relationship; a hidden profile is not made generally discoverable by having ratings.
+- Ratings never grant, release, or transfer points. Completion still pays exactly once before rating becomes available. Archiving or restoring completed work preserves its ratings and the helper's history; it does not reopen the request or change the payment.
+- The app pins the checked account's session token and discards stale responses after account, request, or focus changes. Offline failures retain the chosen stars. Refresh rating status after reconnecting before retrying, because the server may have saved a rating even if its response was lost. Profile summaries refresh on focus, and rating status has an explicit refresh/retry control.
+
+### Ratings backend contract
+
+Migration `20260926071307_completed_request_ratings.sql` is applied locally and matches local migration history. The CLI capture was narrowed to the exact reviewed ratings SQL and explicit grants, excluding known unrelated course/check-details function drift.
+
+| Function | Purpose |
+| --- | --- |
+| `get_request_rating_context(p_request_id)` | Returns eligible participant context, the caller's own saved score, and the received score only after publication; returns no context for ineligible callers |
+| `submit_request_rating(p_request_id, p_expected_round, p_score)` | Validates the final completed round and settled participants, saves one immutable score, and publishes the pair when both have rated |
+| `get_profile_rating_summary(p_profile_id, p_request_id = null)` | Returns only published average/count, with optional authorized request context for private helper profiles |
+
+Client calls cannot write rating rows directly or select unrevealed scores. Submission checks participation and settlement under the request lock, so retries and simultaneous ratings cannot create duplicates or expose a half-published pair.
+
+### Ratings validation
+
+- All **657 SQL assertions** passed: **577 existing regressions** and **80 new ratings assertions**. The ratings suite covers eligibility, final-round consent, score validation, own-only pending visibility, publication and aggregate privacy, immutable retries, private-profile access, direct-write denial, archive/history preservation, and unchanged points.
+- **105 typed service/API checks** passed through local Auth and PostgREST: 36 request, 42 offer/points, and 27 ratings checks.
+- **Five ratings concurrency cases** passed: exact retries, conflicting scores from the same account, simultaneous mutual submissions, archive versus the final rating, and completion versus rating. Temporary fixtures were removed.
+- ESLint, TypeScript, and Android Hermes export passed. Local advisors reported only the two existing profile-policy performance warnings; no new ratings warning was reported.
+- Exact captured migration replay passed all **80 ratings assertions** inside a rollback-only transaction. Fingerprints for nine existing data tables matched across application, testing, and replay. The CLI's known telemetry shutdown timeout followed successful capture/history operations; the saved file and migration history were verified separately.
+
+Repeatable local checks include `supabase/tests/request_ratings.test.sql`, `python scripts/test-request-ratings-concurrency.py`, and `npm run check`, alongside the existing Task 9 regression suites.
+
+### Checkpoint 5 phone checklist
+
+Use the existing development APK, local accounts A (poster) and B (selected helper), and optional C (nonselected helper). Record each account's points and published rating count before starting. Choose a reward within A's available balance and leave room under the three-active-request cap. **No new APK is required**; reload the development source with Docker running and the phone connected by USB:
+
+```powershell
+Set-Location D:\Projects\CampusClutch
+adb devices
+adb reverse tcp:8081 tcp:8081
+adb reverse tcp:54321 tcp:54321
+npx expo start --dev-client --localhost
+```
+
+1. **Completion required:** A posts a new request, B offers, and A accepts. Neither participant should be able to submit a rating while the request is only Accepted. As A, confirm completion; verify the agreed points move from A to B exactly once. B must not have the poster's completion control.
+2. **First rating stays private:** As A, select **5 stars** for B. Cancel the confirmation first and verify nothing was saved; then submit. A should see their saved 5-star rating and a waiting message. Revisit Profile and note that published counts and averages have not changed yet.
+3. **No early disclosure to B:** Switch to B and open the completed request from My offers. B must not see A's score before submitting, and either profile's published rating count/average must still match the starting value. B can choose their own score independently.
+4. **Second rating publishes both:** B gives A **4 stars**. Refresh both accounts' rating panels: A sees their 5-star score and B's 4-star score; B sees their 4-star score and A's 5-star score. Each profile's published rating count increases by one. If this is the first published pair, A's average is 4.0 and B's is 5.0; otherwise each average includes the new score with the earlier ratings. Check an authorized helper-offer summary when available.
+5. **Final scores, restart, and archive:** Neither account can edit or submit another score for that completed request. Restart and sign back in; both scores and summaries persist. A archives the request, then opens it from Archived and restores it: ratings and the completed status remain unchanged. B's history remains available. Points and payment entries must stay exactly as they were after step 1.
+6. **Participant permissions:** C, if they offered but were not selected, cannot rate this request. An unrelated account also has no rating action. Cancelled/expired requests must not gain rating controls. Check both public and hidden-profile cases without exposing an unrelated hidden student's profile.
+7. **Offline selection and safe retry:** On a separate completed, paid request with no rating from the current account, select stars. Keep Metro/USB connected and run `adb reverse --remove tcp:54321` in another terminal. Submit and confirm; expect a connection/status error with the selection retained. Restore `adb reverse tcp:54321 tcp:54321` and choose **Retry rating status**. If the rating already saved, do not resubmit; otherwise submit the retained selection once. Confirm one saved rating and no point change.
+
 ### Next checkpoints
 
-The cancellation/archive phone checkpoint has passed. Next, implement mutual ratings for completed requests, restricted to the poster and selected helper with duplicate-rating protection. Creator-managed miniature quests and controlled points rewards are later work. Confirm any remaining checkpoint 4 phone cases before hosted validation. Hosted deployment, a new Preview APK, Preview validation, CI, review, merge, and documentation closure remain before Task 9 is complete.
+Run the checkpoint 5 phone checklist and confirm any remaining checkpoint 4 phone cases before hosted validation. The focused cancellation/archive phone checkpoint has already passed. Creator-managed miniature quests and controlled points rewards remain later work. Hosted deployment, a new Preview APK, Preview validation, CI, review, merge, and documentation closure remain before Task 9 is complete.
