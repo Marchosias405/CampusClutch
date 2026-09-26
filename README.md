@@ -2,9 +2,9 @@
 
 CampusClutch is an Expo React Native mobile app for university students to connect through courses, classmates, student profiles, campus help requests, direct messages, group conversations, notifications, and user profiles.
 
-Authentication, user profiles, courses, course memberships, classmates, campus requests, offers, points and reliability ratings now use persistent Supabase data. Task 9 local and hosted validation passed, including offers, history, reopening, points transfers, changed-reward confirmation, the three-active-request cap, cancellation/archive and mutual ratings. All ten Task 9 migrations are deployed in hosted Development and Preview; 770 SQL assertions passed in each. The user confirmed all standalone and cancelled-assignment phone tests passed on September 26, including offline refresh/save and the fresh password-reset link. Ratings reveal only after both participants submit. Task 9 is complete and merged through [PR #27](https://github.com/Marchosias405/CampusClutch/pull/27) at `2b3c081`. Task 10 is in progress: its secure direct-messaging database and typed API passed local validation; the app screens still use sample conversations until the next checkpoint.
+Authentication, user profiles, courses, course memberships, classmates, campus requests, offers, points and reliability ratings now use persistent Supabase data. Task 9 local and hosted validation passed, including offers, history, reopening, points transfers, changed-reward confirmation, the three-active-request cap, cancellation/archive and mutual ratings. All ten Task 9 migrations are deployed in hosted Development and Preview; 770 SQL assertions passed in each. The user confirmed all standalone and cancelled-assignment phone tests passed on September 26, including offline refresh/save and the fresh password-reset link. Ratings reveal only after both participants submit. Task 9 is complete and merged through [PR #27](https://github.com/Marchosias405/CampusClutch/pull/27) at `2b3c081`. Task 10 is in progress: its secure direct-messaging backend and app integration passed local automated validation. Checkpoint 2 is ready for phone testing; hosted environments and the standalone Preview APK are unchanged.
 
-> **Current status:** Tasks 1–9 are complete and merged. Task 7 merged through [PR #24](https://github.com/Marchosias405/CampusClutch/pull/24) at `13d2202`. Task 8 merged through [PR #25](https://github.com/Marchosias405/CampusClutch/pull/25) at `19f3e61`, followed by its README closure in [PR #26](https://github.com/Marchosias405/CampusClutch/pull/26) at `9a87581`. Task 9—Implement Real Offer Help Workflow—merged through [PR #27](https://github.com/Marchosias405/CampusClutch/pull/27) at `2b3c081` on September 26, after final review and passing GitHub CI. All ten migrations are deployed in Development and Preview, with 770 SQL assertions passing in each and all phone gates confirmed. Task 10—Persist Conversations and Messages—started on `codex/persist-messages` from synchronized `main` at `0ae8af1`. Its first checkpoint completed locally: 942 SQL assertions, 10 messaging concurrency cases, 21 live API checks and 15 client contract groups passed, with existing data preserved. App integration, groups, hosted rollout and phone testing remain. The next APK must also include the final Task 9 navigation correction, newer than phone-tested Preview `016bd2fd`. Creator-made quests remain later work.
+> **Current status:** Tasks 1–9 are complete and merged. Task 9 merged through [PR #27](https://github.com/Marchosias405/CampusClutch/pull/27) at `2b3c081`, followed by documentation closure in [PR #28](https://github.com/Marchosias405/CampusClutch/pull/28) at `0ae8af1`. Task 10 is in progress on `codex/persist-messages`: checkpoint 1 established secure direct-message persistence, and checkpoint 2 connects the inbox, threads, real profiles and accepted-assignment history. Local automated checks and Android bundle export passed; phone validation is the current gate. Groups, realtime, hosted rollout and a new Preview APK remain later work. Phone-tested Preview `016bd2fd` is unchanged; the next Preview build must also include the final Task 9 navigation correction. Creator-made quests remain later work.
 
 ---
 
@@ -121,7 +121,7 @@ Task 6 — Complete and merged (PR #22, 870b6a7)
 Task 7 — Complete and merged (PR #24, 13d2202)
 Task 8 — Complete and merged (PR #25, 19f3e61)
 Task 9 — Complete and merged (PR #27, 2b3c081)
-Task 10 — In progress: local direct-messaging foundation complete; screens next
+Task 10 — In progress: direct messaging connected locally; checkpoint 2 phone tests pending
 ```
 
 Task 8 completion record:
@@ -154,7 +154,15 @@ Task 10 checkpoint 1 record:
 - Sends support duplicate-safe retries and exact sequence cursors; the typed client suppresses results after an account change.
 - Migration `20260926182818_persist_direct_messages.sql` passed clean recreation and local history verification. All 20 existing application-table fingerprints stayed unchanged.
 - Backend/API validation passed; existing app screens and hosted environments are unchanged. There is no new phone test or APK for this checkpoint.
-- Next: connect the inbox, threads, real student profiles and assignment history to the validated API.
+- That backend checkpoint was saved at `2820f1f`; checkpoint 2 now connects its API to the app.
+
+Task 10 checkpoint 2 record:
+
+- The inbox and threads now use real conversations, messages, timestamps and unread counts, with All/Unread views, search, pagination and explicit/focus/foreground refresh.
+- Real student profiles and current/historical accepted assignments open authorized chats. Original helpers retain their history; replacement helpers get separate conversations.
+- Drafts and uncertain sends persist per backend/account/conversation, retaining the same retry identity without duplicate sends.
+- 50 inbox/thread/entry/assignment-client regression groups, 15 existing messaging client checks, nine offer lifecycle checks and 23 live API checks passed. Lint/typecheck and an Android Hermes bundle export passed.
+- Local phone testing is the next gate. Groups, realtime, hosted rollout and a new Preview APK are later checkpoints.
 
 Detailed contract and repeatable checks: [Task 10 checkpoint](docs/task-10-messages.md).
 
@@ -167,7 +175,7 @@ CampusClutch has persistent authentication, profiles, courses, memberships, requ
 This means:
 
 - Requests persist in the selected backend environment; local, hosted Development, and hosted Preview accounts/data are separate.
-- The current app's sample messages reset when the conversation is reopened or the app reloads. Task 10's persistent backend/API is validated locally but not yet connected to those screens.
+- Current local source connects persistent direct messaging, with retained drafts and retries. Checkpoint 2 phone tests are pending; the installed standalone Preview APK remains on the earlier source.
 - Task 9 local, hosted Development/Preview and standalone phone validation passed, including real points, reward-change confirmation, active limits, completed/cancelled mutual ratings and offline recovery. Fresh-link password reset also passed.
 - Every existing and new account in each configured backend receives 100 welcome points once. Accepting reserves the poster's available points; reopening releases them; only poster-confirmed completion transfers them to the helper. Old acceptances without a reservation must be reopened and accepted again with fresh helper consent.
 - Mutual ratings cover completed paid work and cancelled accepted assignments in the current source. Only the poster and accepted helper for that assignment can each submit one immutable 1–5-star rating; scores and profile averages reveal the pair only after both rate, with no automatic publication deadline. When the accepted helper cancels, points release without payment and the request reopens for fresh offers unless its deadline has passed. Creator-made quests for earning extra points remain later work. No quest or arbitrary client points-grant action is implemented.
@@ -175,7 +183,7 @@ This means:
 - Classmates load from real course membership with backend visibility rules.
 - Legacy classmate profile IDs such as `aisha-r`, `jordan-t`, and `mei-l` remain explicitly supported by the student-profile screen.
 - Real Supabase UUID student profiles can load persisted backend profile data.
-- Real UUID messaging is intentionally disabled until the Task 10 screen integration is ready.
+- Real UUID profiles can start direct chats in local source. Sample profiles cannot create real chats; group messaging and realtime arrival remain later Task 10 checkpoints.
 - Signed-in user identity loads from hosted Supabase.
 - Profile onboarding and profile editing persist.
 - Profile discoverability is persisted and enforced by RLS.
@@ -190,7 +198,7 @@ This means:
 - Public profile avatar rendering uses authenticated signed URLs.
 - Initials remain as a fallback when no avatar exists or avatar loading fails.
 - Task 6 migrations are applied and synchronized in both hosted Development and Preview.
-- Offers and their notification events persist in local and hosted backends. Conversations, messages, and the notification UI still need backend integration.
+- Offers and their notification events persist in local and hosted backends. Direct messaging is integrated locally; its phone validation and hosted rollout remain pending. Notification UI still needs backend integration.
 - There are no real push notifications.
 - There is no production reporting or moderation workflow.
 - The production Supabase project and production EAS variables are not configured.
@@ -329,11 +337,13 @@ npm run typecheck
 npm run check
 npm run test:offers-lifecycle
 npm run test:messages-client
+npm run test:messages-ui
 ```
 
 `npm run check` runs linting and TypeScript checking together.
 `npm run test:offers-lifecycle` runs nine deterministic checks for offer actions across navigation, offline recovery and account changes.
 `npm run test:messages-client` runs 15 contract test groups for messaging authorization, validation, retries, privacy and exact cursor handling without needing a database.
+`npm run test:messages-ui` runs 50 regression groups across the real inbox/thread controllers, entry components and assignment-history client. Device keyboard/scroll rendering is verified separately on Android.
 
 Current expected result:
 
@@ -349,6 +359,8 @@ Task 8 also has database tests in `supabase/tests/requests.test.sql` (61 asserti
 Task 9 expanded the database suite to 770 assertions across 12 files, with typed API and concurrency suites for offers, points and ratings. Those backend checks passed locally and the SQL suite passed in both hosted environments; backend execution is still outside CI. See [Task 9 validation](docs/task-9-offers.md) for the staged results.
 
 Task 10 checkpoint 1 expands the local SQL suite to 942 assertions across 13 files. Ten messaging concurrency cases and 21 real typed-client API checks also passed. These require local Supabase; see [Task 10 validation](docs/task-10-messages.md#validation) for prerequisites and commands. Hosted environments remain at the validated Task 9 schema.
+
+Checkpoint 2 adds 50 deterministic integration/lifecycle groups and expands the actual local API suite to 23 checks, covering request assignment history and replacement-helper isolation. No new migration or dependency was required. Lint/typecheck, existing regressions and Android bundle export passed; [manual phone checks](docs/task-10-messages.md#checkpoint-2-phone-checklist) remain pending.
 
 ---
 
@@ -367,6 +379,7 @@ npm ci
 npm run check
 npm run test:offers-lifecycle
 npm run test:messages-client
+npm run test:messages-ui
 ```
 
 The required GitHub check is displayed as:
@@ -406,6 +419,9 @@ CampusClutch/
 │   ├── task-9-offers.md
 │   └── task-10-messages.md
 ├── scripts/
+│   ├── test-conversation-inbox.cjs
+│   ├── test-message-entry-lifecycle.cjs
+│   ├── test-message-thread.cjs
 │   ├── test-messages-client.cjs
 │   ├── test-messages-concurrency.py
 │   ├── test-messages-local.cjs
@@ -414,6 +430,7 @@ CampusClutch/
 │   ├── test-request-active-limit-concurrency.py
 │   ├── test-request-cancel-concurrency.py
 │   ├── test-request-cancelled-ratings-concurrency.py
+│   ├── test-request-conversations-client.cjs
 │   ├── test-request-offers-concurrency.py
 │   ├── test-request-offers-lifecycle.cjs
 │   ├── test-request-points-concurrency.py
@@ -458,6 +475,7 @@ CampusClutch/
 │   │   ├── RatingSummary.tsx
 │   │   ├── ReopenRequest.tsx
 │   │   ├── RequestCompletion.tsx
+│   │   ├── RequestConversation.tsx
 │   │   ├── RequestOffers.tsx
 │   │   └── RequestRating.tsx
 │   ├── constants/
@@ -469,13 +487,16 @@ CampusClutch/
 │   ├── lib/
 │   │   ├── avatars.ts
 │   │   ├── courses.ts
+│   │   ├── conversationInbox.ts
 │   │   ├── crypto.ts
 │   │   ├── crypto.native.ts
 │   │   ├── messages.ts
+│   │   ├── messageThread.ts
 │   │   ├── offers.ts
 │   │   ├── points.ts
 │   │   ├── ratings.ts
 │   │   ├── requests.ts
+│   │   ├── requestConversations.ts
 │   │   ├── env.ts
 │   │   ├── profiles.ts
 │   │   └── supabase.ts
@@ -580,10 +601,10 @@ Courses
 → Persistent Student Profile
 ```
 
-Known limitation:
+Current messaging integration:
 
-- Messaging from real UUID profiles remains disabled until Task 10.
-- Legacy mock profile/chat routes remain compatibility paths; they do not supply the current classmates list.
+- Real profiles open persistent direct conversations in Task 10's local source; checkpoint 2 phone testing is pending.
+- Legacy mock profiles remain display-only compatibility paths and do not supply the current classmates list or real chats.
 
 ---
 
@@ -612,7 +633,7 @@ Legacy behavior remains intact:
 - Match badge where applicable
 - Shared-course/activity note
 - Recently-active indicator
-- Existing mock Message routing
+- Display-only profile; the disabled message action identifies it as a demo profile
 
 Manually regression-tested:
 
@@ -645,10 +666,10 @@ Behavior:
 - Private avatar objects are loaded through authenticated signed URLs.
 - Initials are used when no avatar exists.
 - Real UUID profiles do not display legacy mock-only match/activity data.
-- Real UUID messaging is deliberately disabled and displays:
-  - `Messaging coming later`
+- Message opens the authorized persistent direct conversation for the signed-in user and target profile.
+- Self profiles omit the action. Loading, unavailable profiles, account changes and background navigation cannot open a stale chat.
 
-Persistent messaging remains Task 10 work.
+Task 10's current local source enables messaging; its phone validation and hosted release remain pending.
 
 Manual Android validation completed:
 
@@ -1094,34 +1115,18 @@ udbijakeasbvoycjyghe
 
 # Messages Flow
 
-Completed behavior:
+Task 10 checkpoint 2 replaces the sample conversation flow in current local source:
 
-- Conversation cards are pressable.
-- Conversation cards open `/messages/[id]`.
-- Student, delivery, and group conversation headers are supported.
-- Mock chat bubbles are displayed.
-- The text input stores typed messages.
-- Send adds a local message.
-- Back returns to Messages.
-- Android keyboard avoidance keeps the composer visible.
-- Multiline input works above the Android keyboard.
-- Hiding and reopening the keyboard keeps the composer usable.
+- Real inbox rows open `/messages/[id]` using an authorized conversation UUID.
+- All/Unread filtering, search over loaded rows, pagination, refresh and retry are available.
+- Compose opens Courses → Classmates → Student Profile → Message.
+- Accepted-request history provides Message helper / Message poster for each original assignment pair.
+- Message history, sender, timestamps and unread counts come from Supabase.
+- Drafts and uncertain sends persist on the device under separate backend/account/conversation keys. Retrying preserves the original body and UUID.
+- Read state advances for observed incoming messages while the thread is focused and the app is active.
+- Keyboard avoidance, safe insets, multiline input and stable older-history loading are retained for Android validation.
 
-Classmate chat routing:
-
-- Legacy classmate IDs are resolved against `mockStudents`.
-- Aisha, Mei, and Jordan display the correct name, major, and avatar.
-- New classmate chats begin with an empty thread.
-- Existing inbox conversations still display their original mock threads.
-
-Known limitation:
-
-- Messages are local and in memory only.
-- Real UUID profile messaging is not implemented.
-- New classmate conversations are not added permanently to the Messages inbox.
-- Messages reset after reload.
-
-Persistent conversations/messages remain Task 10.
+Phone checks are pending. This checkpoint uses manual and focus/foreground refresh; realtime, groups, hosted deployment and a new standalone Preview APK remain later work. See [the phone checklist](docs/task-10-messages.md#checkpoint-2-phone-checklist).
 
 ---
 
@@ -1756,7 +1761,7 @@ Completion condition:
 
 # Task 10 — Persist Conversations and Messages
 
-**Status: In progress — checkpoint 1 completed locally on September 26, 2026.** Branch `codex/persist-messages` began from `main` at `0ae8af1`, after Task 9 and its documentation merged. This is a backend/API checkpoint; the app's message screens still use fixtures.
+**Status: In progress — checkpoint 2 implemented locally on September 26, 2026; phone testing pending.** Branch `codex/persist-messages` began from `main` at `0ae8af1`, after Task 9 and its documentation merged. Checkpoint 1's backend/API was saved at `2820f1f`; checkpoint 2 connects the inbox, threads, profiles and accepted-assignment history.
 
 Checkpoint 1 completed:
 
@@ -1768,12 +1773,14 @@ Checkpoint 1 completed:
 - Migration `20260926182818_persist_direct_messages.sql` captured, reviewed and replayed locally; all 19 local migration versions match history.
 - 942 SQL assertions, 10 messaging concurrency cases, 21 live typed-client API checks and 15 client contract groups passed. Lint/typecheck, nine offer lifecycle regressions and independent reviews passed; existing data stayed unchanged.
 
-Next checkpoint:
+Checkpoint 2 implemented:
 
-- Replace inbox and thread fixtures with the real API, including loading, empty states, pagination and offline retry with retained drafts.
-- Enable messaging from real student profiles and accepted-assignment history.
-- Update read state only for messages loaded while the conversation is focused, and handle account/navigation changes safely.
-- Resolve the compose route and filters, then provide a two-account phone checklist.
+- Replaced inbox and thread fixtures with the real API, including loading, empty/error states, pagination and retained offline drafts/retries.
+- Enabled messaging from real student profiles and original participants in current/historical accepted assignments.
+- Read state follows observed incoming messages while focused/foreground; account/navigation changes suppress stale results and chat-opening actions.
+- Compose opens Courses/classmates; All and Unread filters have real data. No unused `/messages/new` route is created.
+- 50 new controller/component/assignment-client test groups and 23 real API checks passed, alongside existing client/lifecycle regressions, lint/typecheck and Android export.
+- Next gate: [checkpoint 2 phone tests](docs/task-10-messages.md#checkpoint-2-phone-checklist) using the existing development build connected to local Metro/Supabase.
 
 Group conversations and invitation/history rules, realtime updates, hosted deployment, standalone Preview testing, final review, CI and merge remain later Task 10 checkpoints. Hosted Development/Preview and APK `016bd2fd` are unchanged. Full contract and validation: [Task 10 checkpoint](docs/task-10-messages.md).
 
@@ -1789,13 +1796,13 @@ Requirements:
 - Read/unread design
 - Secure conversation access
 - Request-offer conversation integration
-- Decide whether `/messages/new` is required
+- Compose entry point (resolved through Courses/classmates; no `/messages/new` screen)
 
 Completion condition:
 
 - Messages survive reload.
 - Conversation access is secure.
-- Real UUID student messaging can replace the current disabled state.
+- Real UUID student messaging works in validated local and hosted builds.
 
 ---
 
@@ -1821,7 +1828,7 @@ Completion condition:
 
 # Task 12 — Add Automated Tests
 
-Course/request/offer/points/rating/messaging database, API and concurrency tests already exist. CI is configured to run lint/typecheck, nine offer-action lifecycle checks and 15 messaging client contract groups. This task expands component/end-to-end coverage and adds backend test execution to CI.
+Course/request/offer/points/rating/messaging database, API and concurrency tests already exist. CI is configured to run lint/typecheck, nine offer-action lifecycle checks, 15 messaging client groups and 50 inbox/thread/entry/assignment-client groups. This task expands component/end-to-end coverage and adds backend test execution to CI.
 
 Recommended coverage:
 
@@ -1963,7 +1970,7 @@ Possible work:
 - Courses/Classmates persistence: Task 7 complete, PR #24 (`13d2202`)
 - Requests persistence: Task 8 complete, PR #25 (`19f3e61`)
 - Offers, points and mutual reliability ratings: Task 9 complete, PR #27 (`2b3c081`)
-- Messaging persistence: Task 10 checkpoint 1 validated locally; app integration and hosted rollout pending
+- Messaging persistence: Task 10 checkpoint 2 integrated locally; phone tests and hosted rollout pending
 - Production Android build: Not started
 - Production iOS build: Not started
 - Google Play submission: Not started
@@ -1978,7 +1985,7 @@ No secrets, private keys, database passwords, store credentials, or real environ
 CampusClutch still needs:
 
 - Creator-managed quests and controlled points rewards
-- Persistent messaging screen integration, groups and hosted rollout (direct backend/API validated locally)
+- Direct messaging phone validation, groups, realtime and hosted rollout
 - Real notifications
 - Broader component/end-to-end tests and backend test execution in CI
 - Accessibility audit
@@ -1996,10 +2003,10 @@ CampusClutch still needs:
 
 # Next Action
 
-Continue **Task 10 — Persist Conversations and Messages** on `codex/persist-messages`. Checkpoint 1's direct-messaging database and typed API are validated locally. Task 9 remains complete and merged through [PR #27](https://github.com/Marchosias405/CampusClutch/pull/27) at `2b3c081`.
+Run **Task 10 checkpoint 2 phone tests** on `codex/persist-messages`. The direct-messaging backend/API and screen integration passed automated checks locally. Task 9 remains complete and merged through [PR #27](https://github.com/Marchosias405/CampusClutch/pull/27) at `2b3c081`.
 
-1. Connect the inbox, threads, real student profiles and assignment history to the validated API.
-2. Verify two-account sending, restart persistence, unread behavior, request-round isolation and offline retry on a phone at the next checkpoint.
-3. Complete groups and realtime in focused checkpoints, followed by hosted deployment, standalone Preview testing, final review, CI, merge and documentation closure.
+1. Use the [local phone setup and checklist](docs/task-10-messages.md#local-phone-setup) to verify sending, restart persistence, unread state, assignment isolation, retained retries, keyboard and pagination.
+2. Address any checkpoint failures before moving on.
+3. Then complete groups and realtime in focused checkpoints, followed by hosted deployment, standalone Preview testing, final review, CI, merge and documentation closure.
 
-Real UUID messaging remains disabled until Task 10 integration is ready. Creator-made quests remain later work. Preview build `016bd2fd` is the last phone-tested APK; the next APK must include the final Task 9 navigation correction as well as any new checkpoint changes.
+Creator-made quests remain later work. Preview build `016bd2fd` is the last phone-tested standalone APK and is unchanged; use the development build for this local checkpoint. The next Preview APK must include the final Task 9 navigation correction as well as the validated Task 10 changes.

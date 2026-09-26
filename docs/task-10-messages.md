@@ -1,10 +1,10 @@
 # Task 10 — Conversations and Messages
 
-**Current status:** Checkpoint 1 completed locally on September 26, 2026, on `codex/persist-messages`, based on `main` at `0ae8af1` after Task 9 implementation and documentation merged. This checkpoint establishes the direct-messaging database and typed API. Task 10 is not complete. Existing message screens still use their fixtures until the next checkpoint integrates the validated API. Hosted Development and Preview remain on Task 9; no new APK was built for this backend checkpoint.
+**Current status:** Checkpoint 2 implemented locally on September 26, 2026, on `codex/persist-messages`, based on `main` at `0ae8af1`. Checkpoint 1's backend/API was saved at `2820f1f`; checkpoint 2 connects the inbox, threads, real profiles and accepted-assignment history. Automated validation and Android bundle export passed; the phone checklist below is pending. Task 10 is not complete. Hosted Development and Preview remain on Task 9, and no new APK was built during these local checkpoints.
 
 ## Checkpoint 1: direct-messaging foundation
 
-The existing inbox stores five example conversations in the screen file. The thread appends messages to React state, uses sample timestamps, and loses messages after reopening. Real UUID student messaging is disabled. The inbox compose button points to `/messages/new`, which has no dedicated route. These screen issues will be addressed together during the UI checkpoint.
+At the start of Task 10, the inbox stored five example conversations in the screen file. The thread appended messages to React state, used sample timestamps, and lost messages after reopening. Real UUID student messaging was disabled, and compose pointed to `/messages/new` without a dedicated route. Checkpoint 2 replaces that prototype flow.
 
 ### Scope
 
@@ -16,7 +16,7 @@ The existing inbox stores five example conversations in the screen file. The thr
 - Authorized request links for each accepted assignment round, including earlier completed/cancelled rounds.
 - A typed client that pins the authenticated session for each call and rejects results after account changes.
 
-Group creation and invitations, realtime updates, the app screens, hosted deployment and a new APK are separate checkpoints. No push notifications, peer read receipts, attachments, message editing/deletion, typing indicators, or presence are introduced here.
+Checkpoint 1 covered the backend/API; checkpoint 2 connects the app screens. Group creation and invitations, realtime updates, hosted deployment and a new APK are later checkpoints. No push notifications, peer read receipts, attachments, message editing/deletion, typing indicators, or presence are introduced here.
 
 ### Direct conversations and privacy
 
@@ -94,21 +94,81 @@ Repeatable commands from the repository root:
 npm run check
 npm run test:offers-lifecycle
 npm run test:messages-client
+npm run test:messages-ui
 npx supabase test db --local
 python scripts/test-messages-concurrency.py
 npm run test:messages-local
 ```
 
-The database/API checks require the running local Supabase stack with repository migrations applied. The concurrency and API scripts also require `psql` on PATH; the API script requires `.env.local` to point exactly to `http://127.0.0.1:54321` with its local publishable/anon key. These scripts refuse hosted API use or hardcode local database access and clean up only their isolated fixtures. No phone test is required until the screens use this API.
+The database/API checks require the running local Supabase stack with repository migrations applied. The concurrency and API scripts also require `psql` on PATH; the API script requires `.env.local` to point exactly to `http://127.0.0.1:54321` with its local publishable/anon key. These scripts refuse hosted API use or hardcode local database access and clean up only their isolated fixtures. Checkpoint 1 had no phone gate; checkpoint 2 requires the phone checks below.
 
-## Next checkpoint: connect the app
+## Checkpoint 2: app integration
 
-1. Replace inbox and thread fixtures with authorized persistent data, retaining the red/white styling and Android keyboard behavior.
-2. Enable direct messaging from real student profiles and request assignment history using the returned conversation UUID.
-3. Handle loading, empty states, retry, account/focus changes, pagination and retained failed-send drafts.
-4. Advance read state only for messages actually loaded while the conversation is focused. Do not expose another person's read cursor.
-5. Replace or implement the compose action and give filters an accurate backend meaning.
-6. Run a phone checkpoint for two-account sending, restart persistence, unread behavior, request-round isolation and offline retry.
+This checkpoint connects the existing red/white inbox and thread screens to the validated direct-message API. It remains local development work; hosted Development, hosted Preview and the standalone Preview APK are unchanged.
+
+The inbox has All and Unread views, search over loaded conversations, cursor pagination, pull-to-refresh and a Refresh button. It reloads when focused or when the app returns to the foreground. The compose action opens Courses so the user can choose a course, view classmates and message a real student profile. The earlier sample course/delivery/group conversation filters are removed until those features have real backing data.
+
+Student profiles open the server-authorized conversation UUID. Sample profiles do not create real chats. Request details list the caller's own accepted assignments, including older completed and cancelled rounds, with Message helper or Message poster actions. A replacement helper cannot open an earlier helper's conversation. Existing direct conversations remain available in Messages after their assignment ends.
+
+Thread sending retains the exact body and retry UUID after an uncertain response, with drafts scoped to the backend, signed-in account and conversation. Account/route changes must not carry draft content or asynchronous navigation into another account. Read state advances only while the thread is focused and in the foreground, using messages observed in the thread. This stage uses explicit refresh and focus/foreground refresh; realtime arrival while staying on the same screen is a later checkpoint.
+
+### Checkpoint 2 automated validation
+
+- **50 new regression groups passed:** 12 inbox controller, 15 thread controller, 15 actual entry-component lifecycle and eight assignment-history client groups. They run through `npm run test:messages-ui` and are added to the CI workflow.
+- All **15 existing messaging client groups** and **nine offer-action lifecycle checks** passed again.
+- The actual local API suite now passes **23 checks**, including original assignment history, round pagination, private participant scope and replacement-helper chat isolation.
+- Full lint/typecheck passed. Android export produced an embedded Hermes bundle successfully; no native dependency changes were required.
+- Independent reviews found no remaining blocker. Review corrected stale draft hydration after refocus, missing history after an own send overtook unseen replies, queued/read retry behavior, tall-message visibility and Android empty-list inversion.
+- No new schema migration or hosted change was made. The previous checkpoint's 942 SQL assertions and 10 database concurrency cases cover the unchanged persistence layer.
+- All 20 pre-existing application-table fingerprints still matched after the expanded API suite, and its temporary messaging fixtures were removed.
+
+These automated checks exercise the real controllers, client and entry components with controlled asynchronous events; they do not substitute for native keyboard, scrolling or long-message rendering on a phone.
+
+### Local phone setup
+
+Use the CampusClutch [development build `3082844b`](https://expo.dev/accounts/marchosias405/projects/CampusClutch/builds/3082844b-68e0-46ac-ac22-c1faa9910e99) with the phone connected by USB and Docker Desktop running. Install that development APK if the standalone Preview APK is currently installed. Its native crypto support is already included; this checkpoint adds no native dependencies. The standalone Preview APK will continue showing the previous release until a later hosted deployment/build checkpoint.
+
+```powershell
+Set-Location D:\Projects\CampusClutch
+adb devices
+adb reverse tcp:8081 tcp:8081
+adb reverse tcp:54321 tcp:54321
+npx expo start --dev-client --localhost
+```
+
+`adb devices` should list the phone as `device`. Open the development build and connect to `http://localhost:8081`. Keep Metro running during these tests. Local accounts are separate from hosted Preview accounts.
+
+For a reliable local offline test, leave USB and Metro running and use a second terminal to stop only the API gateway:
+
+```powershell
+docker stop supabase_kong_CampusClutch
+# Perform the offline refresh/send check in the already loaded app.
+docker start supabase_kong_CampusClutch
+```
+
+This leaves the database and its data intact. Restore the gateway before closing/reopening the app, since the app needs the backend to reload the signed-in profile. Turning off Wi-Fi alone does not interrupt backend access while the USB tunnel is active.
+
+### Checkpoint 2 phone checklist
+
+Use two local accounts, A and B, with completed profiles. For the classmate entry point, both should be discoverable and enrolled in the same current course. A third account C is useful for the replacement-helper check.
+
+1. **Start a direct chat:** As A, open Courses → a current course's classmates → B's profile → Message. Send a distinctive message. Open B's profile again and confirm it opens the same conversation. The Messages tab should show B's actual name and message preview, with no sample chats.
+2. **Reply and persist:** Sign in as B, refresh Messages, open A's conversation and reply. Return to A, refresh and verify the reply. Close/reopen the app and confirm both messages and their timestamps remain. Use Refresh when waiting on the same screen.
+3. **Unread state:** Send a new message from A while B is elsewhere in the app. In B's Messages tab, refresh and check the unread count and Unread filter. Open the conversation, view the new message, return to Messages and confirm the count clears. A's own sends should not add to A's unread count.
+4. **Accepted-request chat:** Open a request accepted between A and B, and use Message helper / Message poster under Assignment chats. Both actions should reach their existing direct conversation. Before acceptance, an unselected offer should not grant an assignment chat.
+5. **Historical participants:** Have B cancel an accepted assignment. Its chat should remain available to A/B. After reopening and accepting C, the new assignment should open A/C's separate conversation. C must not see the earlier A/B messages. Existing same-pair assignments may share a direct conversation.
+6. **Failed-send retry:** Open a loaded conversation, stop the API gateway using the commands above, then send a distinctive message. Confirm its text remains and a retry is offered. Navigate away and back, then restore the gateway and close/reopen the app. Retry the retained submission if it is still pending, and confirm the recipient receives exactly one copy. An already saved message can reconcile automatically without another send. Use the explicit discard action only when intentionally abandoning an uncertain submission; it may already exist on the server.
+7. **Account isolation and ordinary drafts:** Type without sending, leave and reopen the chat, and confirm the draft remains. Switch to the other account and confirm that draft is absent there. Return to the original account and verify its draft. Switch screens during refresh/sending and confirm no delayed response opens or changes a different account's chat.
+8. **History and layout:** Exchange more than 30 messages, load older history, then refresh. Confirm the history remains reachable without duplicate bubbles. Test a multiline message and a message long enough to fill more than one screen; viewing it should update unread status. A draft over 4,000 characters should stay editable with a clear length error when sent. The keyboard, send control, timestamps and navigation bar should stay usable. In Messages, verify search, All/Unread and empty states.
+
+The phone gate remains pending until the user reports these results. Group conversations, invitations, realtime subscriptions, hosted rollout and a new Preview build remain later checkpoints.
+
+## Remaining integration and release work
+
+1. Complete checkpoint 2 phone validation and resolve any failures.
+2. Define group membership/invitation consent and history visibility, then implement that checkpoint.
+3. Add authorized realtime updates and validate reconnect/account-switch behavior.
+4. Deploy and validate hosted Development/Preview, build and test a standalone APK, and complete final review, CI, merge and documentation closure.
 
 Group membership/invitation consent and history visibility must be settled before the group checkpoint. Hosted rollout, standalone Preview testing, final review, CI and merge follow completed feature checkpoints.
 

@@ -1,385 +1,121 @@
-import { FontAwesome5, Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
-import React, { useMemo, useState } from "react";
-import {
-    Image,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    View,
-} from "react-native";
-import ScreenHeader from "../../components/ScreenHeader";
+import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect, useRouter } from 'expo-router';
+import React, { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { ActivityIndicator, AppState, FlatList, Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from 'react-native';
+import ScreenHeader from '../../components/ScreenHeader';
+import { useAuth } from '../../context/AuthContext';
+import { createConversationInbox } from '../../lib/conversationInbox';
+import { loadConversationPage } from '../../lib/messages';
 
-const COLORS = {
-  primary: "#9B1C31",
-  darkRed: "#8F1428",
-  background: "#FFFFFF",
-  cardWhite: "#FFFFFF",
-  textDark: "#2B2525",
-  mutedText: "#8C8585",
-  border: "#ECE3E3",
-  inactiveGray: "#A5AAB3",
-  tagGray: "#F4F1F1",
-  softPink: "#FBECEC",
-  searchGray: "#F2F0F0",
-};
-
-type ConversationType = "person" | "delivery" | "group";
-
-type Conversation = {
-  id: string;
-  name: string;
-  badge: string;
-  preview: string;
-  time: string;
-  unread: boolean;
-  type: ConversationType;
-  avatar?: string;
-};
-
-const filters = ["All", "Courses", "Deliveries", "Unread"] as const;
-type Filter = (typeof filters)[number];
-
-const conversations: Conversation[] = [
-  {
-    id: "marcus",
-    name: "Marcus Jenkins",
-    badge: "CMPT 361",
-    preview: "Hey! Are we still meeting at the library at 4?",
-    time: "14:02",
-    unread: true,
-    avatar:
-      "https://api.dicebear.com/7.x/personas/png?seed=Marcus&backgroundColor=b6e3f4",
-    type: "person",
-  },
-  {
-    id: "sarah",
-    name: "Sarah Chen",
-    badge: "ECON 201",
-    preview: "Perfect, see you then. Thanks for the notes!",
-    time: "Yesterday",
-    unread: false,
-    avatar:
-      "https://api.dicebear.com/7.x/personas/png?seed=Sarah&backgroundColor=ffd5dc",
-    type: "person",
-  },
-  {
-    id: "delivery",
-    name: "CampusLoop Delivery",
-    badge: "ACTIVE ORDER",
-    preview: "Your Starbucks order from Student Union is on the way.",
-    time: "Tuesday",
-    unread: true,
-    type: "delivery",
-  },
-  {
-    id: "alex",
-    name: "Alex Rodriguez",
-    badge: "CMPT 361",
-    preview: "I found the textbook link you were looking for.",
-    time: "Oct 12",
-    unread: false,
-    avatar:
-      "https://api.dicebear.com/7.x/personas/png?seed=AlexRodriguez&backgroundColor=c0aede",
-    type: "person",
-  },
-  {
-    id: "jordan",
-    name: "Jordan Lee",
-    badge: "STUDY GROUP",
-    preview: "Should we book the private room in the library?",
-    time: "Oct 10",
-    unread: false,
-    type: "group",
-  },
-];
+const COLORS = { primary: '#9B1C31', text: '#2B2525', muted: '#736B6B', border: '#ECE3E3', pink: '#FBECEC' };
 
 export default function MessagesInboxScreen() {
+  const { user } = useAuth();
+  return user ? <AccountInbox key={user.id} userId={user.id} /> : null;
+}
+
+function AccountInbox({ userId }: { userId: string }) {
   const router = useRouter();
-  const [search, setSearch] = useState("");
-  const [selectedFilter, setSelectedFilter] = useState<Filter>("All");
+  const model = useMemo(() => createConversationInbox(before => loadConversationPage(userId, { before })), [userId]);
+  const state = useSyncExternalStore(model.subscribe, model.getSnapshot, model.getSnapshot);
+  const focused = useRef(false);
+  const [search, setSearch] = useState('');
+  const [unreadOnly, setUnreadOnly] = useState(false);
 
-  const visibleConversations = useMemo(() => {
-    const q = search.trim().toLowerCase();
+  useFocusEffect(useCallback(() => {
+    focused.current = true;
+    model.setActive(AppState.currentState !== 'background' && AppState.currentState !== 'inactive');
+    return () => { focused.current = false; model.setActive(false); };
+  }, [model]));
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', next => model.setActive(focused.current && next === 'active'));
+    return () => subscription.remove();
+  }, [model]);
 
-    return conversations.filter((item) => {
-      if (selectedFilter === "Unread" && !item.unread) return false;
-      if (selectedFilter === "Deliveries" && item.type !== "delivery") return false;
-      if (selectedFilter === "Courses" && item.type === "delivery") return false;
-      if (
-        q &&
-        !item.name.toLowerCase().includes(q) &&
-        !item.preview.toLowerCase().includes(q)
-      ) {
-        return false;
-      }
-      return true;
-    });
-  }, [search, selectedFilter]);
+  const query = search.trim().toLocaleLowerCase();
+  const visible = state.items.filter(item => (!unreadOnly || item.unread_count > 0)
+    && (!query || `${item.other_display_name ?? ''} ${item.last_message_body ?? ''}`.toLocaleLowerCase().includes(query)));
+  const findClassmates = () => router.push('/(tabs)/courses');
+  const emptyText = state.items.length ? 'No conversations match this view.' : 'No conversations yet. Choose a course and classmate to message, or open an accepted request to chat with its participant.';
 
-  const openChat = (id: string) => {
-    router.push({ pathname: "/messages/[id]", params: { id } } as any);
-  };
-
-  return (
-    <View style={styles.safeArea}>
-      <View style={styles.screen}>
-        <ScreenHeader>
-          <Text style={styles.headerTitle}>Messages</Text>
-
-          <Pressable
-            hitSlop={10}
-            onPress={() => router.push("/messages/new" as any)}
-          >
-            <FontAwesome5 name="edit" size={19} color="#FFFFFF" />
+  return <View style={styles.screen}>
+    <ScreenHeader>
+      <Text style={styles.title}>Messages</Text>
+      <Pressable accessibilityRole="button" accessibilityLabel="Find classmates to message" style={styles.headerButton} onPress={findClassmates}>
+        <Ionicons name="create-outline" size={24} color="white" />
+      </Pressable>
+    </ScreenHeader>
+    <FlatList
+      data={visible}
+      keyExtractor={item => item.id}
+      contentContainerStyle={styles.content}
+      keyboardShouldPersistTaps="handled"
+      refreshControl={<RefreshControl refreshing={state.loading && state.loaded} onRefresh={() => { void model.refresh(); }} tintColor={COLORS.primary} />}
+      ListHeaderComponent={<>
+        <View style={styles.search}>
+          <Ionicons name="search" size={20} color={COLORS.muted} />
+          <TextInput accessibilityLabel="Search loaded conversations" value={search} onChangeText={setSearch} placeholder="Search conversations" placeholderTextColor={COLORS.muted} style={styles.searchInput} autoCorrect={false} returnKeyType="search" />
+          {!!search && <Pressable accessibilityRole="button" accessibilityLabel="Clear conversation search" style={styles.clear} onPress={() => setSearch('')}><Ionicons name="close-circle" size={20} color={COLORS.muted} /></Pressable>}
+        </View>
+        <View style={styles.filters}>
+          {[false, true].map(unread => <Pressable key={String(unread)} accessibilityRole="button" accessibilityState={{ selected: unreadOnly === unread }} onPress={() => setUnreadOnly(unread)} style={[styles.filter, unreadOnly === unread && styles.selected]}>
+            <Text style={[styles.filterText, unreadOnly === unread && styles.selectedText]}>{unread ? 'Unread' : 'All'}</Text>
+          </Pressable>)}
+          <Pressable accessibilityRole="button" disabled={state.loading} accessibilityState={{ disabled: state.loading }} style={[styles.refresh, state.loading && styles.disabled]} onPress={() => { void model.refresh(); }}>
+            <Text style={styles.filterText}>{state.loading ? 'Refreshing…' : 'Refresh'}</Text>
           </Pressable>
-        </ScreenHeader>
-
-        <ScrollView
-          style={styles.scrollView}
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-        >
-          <View style={styles.searchBar}>
-            <Ionicons name="search" size={18} color={COLORS.inactiveGray} />
-            <TextInput
-              value={search}
-              onChangeText={setSearch}
-              placeholder="Search conversations"
-              placeholderTextColor={COLORS.inactiveGray}
-              style={styles.searchInput}
-              autoCorrect={false}
-              returnKeyType="search"
-            />
-            {search.length > 0 && (
-              <Pressable hitSlop={10} onPress={() => setSearch("")}>
-                <Ionicons
-                  name="close-circle"
-                  size={18}
-                  color={COLORS.inactiveGray}
-                />
-              </Pressable>
-            )}
-          </View>
-
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.filtersRow}
-            keyboardShouldPersistTaps="handled"
-          >
-            {filters.map((filter) => {
-              const isActive = selectedFilter === filter;
-
-              return (
-                <Pressable
-                  key={filter}
-                  style={[styles.filterPill, isActive && styles.activeFilterPill]}
-                  onPress={() => setSelectedFilter(filter)}
-                >
-                  <Text
-                    style={[styles.filterText, isActive && styles.activeFilterText]}
-                  >
-                    {filter}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </ScrollView>
-
-          {visibleConversations.length === 0 ? (
-            <Text style={styles.emptyText}>No conversations found.</Text>
-          ) : (
-            <View style={styles.conversationList}>
-              {visibleConversations.map((item) => (
-                <Pressable
-                  key={item.id}
-                  style={styles.convRow}
-                  onPress={() => openChat(item.id)}
-                >
-                  <View style={styles.avatarWrap}>
-                    {item.type === "person" && (
-                      <Image source={{ uri: item.avatar }} style={styles.avatar} />
-                    )}
-
-                    {item.type === "delivery" && (
-                      <View style={[styles.iconAvatar, styles.deliveryAvatar]}>
-                        <FontAwesome5 name="truck" size={18} color="#FFFFFF" />
-                      </View>
-                    )}
-
-                    {item.type === "group" && (
-                      <View style={[styles.iconAvatar, styles.groupAvatar]}>
-                        <FontAwesome5 name="users" size={17} color={COLORS.primary} />
-                      </View>
-                    )}
-                  </View>
-
-                  <View style={styles.convBody}>
-                    <View style={styles.convTopRow}>
-                      <Text style={styles.convName} numberOfLines={1}>
-                        {item.name}
-                      </Text>
-                      <Text
-                        style={[styles.convTime, item.unread && styles.unreadTime]}
-                      >
-                        {item.time}
-                      </Text>
-                    </View>
-
-                    <View style={styles.convBottomRow}>
-                      <View
-                        style={[
-                          styles.badge,
-                          item.type === "delivery" && styles.activeOrderBadge,
-                        ]}
-                      >
-                        <Text
-                          style={[
-                            styles.badgeText,
-                            item.type === "delivery" && styles.activeOrderText,
-                          ]}
-                          numberOfLines={1}
-                        >
-                          {item.badge}
-                        </Text>
-                      </View>
-
-                      <Text
-                        style={[
-                          styles.convPreview,
-                          item.unread && styles.unreadPreview,
-                        ]}
-                        numberOfLines={1}
-                      >
-                        {item.preview}
-                      </Text>
-                    </View>
-                  </View>
-
-                  {item.unread && <View style={styles.unreadDot} />}
-                </Pressable>
-              ))}
+        </View>
+        {!!state.error && <View style={styles.notice}>
+          <Text accessibilityRole="alert" style={styles.error}>{state.error}</Text>
+          {state.loaded && <Text style={styles.muted}>Showing the last loaded conversations.</Text>}
+          <Pressable accessibilityRole="button" disabled={state.loading} style={styles.button} onPress={() => { void model.refresh(); }}><Text style={styles.filterText}>Retry</Text></Pressable>
+        </View>}
+        {state.loading && !state.loaded && <ActivityIndicator color={COLORS.primary} accessibilityLabel="Loading conversations" style={styles.loading} />}
+      </>}
+      ListEmptyComponent={state.loaded && !state.error ? <View style={styles.notice}>
+        <Text style={styles.muted}>{emptyText}</Text>
+        {!state.items.length && <Pressable accessibilityRole="button" style={styles.button} onPress={findClassmates}><Text style={styles.filterText}>Find classmates</Text></Pressable>}
+      </View> : null}
+      renderItem={({ item }) => {
+        const name = item.other_display_name || 'CampusClutch member';
+        const initials = name.split(/\s+/).slice(0, 2).map(part => part[0]).join('').toUpperCase();
+        const unread = item.unread_count > 0;
+        return <Pressable accessibilityRole="button" accessibilityLabel={`${name}${unread ? `, ${item.unread_count} unread messages` : ''}`} style={styles.row} onPress={() => router.push({ pathname: '/messages/[id]', params: { id: item.id } })}>
+          <View style={styles.avatar}><Text style={styles.initials}>{initials}</Text></View>
+          <View style={styles.body}>
+            <View style={styles.topRow}>
+              <Text style={[styles.name, unread && styles.bold]} numberOfLines={1}>{name}</Text>
+              <Text style={styles.time}>{new Date(item.last_activity_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</Text>
             </View>
-          )}
-        </ScrollView>
-      </View>
-    </View>
-  );
+            <Text style={[styles.preview, unread && styles.bold]} numberOfLines={2}>{item.last_message_body || 'Say hello'}</Text>
+            {item.status === 'closed' && <Text style={styles.muted}>Read-only conversation</Text>}
+          </View>
+          {unread && <View style={styles.unread}><Text style={styles.unreadText}>{item.unread_count > 99 ? '99+' : item.unread_count}</Text></View>}
+        </Pressable>;
+      }}
+      ListFooterComponent={state.cursor ? <View style={styles.footer}>
+        {(!!query || unreadOnly) && <Text style={styles.muted}>Load more to include older conversations in this view.</Text>}
+        <Pressable accessibilityRole="button" accessibilityState={{ disabled: state.loading }} disabled={state.loading} style={[styles.button, state.loading && styles.disabled]} onPress={() => { void model.refresh(true); }}><Text style={styles.filterText}>{state.loading ? 'Loading…' : 'Load more conversations'}</Text></Pressable>
+      </View> : null}
+    />
+  </View>;
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: COLORS.background },
-  screen: { flex: 1, backgroundColor: COLORS.background },
-  headerTitle: { fontSize: 20, fontWeight: "900", color: "#FFFFFF" },
-  scrollView: { flex: 1 },
-  scrollContent: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 32 },
-  searchBar: {
-    height: 47,
-    borderRadius: 13,
-    backgroundColor: COLORS.searchGray,
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 14,
-    gap: 8,
-    marginBottom: 18,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 14,
-    fontWeight: "600",
-    color: COLORS.textDark,
-  },
-  filtersRow: { paddingBottom: 20 },
-  filterPill: {
-    height: 35,
-    paddingHorizontal: 18,
-    borderRadius: 18,
-    backgroundColor: COLORS.cardWhite,
-    borderWidth: 1,
-    borderColor: "#E4CACA",
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 9,
-  },
-  activeFilterPill: {
-    backgroundColor: COLORS.primary,
-    borderColor: COLORS.primary,
-  },
-  filterText: { fontSize: 13, fontWeight: "700", color: COLORS.mutedText },
-  activeFilterText: { color: "#FFFFFF" },
-  emptyText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: COLORS.mutedText,
-    paddingVertical: 12,
-  },
-  conversationList: {},
-  convRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#F4EDED",
-  },
-  avatarWrap: { marginRight: 13 },
-  avatar: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: COLORS.softPink,
-  },
-  iconAvatar: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  deliveryAvatar: { backgroundColor: COLORS.primary },
-  groupAvatar: { backgroundColor: COLORS.softPink },
-  convBody: { flex: 1 },
-  convTopRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 4,
-  },
-  convName: {
-    flex: 1,
-    fontSize: 16,
-    fontWeight: "800",
-    color: COLORS.textDark,
-    marginRight: 8,
-  },
-  convTime: { fontSize: 12, fontWeight: "600", color: COLORS.mutedText },
-  unreadTime: { color: COLORS.primary, fontWeight: "800" },
-  convBottomRow: { flexDirection: "row", alignItems: "center" },
-  badge: {
-    backgroundColor: COLORS.tagGray,
-    borderRadius: 5,
-    paddingHorizontal: 7,
-    paddingVertical: 2,
-    marginRight: 8,
-    maxWidth: 110,
-  },
-  badgeText: { fontSize: 10, fontWeight: "900", color: "#9B9B9B" },
-  activeOrderBadge: { backgroundColor: COLORS.primary },
-  activeOrderText: { color: "#FFFFFF" },
-  convPreview: {
-    flex: 1,
-    fontSize: 13,
-    fontWeight: "500",
-    color: COLORS.mutedText,
-  },
-  unreadPreview: { color: COLORS.textDark, fontWeight: "700" },
-  unreadDot: {
-    width: 9,
-    height: 9,
-    borderRadius: 5,
-    backgroundColor: COLORS.primary,
-    marginLeft: 10,
-  },
+  screen: { flex: 1, backgroundColor: 'white' }, title: { color: 'white', fontWeight: '900', fontSize: 20 },
+  headerButton: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
+  content: { padding: 20, paddingBottom: 36 }, search: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#F2F0F0', borderRadius: 13, paddingLeft: 14 },
+  searchInput: { flex: 1, minHeight: 48, color: COLORS.text, fontSize: 15 }, clear: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
+  filters: { flexDirection: 'row', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginVertical: 18 },
+  filter: { minHeight: 44, paddingHorizontal: 18, borderRadius: 24, borderWidth: 1, borderColor: COLORS.primary, justifyContent: 'center' },
+  selected: { backgroundColor: COLORS.primary }, filterText: { color: COLORS.primary, fontWeight: '700', fontSize: 14 }, selectedText: { color: 'white' },
+  refresh: { minHeight: 44, paddingHorizontal: 10, justifyContent: 'center', marginLeft: 'auto' }, disabled: { opacity: 0.5 },
+  notice: { gap: 12, marginBottom: 16 }, error: { color: COLORS.primary, lineHeight: 22 }, muted: { color: COLORS.muted, fontSize: 14, lineHeight: 21 },
+  button: { minHeight: 44, borderWidth: 1, borderColor: COLORS.primary, borderRadius: 12, padding: 12, alignItems: 'center', justifyContent: 'center' }, loading: { marginVertical: 20 },
+  row: { flexDirection: 'row', gap: 12, alignItems: 'center', paddingVertical: 16, borderBottomWidth: 1, borderColor: COLORS.border },
+  avatar: { width: 50, height: 50, borderRadius: 25, backgroundColor: COLORS.pink, alignItems: 'center', justifyContent: 'center' }, initials: { color: COLORS.primary, fontWeight: '800', fontSize: 17 },
+  body: { flex: 1 }, topRow: { flexDirection: 'row', gap: 8, marginBottom: 6, alignItems: 'center' }, name: { flex: 1, color: COLORS.text, fontSize: 16, fontWeight: '600' },
+  bold: { fontWeight: '800' }, time: { color: COLORS.muted, fontSize: 12 }, preview: { color: COLORS.muted, fontSize: 14, lineHeight: 20 },
+  unread: { minWidth: 24, padding: 5, borderRadius: 15, backgroundColor: COLORS.primary, alignItems: 'center' }, unreadText: { color: 'white', fontSize: 11, fontWeight: '800' },
+  footer: { gap: 12, marginTop: 20 },
 });

@@ -1,343 +1,198 @@
-import { Ionicons } from "@expo/vector-icons";
-import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useRef, useState } from "react";
+import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import React, { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import {
-  Image,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import ScreenHeader from "../../components/ScreenHeader";
-import { mockStudents } from "../../constants/mockData";
+  ActivityIndicator, Alert, AppState, FlatList, KeyboardAvoidingView, Platform,
+  Pressable, StyleSheet, Text, TextInput, View, type ViewToken,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import ScreenHeader from '../../components/ScreenHeader';
+import { useAuth } from '../../context/AuthContext';
+import { env } from '../../lib/env';
+import { loadConversationSummary, loadMessagePage, markConversationRead, messagingError, sendMessage } from '../../lib/messages';
+import { compareSequences, createMessageThread, isConversationId } from '../../lib/messageThread';
+import type { ConversationMessage } from '../../types/messaging';
 
-const COLORS = {
-  primary: "#9B1C31",
-  darkRed: "#8F1428",
-  background: "#FFFFFF",
-  textDark: "#2B2525",
-  mutedText: "#8C8585",
-  border: "#ECE3E3",
-  incoming: "#F1EEEE",
-  inputGray: "#F2F0F0",
-};
-
-type ChatMeta = { name: string; subtitle: string; avatar?: string };
-
-const chatMeta: Record<string, ChatMeta> = {
-  marcus: {
-    name: "Marcus Jenkins",
-    subtitle: "CMPT 361",
-    avatar: "https://api.dicebear.com/7.x/personas/png?seed=Marcus&backgroundColor=b6e3f4",
-  },
-  sarah: {
-    name: "Sarah Chen",
-    subtitle: "ECON 201",
-    avatar: "https://api.dicebear.com/7.x/personas/png?seed=Sarah&backgroundColor=ffd5dc",
-  },
-  delivery: { name: "CampusLoop Delivery", subtitle: "Active order" },
-  alex: {
-    name: "Alex Rodriguez",
-    subtitle: "CMPT 361",
-    avatar: "https://api.dicebear.com/7.x/personas/png?seed=AlexRodriguez&backgroundColor=c0aede",
-  },
-  jordan: { name: "Jordan Lee", subtitle: "Study group" },
-};
-
-type Message = {
-  id: string;
-  text: string;
-  fromMe: boolean;
-  time: string;
-};
-
-const initialThread: Message[] = [
-  { id: "1", text: "Hey! Are we still meeting at the library at 4?", fromMe: false, time: "13:58" },
-  { id: "2", text: "Yeah for sure, I'm heading there now.", fromMe: true, time: "14:00" },
-  { id: "3", text: "Perfect. I grabbed a study room on the 3rd floor.", fromMe: false, time: "14:01" },
-  { id: "4", text: "Room 3412. Bring your CMPT 361 notes if you can!", fromMe: false, time: "14:02" },
-  { id: "5", text: "On it. See you in 10 👋", fromMe: true, time: "14:02" },
-];
+const PRIMARY = '#9B1C31';
 
 export default function ChatScreen() {
+  const { user } = useAuth();
+  const { id } = useLocalSearchParams<{ id: string | string[] }>();
+  const routeId = typeof id === 'string' ? id.toLowerCase() : '';
+  if (!user || !isConversationId(routeId)) return <Unavailable signedOut={!user} />;
+  // Never render a previous account or route's snapshot while effects catch up.
+  return <MessageThread key={`${user.id}:${routeId}`} userId={user.id} conversationId={routeId} />;
+}
+
+function Unavailable({ signedOut }: { signedOut: boolean }) {
+  const router = useRouter();
+  return <View style={styles.screen}>
+    <ScreenHeader><Pressable accessibilityRole="button" accessibilityLabel="Back to messages" onPress={() => router.replace('/(tabs)/messages')} style={styles.back}>
+      <Ionicons name="arrow-back" size={24} color="white" /><Text style={styles.headerName}>Messages</Text>
+    </Pressable></ScreenHeader>
+    <View style={styles.empty}><Text style={styles.emptyTitle}>{signedOut ? 'Sign in to read messages' : 'Conversation unavailable'}</Text>
+      <Text style={styles.description}>{signedOut ? 'Your messages are available only to your signed-in account.' : 'Open a conversation from Messages, a student profile, or an accepted request. Old sample chats are no longer available.'}</Text>
+    </View>
+  </View>;
+}
+
+function MessageThread({ userId, conversationId }: { userId: string; conversationId: string }) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { id } = useLocalSearchParams<{ id: string }>();
-  const scrollRef = useRef<ScrollView>(null);
+  const model = useMemo(() => createMessageThread(userId, conversationId, {
+    namespace: env.supabaseUrl, storage: AsyncStorage, randomUUID: () => globalThis.crypto.randomUUID(),
+    loadSummary: loadConversationSummary, loadPage: loadMessagePage,
+    send: sendMessage, markRead: markConversationRead, errorText: messagingError,
+  }), [userId, conversationId]);
+  const state = useSyncExternalStore(model.subscribe, model.getSnapshot, model.getSnapshot);
+  const listRef = useRef<FlatList<ConversationMessage>>(null);
+  const focused = useRef(false);
+  const foreground = useRef(AppState.currentState === 'active');
+  const [active, setActive] = useState(false);
+  const visibleSequence = useRef<string | null>(null);
+  const atBottom = useRef(true);
+  const previousNewest = useRef<string | undefined>(undefined);
+  const [newMessages, setNewMessages] = useState(false);
+  const viewabilityConfig = useRef({ viewAreaCoveragePercentThreshold: 60, minimumViewTime: 500 }).current;
+  const onViewableItemsChanged = useRef(({ viewableItems }: { viewableItems: ViewToken<ConversationMessage>[] }) => {
+    const sequences = viewableItems.filter(item => item.isViewable && item.item.sender_id !== userId).map(item => item.item.sequence);
+    visibleSequence.current = sequences.sort((a, b) => compareSequences(b, a))[0] ?? null;
+    if (visibleSequence.current) void model.observe(visibleSequence.current);
+  }).current;
 
-  const routeId = id ?? "";
-  const student = mockStudents.find((item) => item.id === routeId);
+  const updateActivity = useCallback(() => {
+    const value = focused.current && foreground.current;
+    setActive(value); model.setActive(value);
+  }, [model]);
+  useFocusEffect(useCallback(() => {
+    focused.current = true; foreground.current = AppState.currentState === 'active'; updateActivity();
+    return () => { focused.current = false; updateActivity(); };
+  }, [updateActivity]));
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', next => { foreground.current = next === 'active'; updateActivity(); });
+    return () => { subscription.remove(); model.setActive(false); };
+  }, [model, updateActivity]);
+  useEffect(() => {
+    if (active && visibleSequence.current) void model.observe(visibleSequence.current);
+  }, [active, model, state.messages]);
+  useEffect(() => {
+    const newest = state.messages[0]?.id;
+    if (newest && previousNewest.current && newest !== previousNewest.current) {
+      if (atBottom.current) listRef.current?.scrollToOffset({ offset: 0, animated: true });
+      else setNewMessages(true);
+    }
+    previousNewest.current = newest;
+  }, [state.messages]);
 
-  const meta =
-    chatMeta[routeId] ??
-    (student
-      ? {
-          name: student.name,
-          subtitle: student.major,
-          avatar: student.avatar,
-        }
-      : {
-          name: "Chat",
-          subtitle: "",
-        });
-
-  const [messages, setMessages] = useState<Message[]>(() =>
-    chatMeta[routeId] ? initialThread : []
-  );
-  const [draft, setDraft] = useState("");
-
-  const handleSend = () => {
-    const text = draft.trim();
-    if (!text) return;
-
-    setMessages((prev) => [
-      ...prev,
-      {
-        id: String(prev.length + 1),
-        text,
-        fromMe: true,
-        time: "Now",
-      },
+  const name = state.summary?.other_display_name?.trim() || 'Conversation';
+  const initials = name.split(/\s+/).slice(0, 2).map(part => part[0]).join('').toUpperCase();
+  const closed = state.summary?.status !== 'active';
+  const canSend = active && state.restored && !!state.summary && !state.sending
+    && (!!state.pending || (!closed && !!state.draft.trim()));
+  const count = Array.from(state.pending?.body ?? state.draft.trim()).length;
+  const send = () => { if (canSend) void model.send(); };
+  const discard = () => Alert.alert('Discard this saved attempt?',
+    'The message may already have been delivered. Discarding removes this draft and its retry ID from this device; it does not delete a sent message. Refresh or retry first to check its status.', [
+      { text: 'Keep message', style: 'cancel' },
+      { text: 'Discard', style: 'destructive', onPress: () => { if (focused.current && foreground.current) void model.discardPending(); } },
     ]);
-    setDraft("");
-    requestAnimationFrame(() => scrollRef.current?.scrollToEnd({ animated: true }));
-  };
 
-  return (
-    <View style={styles.screen}>
-      <ScreenHeader>
-        <Pressable
-          style={styles.headerLeft}
-          hitSlop={10}
-          onPress={() => router.back()}
-        >
-          <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
-
-          {meta.avatar ? (
-            <Image source={{ uri: meta.avatar }} style={styles.headerAvatar} />
-          ) : (
-            <View style={styles.headerAvatarFallback}>
-              <Ionicons name="chatbubble-ellipses" size={16} color="#FFFFFF" />
-            </View>
-          )}
-
-          <View>
-            <Text style={styles.headerName} numberOfLines={1}>
-              {meta.name}
-            </Text>
-            {!!meta.subtitle && (
-              <Text style={styles.headerSubtitle} numberOfLines={1}>
-                {meta.subtitle}
-              </Text>
-            )}
-          </View>
-        </Pressable>
-
-        <Pressable hitSlop={10}>
-          <Ionicons name="ellipsis-horizontal" size={22} color="#FFFFFF" />
-        </Pressable>
-      </ScreenHeader>
-
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={0}
-      >
-        <ScrollView
-          ref={scrollRef}
-          style={styles.flex}
-          contentContainerStyle={styles.threadContent}
-          showsVerticalScrollIndicator={false}
-          onContentSizeChange={() =>
-            scrollRef.current?.scrollToEnd({ animated: false })
-          }
-        >
-          <Text style={styles.dayLabel}>Today</Text>
-
-          {messages.map((message, index) => {
-            const showTime =
-              index === messages.length - 1 ||
-              messages[index + 1].fromMe !== message.fromMe;
-
-            return (
-              <View
-                key={message.id}
-                style={[
-                  styles.bubbleRow,
-                  message.fromMe ? styles.rowMe : styles.rowThem,
-                ]}
-              >
-                <View style={styles.bubbleColumn}>
-                  <View
-                    style={[
-                      styles.bubble,
-                      message.fromMe ? styles.bubbleMe : styles.bubbleThem,
-                    ]}
-                  >
-                    <Text
-                      style={message.fromMe ? styles.textMe : styles.textThem}
-                    >
-                      {message.text}
-                    </Text>
-                  </View>
-
-                  {showTime && (
-                    <Text
-                      style={[
-                        styles.timeLabel,
-                        message.fromMe ? styles.timeRight : styles.timeLeft,
-                      ]}
-                    >
-                      {message.time}
-                    </Text>
-                  )}
-                </View>
+  return <View style={styles.screen}>
+    <ScreenHeader>
+      <Pressable accessibilityRole="button" accessibilityLabel="Back to messages" hitSlop={10} style={styles.back}
+        onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)/messages')}>
+        <Ionicons name="arrow-back" size={24} color="white" />
+      </Pressable>
+      <View style={styles.avatar}><Text style={styles.initials}>{initials}</Text></View>
+      <View style={styles.headerTitle}><Text style={styles.headerName} numberOfLines={1}>{name}</Text>
+        <Text style={styles.subtitle}>{state.summary?.status === 'closed' ? 'Closed conversation' : 'Direct messages'}</Text></View>
+      <Pressable accessibilityRole="button" accessibilityLabel="Refresh conversation" accessibilityState={{ disabled: !active || state.loading || state.loadingOlder }}
+        disabled={!active || state.loading || state.loadingOlder} hitSlop={10} style={styles.refresh} onPress={() => { void model.refresh(); }}>
+        {state.loading ? <ActivityIndicator color="white" /> : <Ionicons name="refresh" size={23} color="white" />}
+      </Pressable>
+    </ScreenHeader>
+    <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={0}>
+      {!!state.error && <View style={styles.banner}><Text accessibilityRole="alert" style={styles.error}>{state.error}</Text>
+        <Pressable accessibilityRole="button" disabled={state.loading || !active} onPress={() => { void model.refresh(); }}><Text style={styles.link}>Retry loading messages</Text></Pressable></View>}
+      {!!state.readError && <Text accessibilityRole="alert" style={styles.note}>{state.readError}</Text>}
+      <FlatList ref={listRef} style={styles.flex} data={state.messages} inverted keyExtractor={item => item.id}
+        contentContainerStyle={styles.threadContent} keyboardShouldPersistTaps="handled"
+        maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
+        viewabilityConfig={viewabilityConfig} onViewableItemsChanged={onViewableItemsChanged}
+        onScroll={event => { atBottom.current = event.nativeEvent.contentOffset.y < 48; if (atBottom.current) setNewMessages(false); }} scrollEventThrottle={100}
+        ListEmptyComponent={<View style={styles.empty}>
+          {state.loading ? <ActivityIndicator color={PRIMARY} /> : <>
+            <Text style={styles.emptyTitle}>{state.summary ? 'No messages yet' : 'Unable to open conversation'}</Text>
+            <Text style={styles.description}>{state.summary ? 'Send a message to start the conversation.' : 'Refresh to load this conversation.'}</Text>
+          </>}
+        </View>}
+        ListFooterComponent={state.hasMore ? <Pressable accessibilityRole="button" disabled={state.loadingOlder || state.loading || !active}
+          onPress={() => { void model.loadOlder(); }} style={styles.older}>
+          {state.loadingOlder ? <ActivityIndicator color={PRIMARY} /> : <Text style={styles.link}>Load earlier messages</Text>}
+        </Pressable> : null}
+        renderItem={({ item }) => {
+          const mine = item.sender_id === userId;
+          return <View style={[styles.bubbleRow, mine ? styles.rowMe : styles.rowThem]}>
+            <View style={styles.bubbleColumn}>
+              <Text style={[styles.sender, mine && styles.timeRight]}>{mine ? 'You' : name}</Text>
+              <View style={[styles.bubble, mine ? styles.bubbleMe : styles.bubbleThem]}>
+                <Text selectable style={[styles.messageText, mine && styles.textMe]}>{item.body}</Text>
               </View>
-            );
-          })}
-        </ScrollView>
-
-        <View style={[styles.inputBar, { paddingBottom: insets.bottom + 10 }]}>
-          <View style={styles.inputWrap}>
-            <TextInput
-              value={draft}
-              onChangeText={setDraft}
-              placeholder="Message"
-              placeholderTextColor={COLORS.mutedText}
-              style={styles.input}
-              multiline
-            />
-          </View>
-
-          <Pressable
-            style={[styles.sendButton, !draft.trim() && styles.sendDisabled]}
-            onPress={handleSend}
-            disabled={!draft.trim()}
-          >
-            <Ionicons name="arrow-up" size={20} color="#FFFFFF" />
-          </Pressable>
+              <Text style={[styles.timeLabel, mine && styles.timeRight]}>{new Date(item.created_at).toLocaleString([], {
+                month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
+              })}</Text>
+            </View>
+          </View>;
+        }} />
+      {newMessages && <Pressable accessibilityRole="button" style={styles.newMessages} onPress={() => {
+        listRef.current?.scrollToOffset({ offset: 0, animated: true }); setNewMessages(false);
+      }}><Text style={styles.link}>Jump to latest messages</Text></Pressable>}
+      {!!state.storageError && <View style={styles.banner}><Text accessibilityRole="alert" style={styles.error}>{state.storageError}</Text>
+        <Pressable accessibilityRole="button" disabled={state.sending || !active} onPress={() => { void model.retryStorage(); }}><Text style={styles.link}>Retry draft storage</Text></Pressable></View>}
+      {!!state.sendError && <Text accessibilityRole="alert" style={styles.errorBanner}>{state.sendError}</Text>}
+      {state.pending && <View style={styles.banner}><Text style={styles.note}>{state.sending ? 'Sending…' : 'This message is not confirmed. Retry sends the same saved message once.'}</Text>
+        {!state.sending && <Pressable accessibilityRole="button" onPress={discard}><Text style={styles.link}>Discard saved attempt</Text></Pressable>}
+      </View>}
+      {state.summary && closed && <Text style={styles.note}>This conversation is closed to new messages. Saved attempts can still be checked with Retry.</Text>}
+      <View style={[styles.inputBar, { paddingBottom: insets.bottom + 10 }]}>
+        <View style={styles.inputWrap}><TextInput accessibilityLabel="Message text" value={state.pending?.body ?? state.draft}
+          editable={active && state.restored && !!state.summary && !closed && !state.pending && !state.sending}
+          onChangeText={model.setDraft} placeholder={state.restored ? 'Message' : 'Restoring draft…'} placeholderTextColor="#8C8585"
+          style={styles.input} multiline />
+          {count > 3800 && <Text style={count > 4000 ? styles.error : styles.note}>{count.toLocaleString()} / 4,000</Text>}
         </View>
-      </KeyboardAvoidingView>
-    </View>
-  );
+        <Pressable accessibilityRole="button" accessibilityLabel={state.pending ? 'Retry saved message' : 'Send message'} accessibilityState={{ disabled: !canSend, busy: state.sending }}
+          style={[styles.sendButton, !canSend && styles.sendDisabled]} onPress={send} disabled={!canSend}>
+          {state.sending ? <ActivityIndicator color="white" /> : state.pending ? <Text style={styles.sendText}>Retry</Text> : <Ionicons name="arrow-up" size={22} color="white" />}
+        </Pressable>
+      </View>
+    </KeyboardAvoidingView>
+  </View>;
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: COLORS.background },
-  flex: { flex: 1 },
-  headerLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    flex: 1,
-    marginRight: 10,
-  },
-  headerAvatar: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: "#FFFFFF",
-  },
-  headerAvatarFallback: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: "rgba(255,255,255,0.25)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  headerName: { fontSize: 16, fontWeight: "900", color: "#FFFFFF" },
-  headerSubtitle: {
-    fontSize: 11,
-    fontWeight: "600",
-    color: "rgba(255,255,255,0.8)",
-  },
-  threadContent: {
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 12,
-  },
-  dayLabel: {
-    alignSelf: "center",
-    fontSize: 12,
-    fontWeight: "700",
-    color: COLORS.mutedText,
-    marginBottom: 14,
-  },
-  bubbleRow: {
-    width: "100%",
-    flexDirection: "row",
-    marginBottom: 3,
-  },
-  rowMe: { justifyContent: "flex-end" },
-  rowThem: { justifyContent: "flex-start" },
-  bubbleColumn: { maxWidth: "78%" },
-  bubble: {
-    paddingHorizontal: 14,
-    paddingVertical: 9,
-    borderRadius: 20,
-  },
-  bubbleMe: {
-    backgroundColor: COLORS.primary,
-    borderBottomRightRadius: 6,
-  },
-  bubbleThem: {
-    backgroundColor: COLORS.incoming,
-    borderBottomLeftRadius: 6,
-  },
-  textMe: { fontSize: 15, lineHeight: 20, color: "#FFFFFF", fontWeight: "500" },
-  textThem: {
-    fontSize: 15,
-    lineHeight: 20,
-    color: COLORS.textDark,
-    fontWeight: "500",
-  },
-  timeLabel: {
-    fontSize: 10,
-    fontWeight: "600",
-    color: COLORS.mutedText,
-    marginTop: 3,
-    marginBottom: 8,
-  },
-  timeRight: { alignSelf: "flex-end", marginRight: 4 },
-  timeLeft: { alignSelf: "flex-start", marginLeft: 4 },
-  inputBar: {
-    flexDirection: "row",
-    alignItems: "flex-end",
-    gap: 10,
-    paddingHorizontal: 16,
-    paddingTop: 10,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.border,
-    backgroundColor: COLORS.background,
-  },
-  inputWrap: {
-    flex: 1,
-    minHeight: 42,
-    maxHeight: 120,
-    borderRadius: 21,
-    backgroundColor: COLORS.inputGray,
-    justifyContent: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 6,
-  },
-  input: {
-    fontSize: 15,
-    color: COLORS.textDark,
-    fontWeight: "500",
-  },
-  sendButton: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: COLORS.primary,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  sendDisabled: { backgroundColor: "#D8C2C2" },
+  screen: { flex: 1, backgroundColor: '#FFFFFF' }, flex: { flex: 1 },
+  back: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, marginRight: 10 },
+  avatar: { width: 34, height: 34, borderRadius: 17, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' },
+  initials: { color: 'white', fontSize: 13, fontWeight: '800' }, headerTitle: { flex: 1, marginHorizontal: 10 },
+  headerName: { fontSize: 16, fontWeight: '800', color: 'white' }, subtitle: { fontSize: 11, color: 'rgba(255,255,255,0.85)' }, refresh: { padding: 8 },
+  threadContent: { paddingHorizontal: 16, paddingVertical: 12, flexGrow: 1 },
+  empty: { flex: 1, padding: 24, alignItems: 'center', justifyContent: 'center', gap: 12 },
+  emptyTitle: { color: '#2B2525', fontWeight: '800', fontSize: 20, textAlign: 'center' },
+  description: { color: '#766F6F', textAlign: 'center', lineHeight: 22 },
+  bubbleRow: { width: '100%', flexDirection: 'row', marginBottom: 12 }, rowMe: { justifyContent: 'flex-end' }, rowThem: { justifyContent: 'flex-start' },
+  bubbleColumn: { maxWidth: '83%' }, bubble: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 20 },
+  bubbleMe: { backgroundColor: PRIMARY, borderBottomRightRadius: 6 }, bubbleThem: { backgroundColor: '#F1EEEE', borderBottomLeftRadius: 6 },
+  messageText: { fontSize: 15, lineHeight: 21, color: '#2B2525' }, textMe: { color: 'white' },
+  sender: { color: '#766F6F', fontSize: 11, marginBottom: 4 }, timeLabel: { color: '#766F6F', fontSize: 10, marginTop: 4 }, timeRight: { alignSelf: 'flex-end' },
+  older: { padding: 16, alignItems: 'center' }, banner: { paddingHorizontal: 16, paddingVertical: 8, gap: 6, backgroundColor: '#FAF7F7' },
+  error: { color: '#9B1C31', fontSize: 13, lineHeight: 19 }, errorBanner: { color: '#9B1C31', paddingHorizontal: 16, paddingVertical: 8, fontSize: 13 },
+  note: { color: '#766F6F', fontSize: 12, paddingHorizontal: 8, paddingVertical: 4 }, link: { color: PRIMARY, fontWeight: '700', paddingVertical: 6 },
+  newMessages: { alignItems: 'center', backgroundColor: '#FAF0F1', padding: 4 },
+  inputBar: { flexDirection: 'row', alignItems: 'flex-end', gap: 10, paddingHorizontal: 16, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#ECE3E3', backgroundColor: 'white' },
+  inputWrap: { flex: 1, minHeight: 44, maxHeight: 150, borderRadius: 21, backgroundColor: '#F2F0F0', paddingHorizontal: 16, paddingVertical: 7 },
+  input: { fontSize: 15, maxHeight: 120, color: '#2B2525' },
+  sendButton: { minWidth: 46, height: 46, borderRadius: 23, paddingHorizontal: 10, backgroundColor: PRIMARY, alignItems: 'center', justifyContent: 'center' },
+  sendDisabled: { backgroundColor: '#D8C2C2' }, sendText: { color: 'white', fontSize: 12, fontWeight: '800' },
 });

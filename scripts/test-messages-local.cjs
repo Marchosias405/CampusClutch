@@ -19,6 +19,9 @@ const users = [];
 const compiled = ts.transpileModule(fs.readFileSync(path.join(root, 'src/lib/messages.ts'), 'utf8'), {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
 }).outputText;
+const compiledAssignments = ts.transpileModule(fs.readFileSync(path.join(root, 'src/lib/requestConversations.ts'), 'utf8'), {
+  compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
+}).outputText;
 let checks = 0;
 const pass = label => { checks++; console.log('PASS ' + label); };
 function sql(query) {
@@ -34,7 +37,13 @@ function service(client) {
     if (name === './supabase') return { supabase: client };
     throw Error('Unexpected runtime import: ' + name);
   } });
-  return exports;
+  const assignments = {};
+  vm.runInNewContext(compiledAssignments, { exports: assignments, Error, require: name => {
+    if (name === './supabase') return { supabase: client };
+    if (name === './messages') return exports;
+    throw Error('Unexpected runtime import: ' + name);
+  } });
+  return { ...exports, ...assignments };
 }
 async function account() {
   const client = createClient(env.EXPO_PUBLIC_SUPABASE_URL, key, { auth: { persistSession: false, autoRefreshToken: false } });
@@ -137,14 +146,40 @@ async function rpc(user, name, args) {
     } });
     const offerId = await rpc(b, 'create_my_request_offer_for_terms', { p_request_id: requestId, p_expected_round: 1, p_expected_points: 10, p_message: null });
     await assert.rejects(b.api.openRequestConversation(b.id, requestId, 1));
+    assert.equal((await b.api.loadRequestConversationAssignments(b.id, requestId)).items.length, 0);
     pass('a pending offer cannot grant request-conversation access');
     await rpc(a, 'decide_request_offer_for_round', { p_offer_id: offerId, p_action: 'accepted', p_expected_round: 1, p_expected_points: 10 });
     assert.equal(await b.api.openRequestConversation(b.id, requestId, 1), id);
     await assert.rejects(c.api.openRequestConversation(c.id, requestId, 1));
     pass('accepted assignment links the original pair and excludes outsiders');
+    const assignment = (await b.api.loadRequestConversationAssignments(b.id, requestId)).items[0];
+    assert.deepEqual(JSON.parse(JSON.stringify(assignment)), {
+      request_id: requestId, offer_round: 1, poster_id: a.id, helper_id: b.id, status: 'reserved',
+    });
+    assert.equal((await a.api.loadRequestConversationAssignments(a.id, requestId)).items.length, 1);
+    assert.equal((await c.api.loadRequestConversationAssignments(c.id, requestId)).items.length, 0);
+    assert.equal((await b.api.loadRequestConversationAssignments(b.id, requestId, 1)).items.length, 0);
+    pass('assignment history exposes only exact participants and honors the round cursor');
     await rpc(b, 'cancel_my_accepted_help', { p_request_id: requestId, p_expected_round: 1 });
     assert.equal(await b.api.openRequestConversation(b.id, requestId, 1), id);
+    assert.equal((await b.api.loadRequestConversationAssignments(b.id, requestId)).items[0].status, 'released');
     pass('cancelled assignment retains its original authorized conversation');
+    const replacement = await rpc(c, 'create_my_request_offer_for_terms', { p_request_id: requestId, p_expected_round: 2, p_expected_points: 10, p_message: null });
+    await rpc(a, 'decide_request_offer_for_round', { p_offer_id: replacement, p_action: 'accepted', p_expected_round: 2, p_expected_points: 10 });
+    const posterHistory = await a.api.loadRequestConversationAssignments(a.id, requestId);
+    assert.deepEqual(JSON.parse(JSON.stringify(posterHistory.items.map(row => row.offer_round))), [2, 1]);
+    assert.equal((await a.api.loadRequestConversationAssignments(a.id, requestId, 2)).items[0].helper_id, b.id);
+    assert.equal((await b.api.loadRequestConversationAssignments(b.id, requestId)).items.length, 1);
+    assert.equal((await b.api.loadRequestConversationAssignments(b.id, requestId)).items[0].offer_round, 1);
+    assert.equal((await c.api.loadRequestConversationAssignments(c.id, requestId)).items.length, 1);
+    assert.equal((await c.api.loadRequestConversationAssignments(c.id, requestId)).items[0].offer_round, 2);
+    await assert.rejects(b.api.openRequestConversation(b.id, requestId, 2));
+    await assert.rejects(c.api.openRequestConversation(c.id, requestId, 1));
+    const replacementChat = await c.api.openRequestConversation(c.id, requestId, 2);
+    assert.notEqual(replacementChat, id);
+    assert.equal((await c.api.loadMessagePage(c.id, replacementChat)).items.length, 0);
+    assert.equal(await b.api.openRequestConversation(b.id, requestId, 1), id);
+    pass('replacement helpers see only their own assignment and never inherit prior chat history');
     const session = (await a.client.auth.getSession()).data.session;
     const freshClient = createClient(env.EXPO_PUBLIC_SUPABASE_URL, key, { auth: { persistSession: false, autoRefreshToken: false } });
     assert.ifError((await freshClient.auth.setSession({ access_token: session.access_token, refresh_token: session.refresh_token })).error);
@@ -157,6 +192,7 @@ async function rpc(user, name, args) {
     assert.equal(summary.last_read_sequence, '2');
     pass('inbox summary reflects persisted latest message and read state');
     await assert.rejects(a.api.loadConversationPage(b.id));
+    await assert.rejects(a.api.loadRequestConversationAssignments(b.id, requestId));
     pass('typed service rejects calls made with a different account identity');
     console.log('Local messaging API checks passed: ' + checks + '.');
   } finally {

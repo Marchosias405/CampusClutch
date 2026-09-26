@@ -46,3 +46,6 @@ jobs:
 
       - name: Check messaging client contract
         run: npm run test:messages-client
+
+      - name: Check messaging state and navigation boundaries
+        run: npm run test:messages-ui

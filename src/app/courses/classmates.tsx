@@ -671,7 +671,7 @@ export default function ClassmateMatchesScreen() {
                                 styles.messageDisabledText
                               }
                             >
-                              Messaging later
+                              Message from profile
                             </Text>
                           </View>
                         </View>
