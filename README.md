@@ -2,9 +2,9 @@
 
 CampusClutch is an Expo React Native mobile app for university students to connect through courses, classmates, student profiles, campus help requests, direct messages, group conversations, notifications, and user profiles.
 
-Authentication, user profiles, courses, course memberships, classmates, campus requests, offers, points and reliability ratings now use persistent Supabase data. Task 9 local and hosted validation passed, including offers, history, reopening, points transfers, changed-reward confirmation, the three-active-request cap, cancellation/archive and mutual ratings. All ten Task 9 migrations are deployed in hosted Development and Preview; 770 SQL assertions passed in each. The user confirmed all standalone and cancelled-assignment phone tests passed on September 26, including offline refresh/save and the fresh password-reset link. Ratings reveal only after both participants submit. Final Task 9 review, CI and merge are next; persistent messaging remains Task 10.
+Authentication, user profiles, courses, course memberships, classmates, campus requests, offers, points and reliability ratings now use persistent Supabase data. Task 9 local and hosted validation passed, including offers, history, reopening, points transfers, changed-reward confirmation, the three-active-request cap, cancellation/archive and mutual ratings. All ten Task 9 migrations are deployed in hosted Development and Preview; 770 SQL assertions passed in each. The user confirmed all standalone and cancelled-assignment phone tests passed on September 26, including offline refresh/save and the fresh password-reset link. Ratings reveal only after both participants submit. Task 9 is complete and merged through [PR #27](https://github.com/Marchosias405/CampusClutch/pull/27) at `2b3c081`; persistent messaging is next in Task 10.
 
-> **Current status:** Tasks 1–8 are complete and merged. Task 7 merged through [PR #24](https://github.com/Marchosias405/CampusClutch/pull/24) at `13d2202`. Task 8 merged through [PR #25](https://github.com/Marchosias405/CampusClutch/pull/25) at `19f3e61`, after backend validation, all five standalone Preview phone tests, final code review, and passing GitHub CI. Local `main` was synchronized and the Task 8 feature branch deleted locally and remotely. The README closure merged through [PR #26](https://github.com/Marchosias405/CampusClutch/pull/26) at `9a87581`. Task 9—Implement Real Offer Help Workflow—is in final review on `codex/persist-request-offers`. All local and hosted checks and all manual phone gates have passed. The user confirmed the cancelled-assignment checklist on Preview build `016bd2fd` and separately confirmed offline refresh/save and fresh-link password reset on September 26. All ten migrations are deployed in Development and Preview with 770 SQL assertions passing in each and existing data preserved. Final review, CI and merge remain; creator-made quests remain later work.
+> **Current status:** Tasks 1–9 are complete and merged. Task 7 merged through [PR #24](https://github.com/Marchosias405/CampusClutch/pull/24) at `13d2202`. Task 8 merged through [PR #25](https://github.com/Marchosias405/CampusClutch/pull/25) at `19f3e61`, followed by its README closure in [PR #26](https://github.com/Marchosias405/CampusClutch/pull/26) at `9a87581`. Task 9—Implement Real Offer Help Workflow—merged through [PR #27](https://github.com/Marchosias405/CampusClutch/pull/27) at `2b3c081` on September 26, after final review and passing GitHub CI. All ten migrations are deployed in Development and Preview, with 770 SQL assertions passing in each and existing data preserved. The user confirmed all phone gates, including cancelled-assignment ratings, offline refresh/save and fresh-link password reset. The final navigation correction passed nine automated regression checks, now enforced in CI; it will be included in the next APK after phone-tested Preview `016bd2fd`. Local `main` was synchronized after the merge. Task 10—Persist Conversations and Messages—is next; creator-made quests remain later work.
 
 ---
 
@@ -106,6 +106,13 @@ Completed major milestones:
 - Offline refresh recovery and form retention after failed saves
 - Standalone Task 8 Preview APK built and tested
 - Task 7 and Task 8 merged with passing CI
+- Persistent offers, accepted-assignment history and helper consent after reward changes
+- Reserved points, poster-confirmed transfers and one-time 100-point starter balances
+- Three-active-request limit and closed-request archival
+- Blind mutual reliability ratings for completed and cancelled accepted assignments
+- Helper cancellation with points release and reopening for fresh offers
+- Account-scoped Home identity and real Profile balances
+- Task 9 merged with passing CI, including nine offer-action lifecycle regression checks
 
 Current roadmap position:
 
@@ -113,7 +120,8 @@ Current roadmap position:
 Task 6 — Complete and merged (PR #22, 870b6a7)
 Task 7 — Complete and merged (PR #24, 13d2202)
 Task 8 — Complete and merged (PR #25, 19f3e61)
-Task 9 — Final review; all local, hosted and phone validation gates passed
+Task 9 — Complete and merged (PR #27, 2b3c081)
+Task 10 — Next: Persist Conversations and Messages
 ```
 
 Task 8 completion record:
@@ -128,11 +136,23 @@ Task 8 completion record:
 
 Detailed validation history: [Task 8 checkpoint](docs/task-8-requests.md). Its earlier pending notes describe checkpoints before the completed PR #25 merge.
 
+Task 9 completion record:
+
+- All ten migrations are deployed in local, hosted Development and hosted Preview, with 770 SQL assertions passing in each.
+- Typed API and concurrency checks passed; user-confirmed phone testing covers offers, points, reward consent, active limits, completed/cancelled ratings, offline recovery and password reset.
+- Final database review found no blocking issue. Final UI review corrected offer actions remaining disabled after navigating away while saving.
+- Nine focused lifecycle regression checks reproduce the old defect and pass with the correction; they now run in GitHub CI alongside lint/typecheck.
+- PR #27 merged into `main` on September 26, 2026 (America/Vancouver), at `2b3c081`, after required CI passed on reviewed head `861efb1`.
+- Local `main` was synchronized after the merge with a clean working tree. This documentation closure records the completed task.
+- Phone-tested Preview build `016bd2fd` contains the validated feature flows; the final navigation correction is newer and will be included in the next APK.
+
+Detailed contract and validation history: [Task 9 checkpoint](docs/task-9-offers.md). Earlier checkpoint notes describe their status at the time.
+
 ---
 
 # Important Current Limitations
 
-CampusClutch has persistent authentication, profiles, courses, memberships, and requests. Remaining feature limitations are listed below.
+CampusClutch has persistent authentication, profiles, courses, memberships, requests, offers, points and reliability ratings. Remaining feature limitations are listed below.
 
 This means:
 
@@ -231,7 +251,7 @@ Current team expectations:
 22. Do not assume `src/app/messages/new.tsx` exists.
 23. Keep Supabase temporary CLI state under `supabase/.temp/` uncommitted.
 24. Keep hosted Development as the normal linked Supabase project after Preview validation.
-25. Finish the Task 8 documentation closure before beginning Task 9 from updated `main`. Continue to complete each task through validation, CI, review, merge, and documentation before starting the next.
+25. Start Task 10 from updated `main` after Task 9 documentation closure. Continue to complete each task through validation, CI, review, merge, and documentation before starting the next.
 
 ---
 
@@ -297,9 +317,11 @@ The project includes:
 npm run lint
 npm run typecheck
 npm run check
+npm run test:offers-lifecycle
 ```
 
 `npm run check` runs linting and TypeScript checking together.
+`npm run test:offers-lifecycle` runs nine deterministic checks for offer actions across navigation, offline recovery and account changes.
 
 Current expected result:
 
@@ -311,6 +333,8 @@ Current expected result:
 The former Courses `matchesQuery` Hook warnings were resolved in Task 7.
 
 Task 8 also has database tests in `supabase/tests/requests.test.sql` (61 assertions), course regression tests in `supabase/tests/course_memberships.test.sql` (13 assertions), and a local API integration script in `scripts/test-requests-local.cjs` (13 assertions). These passed during feature validation; they are not yet part of GitHub CI. See [the checkpoint](docs/task-8-requests.md) for prerequisites and repeatable commands.
+
+Task 9 expanded the database suite to 770 assertions across 12 files, with typed API and concurrency suites for offers, points and ratings. Those backend checks passed locally and the SQL suite passed in both hosted environments; backend execution is still outside CI. See [Task 9 validation](docs/task-9-offers.md) for the staged results.
 
 ---
 
@@ -327,6 +351,7 @@ CI runs:
 ```powershell
 npm ci
 npm run check
+npm run test:offers-lifecycle
 ```
 
 The required GitHub check is displayed as:
@@ -366,8 +391,14 @@ CampusClutch/
 │   └── task-9-offers.md
 ├── scripts/
 │   ├── test-offers-local.cjs
+│   ├── test-ratings-local.cjs
+│   ├── test-request-active-limit-concurrency.py
+│   ├── test-request-cancel-concurrency.py
+│   ├── test-request-cancelled-ratings-concurrency.py
 │   ├── test-request-offers-concurrency.py
+│   ├── test-request-offers-lifecycle.cjs
 │   ├── test-request-points-concurrency.py
+│   ├── test-request-ratings-concurrency.py
 │   └── test-requests-local.cjs
 ├── src/
 │   ├── app/
@@ -449,14 +480,22 @@ CampusClutch/
 │   │   ├── 20260924235230_request_points.sql
 │   │   ├── 20260925085239_limit_request_points_to_balance.sql
 │   │   ├── 20260925165806_require_helper_reward_consent.sql
-│   │   └── 20260926000632_limit_active_requests.sql
+│   │   ├── 20260926000632_limit_active_requests.sql
+│   │   ├── 20260926064611_cancel_and_archive_requests.sql
+│   │   ├── 20260926071307_completed_request_ratings.sql
+│   │   └── 20260926085648_cancelled_assignment_ratings.sql
 │   ├── tests/
 │   │   ├── course_memberships.test.sql
 │   │   ├── offer_pages.test.sql
 │   │   ├── reopen_request_offers.test.sql
+│   │   ├── request_active_limit.test.sql
+│   │   ├── request_cancel_archive.test.sql
+│   │   ├── request_cancelled_ratings.test.sql
 │   │   ├── request_offers.test.sql
 │   │   ├── request_points.test.sql
 │   │   ├── request_points_limit.test.sql
+│   │   ├── request_ratings.test.sql
+│   │   ├── request_reward_consent.test.sql
 │   │   └── requests.test.sql
 │   ├── config.toml
 │   └── seed.sql
@@ -1141,7 +1180,7 @@ Completed behavior:
 
 Known limitation:
 
-- This Task 8 section records the request-persistence baseline. Task 9 now connects real offers, reopening, points, poster-confirmed completion, and mutual ratings locally. Completed-work ratings passed local phone validation; the later Task 9 follow-up below also permits ratings after an accepted assignment is cancelled. The previous simulated Offer Sent confirmation remains removed.
+- This Task 8 section records the request-persistence baseline. Task 9 now connects real offers, reopening, points, poster-confirmed completion, and mutual ratings in local and hosted backends. Completed-work and cancelled-assignment ratings passed phone validation, and Task 9 is merged. The previous simulated Offer Sent confirmation remains removed.
 
 ---
 
@@ -1255,7 +1294,7 @@ Task 6 Android testing includes:
 
 ## Current Android Testing Setup
 
-The standalone Task 8 Preview APK contains its JavaScript bundle and uses hosted Preview. It launches without Metro, USB, or open laptop terminals. It still needs internet access for backend operations. Local accounts/requests are separate from hosted Preview accounts/requests. The newer Task 9 build is linked in Next Action below.
+The latest phone-tested [Task 9 Preview APK, build `016bd2fd`](https://expo.dev/accounts/marchosias405/projects/CampusClutch/builds/016bd2fd-943b-4d6f-a69a-cde8eb90f935), contains its JavaScript bundle and uses hosted Preview. It launches without Metro, USB, or open laptop terminals. It still needs internet access for backend operations. Local accounts/requests are separate from hosted Preview accounts/requests. The final offer-action navigation correction is newer than this APK and will be included in the next build.
 
 The development-client APK displays a development-server launcher and requires Metro. With the existing local backend configuration, connect the phone by USB and use:
 
@@ -1569,9 +1608,9 @@ This closes the Requests offline/retry test that was previously deferred during 
 
 # Task 9 — Implement Real Offer Help Workflow
 
-**Status: Final review — implementation, hosted deployment and all phone validation passed September 26; CI and merge pending**
+**Status: Complete and merged — PR #27, `2b3c081`, September 26, 2026**
 
-Requests persistence and README closure are merged. Work is on `codex/persist-request-offers`, created from `main` at `9a87581`.
+Implemented on `codex/persist-request-offers`, created from `main` at `9a87581`. PR #27 merged the reviewed implementation into `main` at `2b3c081` after local/hosted validation, all phone gates, final review and passing required GitHub CI.
 
 Checkpoint 1 completed:
 
@@ -1642,7 +1681,7 @@ Checkpoint 6 hosted deployment and validation completed on September 26, 2026:
 - Hosted advisors reported only eight previously known warnings per environment: anonymous/authenticated execution of `rls_auto_enable`, three course RPC definer findings, disabled leaked-password protection, and two multiple-SELECT-policy findings. No Task 9 object was flagged.
 - The repository is linked back to Development. The EAS Preview project, authentication, environment, and standalone internal-distribution profile are verified; the new [Task 9 Preview build `5dab754b`](https://expo.dev/accounts/marchosias405/projects/CampusClutch/builds/5dab754b-4ad7-446c-9272-5a30e7bd0a95) completed from app source `d2e3cad`. APK inspection confirmed non-debuggable release settings, an embedded Hermes bundle, the hosted Preview URL, and Task 9 rating/archive calls, with no development launcher or local Supabase endpoint.
 
-The user initially reported standalone tests **1–6 passed** on build `5dab754b`, then confirmed the full cancelled-assignment checklist on replacement build `016bd2fd`. The earlier offline refresh/save test and fresh password-reset email link were separately confirmed passed on September 26. The phone validation gate is complete; final review, CI and merge remain.
+The user initially reported standalone tests **1–6 passed** on build `5dab754b`, then confirmed the full cancelled-assignment checklist on replacement build `016bd2fd`. The earlier offline refresh/save test and fresh password-reset email link were separately confirmed passed on September 26. Final review and required GitHub CI subsequently passed, and PR #27 merged at `2b3c081`.
 
 Cancelled-assignment follow-up implemented September 26, 2026:
 
@@ -1675,10 +1714,11 @@ Requirements:
 - Permit one immutable rating per participant for each completed or cancelled accepted assignment, publishing the pair and reliability averages only after both submit.
 - Let an accepted helper cancel, releasing reserved points and reopening for fresh offers while retaining both participants' rating history.
 
-Next validation checkpoints and later work:
+Completed validation and later work:
 
-- All standalone and cancelled-assignment phone gates are passed; retain the documented checklists for regression testing.
-- Complete final review, required CI, merge, and documentation closure.
+- All standalone and cancelled-assignment phone gates passed; retain the documented checklists for regression testing.
+- Final review and required CI passed; PR #27 merged at `2b3c081`. This README and the task checkpoint document record closure.
+- The final review also fixed offer actions finishing while the screen is blurred. Nine regression checks now run in CI; the next APK will include that small correction.
 - Add creator-managed miniature quests for earning extra points later, with controlled rewards and protection against duplicate claims. This checkpoint adds no quest administration or reward-claim feature.
 
 Completion condition:
@@ -1693,7 +1733,7 @@ Completion condition:
 
 # Task 10 — Persist Conversations and Messages
 
-Start only after Offer Help is complete.
+**Status: Next task — Task 9 is complete and merged.** Begin from updated `main` and stop at a focused checkpoint for manual testing.
 
 Requirements:
 
@@ -1739,7 +1779,7 @@ Completion condition:
 
 # Task 12 — Add Automated Tests
 
-Course/request database tests and a local request API integration script already exist. This task expands coverage and adds automated test execution to CI beyond lint/typecheck.
+Course/request/offer/points/rating database, API and concurrency tests already exist. CI runs lint/typecheck and nine offer-action lifecycle regression checks. This task expands component/end-to-end coverage and adds backend test execution to CI.
 
 Recommended coverage:
 
@@ -1880,7 +1920,7 @@ Possible work:
 - Task 6 pull request: #22 merged into `main` at merge commit `870b6a7`
 - Courses/Classmates persistence: Task 7 complete, PR #24 (`13d2202`)
 - Requests persistence: Task 8 complete, PR #25 (`19f3e61`)
-- Offer Help persistence: Task 9 implementation, local/hosted checks and all phone tests passed; final review, CI and merge pending
+- Offers, points and mutual reliability ratings: Task 9 complete, PR #27 (`2b3c081`)
 - Messaging persistence: Task 10
 - Production Android build: Not started
 - Production iOS build: Not started
@@ -1895,7 +1935,7 @@ No secrets, private keys, database passwords, store credentials, or real environ
 
 CampusClutch still needs:
 
-- Task 9 final review, CI and merge; creator-managed quests remain later work
+- Creator-managed quests and controlled points rewards
 - Persistent conversations and messages
 - Real notifications
 - Broader component/end-to-end tests and backend test execution in CI
@@ -1908,12 +1948,16 @@ CampusClutch still needs:
 - Blocking/reporting/moderation
 - Error/crash reporting
 - Production store configuration
-- Review of existing hosted security-advisor findings recorded in the Task 8 checkpoint
+- Review of the eight existing hosted security-advisor findings rechecked in the [Task 9 checkpoint](docs/task-9-offers.md#checkpoint-6-hosted-development-and-preview-validation-2026-09-26-americavancouver)
 
 ---
 
 # Next Action
 
-Finish Task 9 final review, required CI and merge on `codex/persist-request-offers`. All phone gates have passed, including the cancelled-assignment follow-up on Preview build `016bd2fd`, offline refresh/save, and fresh-link password reset.
+Start **Task 10 — Persist Conversations and Messages** from updated `main`. Task 9 is complete and merged through [PR #27](https://github.com/Marchosias405/CampusClutch/pull/27) at `2b3c081`; all manual gates, final review and required CI passed.
 
-After merging and recording Task 9 closure, Task 10 will persist conversations and messages. Creator-made quests remain later work. Do not begin the next implementation checkpoint before the current task is closed.
+1. Inspect the existing message screens and define the conversation, membership, message and read/unread contracts.
+2. Implement and validate the secure persistence foundation, including request-offer conversation integration, before wiring the screens.
+3. Continue in focused checkpoints with phone testing, then final review, CI, merge and documentation closure.
+
+Real UUID messaging remains disabled until Task 10 integration is ready. Creator-made quests remain later work. Preview build `016bd2fd` is the last phone-tested APK; the next APK must include the final Task 9 navigation correction as well as any new checkpoint changes.
