@@ -1631,6 +1631,8 @@ Checkpoint 5 implemented locally on September 26, 2026:
 - Account-scoped calls pin the checked token. Failed/offline submissions keep the selected stars and require a status refresh before retrying, so a saved rating with a lost response can be reconciled.
 - Migration `20260926071307_completed_request_ratings.sql` is applied locally. All **657 SQL assertions** passed: 577 existing regressions and 80 new ratings checks. **105 typed API checks** passed: 36 request, 42 offer/points, and 27 ratings checks. Five ratings concurrency cases, lint/typecheck, and Android Hermes export passed. Exact migration replay passed all 80 ratings assertions inside a rollback-only transaction; nine existing data-table fingerprints were unchanged across application, testing, and replay. Local advisors report only the two existing profile-policy performance warnings.
 
+The first ratings phone run exposed a duplicate React key on Profile: the points and ratings sections shared the account UUID. Distinct section prefixes now prevent the collision while preserving account-specific remounting. Reload and check Profile on both accounts before continuing the ratings tests; no database change or APK reinstall is needed.
+
 The cancellation/archive fix has passed its focused phone checkpoint. Checkpoint 5 ratings now need the [mutual-ratings phone checklist](docs/task-9-offers.md#checkpoint-5-phone-checklist); any remaining checkpoint 4 phone cases still need confirmation before hosted validation. Hosted deployment, Preview testing, final review, CI, and merge are still pending. Task 9 is not complete or merged; no new APK is required for this local source update.
 
 Detailed contract and validation: [Task 9 checkpoint](docs/task-9-offers.md).

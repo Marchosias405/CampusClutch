@@ -384,6 +384,10 @@ npx expo start --dev-client --localhost
 6. **Participant permissions:** C, if they offered but were not selected, cannot rate this request. An unrelated account also has no rating action. Cancelled/expired requests must not gain rating controls. Check both public and hidden-profile cases without exposing an unrelated hidden student's profile.
 7. **Offline selection and safe retry:** On a separate completed, paid request with no rating from the current account, select stars. Keep Metro/USB connected and run `adb reverse --remove tcp:54321` in another terminal. Submit and confirm; expect a connection/status error with the selection retained. Restore `adb reverse tcp:54321 tcp:54321` and choose **Retry rating status**. If the rating already saved, do not resubmit; otherwise submit the retained selection once. Confirm one saved rating and no point change.
 
+### Profile key correction during ratings phone testing
+
+The first checkpoint 5 phone run reported duplicate React child keys on Profile. The adjacent points and reliability sections both used the account UUID as their key. They now use distinct `points:` and `rating:` prefixes while still remounting when the account changes. The other ratings integration sites were reviewed for the same collision. This is a rendering-only correction; it requires no database change or new APK. Reload the development app, open Profile on both accounts, and continue the ratings checklist after verifying that the warning is gone.
+
 ### Next checkpoints
 
 Run the checkpoint 5 phone checklist and confirm any remaining checkpoint 4 phone cases before hosted validation. The focused cancellation/archive phone checkpoint has already passed. Creator-managed miniature quests and controlled points rewards remain later work. Hosted deployment, a new Preview APK, Preview validation, CI, review, merge, and documentation closure remain before Task 9 is complete.

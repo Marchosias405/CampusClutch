@@ -154,8 +154,8 @@ export default function ProfileScreen() {
             </View>
           </View>
 
-          <PointsBalance key={user?.id} />
-          {user && <RatingSummary key={user.id} profileId={user.id} />}
+          <PointsBalance key={`points:${user?.id}`} />
+          {user && <RatingSummary key={`rating:${user.id}`} profileId={user.id} />}
 
           {signOutError ? (
             <Text style={styles.signOutError}>{signOutError}</Text>
