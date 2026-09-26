@@ -16,6 +16,8 @@ import {
 
 import ScreenHeader from "../../components/ScreenHeader";
 
+import { useAuth } from "@/context/AuthContext";
+import { useProfile } from "@/context/ProfileContext";
 import {
   getMyCourses,
   isCurrentCourse,
@@ -43,6 +45,11 @@ function getCourseNumber(code: string) {
 
 export default function HomeDashboardScreen() {
   const router = useRouter();
+  const { user } = useAuth();
+  const { profile } = useProfile();
+  const displayName =
+    (profile?.id === user?.id ? profile?.displayName?.trim() : null) ||
+    "Student";
 
   const [currentCourses, setCurrentCourses] =
     useState<MyCourse[]>([]);
@@ -135,7 +142,7 @@ export default function HomeDashboardScreen() {
                 Welcome back,
               </Text>
               <Text style={styles.heroName}>
-                Hi, Kazi
+                Hi, {displayName}
               </Text>
             </View>
 
@@ -375,6 +382,7 @@ const styles = StyleSheet.create({
 
   heroTextBlock: {
     flex: 1,
+    marginRight: 12,
   },
 
   heroHello: {
