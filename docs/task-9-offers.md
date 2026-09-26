@@ -322,8 +322,10 @@ Reload the existing development app with local Supabase running; no new APK is n
 5. Open the archived request and choose Restore Request. It should return to Unarchived with its original closed status. It must not return to the campus feed or use an active slot.
 6. Switch accounts: another user's requests must not expose cancellation or archive controls. Active open/accepted work must have no Archive action. If a connection failure occurs during an action, reconnect and refresh before retrying.
 
-These changes are local only. Existing requests have not been automatically cancelled or archived. Phone validation, hosted deployment, and a new Preview APK remain pending.
+**Focused phone retest passed (September 25, 2026):** The user confirmed all three tests supplied with commit `70ccd47`: cancelling an accepted request returns reserved points and permits another post, archiving an expired request persists after restart, and restoring it preserves its expired status. This completes the cancellation/archive fix checkpoint. This confirmation does not mark every case in the broader checklist or earlier checkpoint 4 checklists as passed.
+
+These changes are local only. Hosted deployment and a new Preview APK remain pending.
 
 ### Next checkpoints
 
-Stop here for phone validation. After it passes, implement mutual ratings for completed requests, restricted to the poster and selected helper with duplicate-rating protection. Creator-managed miniature quests and controlled points rewards are later work. Hosted deployment, a new Preview APK, Preview validation, CI, review, merge, and documentation closure remain before Task 9 is complete.
+The cancellation/archive phone checkpoint has passed. Next, implement mutual ratings for completed requests, restricted to the poster and selected helper with duplicate-rating protection. Creator-managed miniature quests and controlled points rewards are later work. Confirm any remaining checkpoint 4 phone cases before hosted validation. Hosted deployment, a new Preview APK, Preview validation, CI, review, merge, and documentation closure remain before Task 9 is complete.
