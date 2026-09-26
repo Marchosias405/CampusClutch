@@ -1,12 +1,12 @@
 # Task 9 — Request Offers
 
-**Current status (September 26, 2026):** All Task 9 local, hosted and manual phone gates passed. All ten migrations through `20260926085648` are applied in Development and Preview, with 770 SQL assertions passing in each and existing data preserved. The user confirmed the cancelled-assignment phone tests on Preview build `016bd2fd`, plus the earlier offline refresh/save test and fresh password-reset link. Final review, required CI and merge remain. Earlier sections retain historical checkpoint results.
+**Current status (September 26, 2026):** All Task 9 local, hosted and manual phone gates passed. All ten migrations through `20260926085648` are applied in Development and Preview, with 770 SQL assertions passing in each and existing data preserved. The user confirmed the cancelled-assignment phone tests on Preview build `016bd2fd`, plus the earlier offline refresh/save test and fresh password-reset link. Final review and required GitHub CI passed on head `861efb1`; [PR #27](https://github.com/Marchosias405/CampusClutch/pull/27) merged into `main` at `2b3c081` on September 26. Task 9 is complete. Earlier sections retain historical checkpoint results.
 
 ## Checkpoint 1: local backend (2026-09-11, America/Vancouver)
 
 Branch: `codex/persist-request-offers`, based on `9a87581` after README PR #26 merged.
 
-Status at checkpoint 1: backend checkpoint tested locally. Later checkpoints below add the app UI and reopening. Task 9 is **not complete**. No hosted deployment, new APK, PR, or merge was included at this initial checkpoint; hosted deployment is recorded in checkpoint 6 below.
+Status at checkpoint 1: backend checkpoint tested locally. Later checkpoints below add the app UI and reopening. Task 9 was **not complete at this checkpoint**. No hosted deployment, new APK, PR, or merge was included at this initial checkpoint; hosted deployment is recorded in checkpoint 6 below.
 
 ## Database contract
 
@@ -118,7 +118,7 @@ Expiry and pagination have automated coverage. The original hosted/Preview hando
 
 ## Checkpoint 3: request history and reopening (2026-09-24, America/Vancouver)
 
-Status: local phone tests passed after the request-details React key correction. Task 9 remains in progress on `codex/persist-request-offers` and is not complete or merged. Both hosted databases and the standalone Preview APK retained their previous behavior at checkpoint 3; hosted deployment follows in checkpoint 6.
+Status at checkpoint 3: local phone tests passed after the request-details React key correction. Task 9 was still in progress on `codex/persist-request-offers` and was not yet complete or merged. Both hosted databases and the standalone Preview APK retained their previous behavior at checkpoint 3; hosted deployment follows in checkpoint 6.
 
 - Requests now has separate **Campus feed** and **My requests** tabs, plus **My offers**. My requests includes status labels and an explanation that accepted and closed requests stay in the owner's history.
 - An accepted request leaves the open campus feed. Its poster can find it in My requests, and the currently selected helper can open its details from My offers.
@@ -469,10 +469,19 @@ Install the replacement [Preview build `016bd2fd`](https://expo.dev/accounts/mar
 
 ### Next checkpoints
 
-All manual gates have passed. Complete final review, required CI, merge and documentation closure before starting Task 10. Creator-managed miniature quests and controlled points rewards remain later work.
+All manual gates, final review and required CI passed; PR #27 is merged. Task 10 will persist conversations and messages from updated `main`. Creator-managed miniature quests and controlled points rewards remain later work.
 
 ## Final review correction: offer actions finishing off-screen
 
 Final review found that leaving My offers during a slow withdrawal or renewal could leave its buttons permanently disabled after returning. Saving state is now scoped to the account/request and cleared when that operation settles, even while the screen is blurred. Returning before an operation finishes triggers a status refresh afterward, including after a failed response. An old account's response cannot release a new account's pending action.
 
 `npm run test:offers-lifecycle` drives the actual component's buttons and confirmation callbacks through nine deterministic lifecycle cases. The regression fails against the previous component and passes with the correction. The same checks now run in GitHub CI after lint/typecheck. This small source correction follows the successful phone validation of Preview build `016bd2fd`; that APK predates this correction, which will be included in the next APK build.
+
+## Task 9 closure (September 26, 2026, America/Vancouver)
+
+- [PR #27](https://github.com/Marchosias405/CampusClutch/pull/27) merged into `main` at `2b3c081c9c755740d46e15afebabe62490307e6d`.
+- The required **Lint and typecheck** GitHub check passed on reviewed head `861efb13aa0e39bf14352f2df21f3bf502767e16`, including all nine offer-action lifecycle regression checks.
+- Independent backend review found no actionable issue. The frontend review finding above was corrected and verified before merge.
+- The final local database run passed 770 assertions across 12 files. Hosted validation, typed API checks, concurrency suites and all user-reported phone gates are recorded above.
+- Local `main` was synchronized after the implementation merge. The README now records Task 9 completion and Task 10 as the next checkpoint.
+- No Task 10 feature work or replacement APK was started during closure. Preview `016bd2fd` remains the last phone-tested build; it predates the small final navigation correction.
