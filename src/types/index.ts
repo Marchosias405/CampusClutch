@@ -88,3 +88,13 @@ export type {
   CourseMembershipStatus,
   MyCourse
 } from "./course";
+
+export type {
+  ConversationCursor,
+  ConversationMessage,
+  ConversationPage,
+  ConversationSummary,
+  MessagePage,
+  MessageSequence,
+  SendMessageInput,
+} from "./messaging";

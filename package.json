@@ -11,7 +11,9 @@
     "lint": "expo lint",
     "typecheck": "tsc --noEmit",
     "check": "npm run lint && npm run typecheck",
-    "test:offers-lifecycle": "node scripts/test-request-offers-lifecycle.cjs"
+    "test:offers-lifecycle": "node scripts/test-request-offers-lifecycle.cjs",
+    "test:messages-client": "node scripts/test-messages-client.cjs",
+    "test:messages-local": "node scripts/test-messages-local.cjs"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",

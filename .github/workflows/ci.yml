@@ -43,3 +43,6 @@ jobs:
 
       - name: Check offer action lifecycle
         run: npm run test:offers-lifecycle
+
+      - name: Check messaging client contract
+        run: npm run test:messages-client
