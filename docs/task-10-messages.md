@@ -1,6 +1,6 @@
 # Task 10 — Conversations and Messages
 
-**Current status:** Checkpoint 2 implemented locally on September 26, 2026, on `codex/persist-messages`, based on `main` at `0ae8af1`. Checkpoint 1's backend/API was saved at `2820f1f`; checkpoint 2 connects the inbox, threads, real profiles and accepted-assignment history. Automated validation and Android bundle export passed; the phone checklist below is pending. Task 10 is not complete. Hosted Development and Preview remain on Task 9, and no new APK was built during these local checkpoints.
+**Current status:** Checkpoint 2 is in local phone validation on `codex/persist-messages`, based on `main` at `0ae8af1`. The user reported tests 1–4 passing apart from the unread tab badge and messaging entry issues below. September 27 follow-up work adds the bottom-tab badge, contact before offering/acceptance, and a direct Message button on classmate cards. These fixes need a focused retest; original tests 5–8 remain unconfirmed. Task 10 is not complete. Hosted Development and Preview remain on Task 9. Development build `872b050f` replaces the unavailable older development APK; the follow-up needs no further native rebuild.
 
 ## Checkpoint 1: direct-messaging foundation
 
@@ -62,6 +62,9 @@ RLS and explicit grants protect all exposed tables. Public RPCs use invoker wrap
 | `get_conversation_messages` | Load message history, newest first, before a sequence cursor |
 | `send_conversation_message` | Send once or recover the result of the same retry |
 | `mark_conversation_read` | Advance only the caller's read cursor |
+| `get_my_unread_message_count` | Count incoming unread messages across all of the caller's non-removed conversations |
+| `get_request_contact` | Read limited identity in an authorized request context without creating a chat |
+| `start_request_contact_conversation` | Open the same direct pair before an offer or acceptance, when request-contact eligibility permits |
 
 The TypeScript boundary lives in `src/lib/messages.ts`, with shared types in `src/types/messaging.ts`. Bigint sequences remain decimal strings across the wire and in TypeScript, including values above JavaScript's safe integer limit.
 
@@ -126,7 +129,7 @@ These automated checks exercise the real controllers, client and entry component
 
 ### Local phone setup
 
-Use the CampusClutch [development build `3082844b`](https://expo.dev/accounts/marchosias405/projects/CampusClutch/builds/3082844b-68e0-46ac-ac22-c1faa9910e99) with the phone connected by USB and Docker Desktop running. Install that development APK if the standalone Preview APK is currently installed. Its native crypto support is already included; this checkpoint adds no native dependencies. The standalone Preview APK will continue showing the previous release until a later hosted deployment/build checkpoint.
+Use the CampusClutch [development build `872b050f`](https://expo.dev/accounts/marchosias405/projects/CampusClutch/builds/872b050f-3144-4e0a-bb1f-d9efdc788418) with the phone connected by USB and Docker Desktop running. It was rebuilt on September 27 because the older `3082844b` artifact was no longer available. Install this development APK if the standalone Preview APK is currently installed. Its native crypto support is already included; these fixes add no native dependencies. The standalone Preview APK will continue showing the previous release until a later hosted deployment/build checkpoint. Use the build page to download; signed artifact URLs expire.
 
 ```powershell
 Set-Location D:\Projects\CampusClutch
@@ -152,16 +155,35 @@ This leaves the database and its data intact. Restore the gateway before closing
 
 Use two local accounts, A and B, with completed profiles. For the classmate entry point, both should be discoverable and enrolled in the same current course. A third account C is useful for the replacement-helper check.
 
-1. **Start a direct chat:** As A, open Courses → a current course's classmates → B's profile → Message. Send a distinctive message. Open B's profile again and confirm it opens the same conversation. The Messages tab should show B's actual name and message preview, with no sample chats.
+1. **Start a direct chat:** As A, open Courses → a current course's classmates → Message on B's card. It must open B's DM directly. View Profile must still open B's profile; its Message action must reach the same conversation. Send a distinctive message. The Messages tab should show B's actual name and message preview, with no sample chats.
 2. **Reply and persist:** Sign in as B, refresh Messages, open A's conversation and reply. Return to A, refresh and verify the reply. Close/reopen the app and confirm both messages and their timestamps remain. Use Refresh when waiting on the same screen.
-3. **Unread state:** Send a new message from A while B is elsewhere in the app. In B's Messages tab, refresh and check the unread count and Unread filter. Open the conversation, view the new message, return to Messages and confirm the count clears. A's own sends should not add to A's unread count.
-4. **Accepted-request chat:** Open a request accepted between A and B, and use Message helper / Message poster under Assignment chats. Both actions should reach their existing direct conversation. Before acceptance, an unselected offer should not grant an assignment chat.
+3. **Unread state:** Send a new message from A while B is elsewhere in the app. On B, change tabs or wait up to 30 seconds while online; the Messages bottom tab should show the total unread count. Refresh Messages and confirm its individual conversation count and Unread filter agree. Open the conversation, view the new message, return to Messages and confirm both counts clear. A's own sends should not add to A's unread count. Switch accounts and confirm the previous account's badge disappears immediately.
+4. **Request contact and accepted chat:** Before B offers help on A's open request, open its details as B. A's name/basic identity and Message poster must be visible and allow a chat. As A, receive/reply through Messages. After B offers, A should see B's identity and Message helper in that pending offer before accepting. After acceptance, Message helper / Message poster under Assignment chats must reach the same direct conversation. An unselected helper still cannot access someone else's assignment link or messages. Repeat with a poster hidden from profile discovery: request contact works, without exposing private full-profile fields.
 5. **Historical participants:** Have B cancel an accepted assignment. Its chat should remain available to A/B. After reopening and accepting C, the new assignment should open A/C's separate conversation. C must not see the earlier A/B messages. Existing same-pair assignments may share a direct conversation.
 6. **Failed-send retry:** Open a loaded conversation, stop the API gateway using the commands above, then send a distinctive message. Confirm its text remains and a retry is offered. Navigate away and back, then restore the gateway and close/reopen the app. Retry the retained submission if it is still pending, and confirm the recipient receives exactly one copy. An already saved message can reconcile automatically without another send. Use the explicit discard action only when intentionally abandoning an uncertain submission; it may already exist on the server.
 7. **Account isolation and ordinary drafts:** Type without sending, leave and reopen the chat, and confirm the draft remains. Switch to the other account and confirm that draft is absent there. Return to the original account and verify its draft. Switch screens during refresh/sending and confirm no delayed response opens or changes a different account's chat.
 8. **History and layout:** Exchange more than 30 messages, load older history, then refresh. Confirm the history remains reachable without duplicate bubbles. Test a multiline message and a message long enough to fill more than one screen; viewing it should update unread status. A draft over 4,000 characters should stay editable with a clear length error when sent. The keyboard, send control, timestamps and navigation bar should stay usable. In Messages, verify search, All/Unread and empty states.
 
-The phone gate remains pending until the user reports these results. Group conversations, invitations, realtime subscriptions, hosted rollout and a new Preview build remain later checkpoints.
+The user reported the original tests 1–4 passing, with the three entry/badge issues addressed by the follow-up below. Retest the amended tests 1, 3 and 4, then complete 5–8. Group conversations, invitations, realtime subscriptions, hosted rollout and a new Preview build remain later checkpoints.
+
+### September 27 follow-up: contact and unread badge
+
+- The bottom Messages tab now shows the total incoming unread messages across the full inbox, including conversations outside loaded pages. Counts update after reading, inbox refresh, navigation, foreground return and every 30 seconds while the app is active. Offline failures keep the last known count; switching accounts immediately uses a fresh store. Incoming thread bubbles still require Refresh until the realtime checkpoint.
+- An eligible viewer can inspect a live request's poster and contact them before offering. The poster can reply through Messages and contact helpers from pending offers. Accepted/historical participants retain their authorized contact path. The projection contains only name, major, year and campus; it does not change global hidden-profile discovery or expose private profile fields.
+- Request introductions reuse the existing private direct pair. Viewing the contact does not create a conversation, offer or assignment. A new introduction is checked again on the server; unrelated users cannot name arbitrary hidden profiles as contacts, and replacement helpers never inherit another pair's chat.
+- Classmate cards have separate View Profile and Message buttons. Message directly opens the authorized conversation UUID, with retry and navigation/account/background guards.
+- Migration `20260927075447_request_contacts_and_unread_total.sql` is local only. Existing assignment links and Task 9 request/offer/payment behavior are preserved.
+
+Follow-up validation completed locally:
+
+- All **994 SQL assertions across 14 files** passed, including 52 new contact/unread assertions. The new functions replay successfully from the captured migration; local migration history and explicit execution privileges match the reviewed source.
+- **27 actual typed-client Auth/PostgREST checks** passed. All **25 public-table data fingerprints** remained unchanged after temporary fixture cleanup.
+- **26 messaging/contact client groups**, **98 messaging UI/controller/lifecycle groups**, and **nine offer-action lifecycle checks** passed. The CI commands include the new regression scripts; remote CI has not run for this local follow-up.
+- Full lint/typecheck and Android Hermes bundle export passed. No native dependency change is required.
+- Independent authorization review found no blocker. Security advisors returned no findings; the two existing permissive-policy performance notices on profile tables remain unchanged.
+- UI review fixed stuck chat-opening buttons after navigation/backgrounding, prevented stale-profile badge activation after account changes, and synchronized inbox rows when the total unread count changes.
+
+No hosted deployment or additional APK is part of this follow-up. The amended phone checklist remains the next gate.
 
 ## Remaining integration and release work
 

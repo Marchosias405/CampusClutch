@@ -15,6 +15,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { ProfileProvider, useProfile } from "@/context/ProfileContext";
 import { RequestsProvider } from "@/context/RequestsContext";
+import { UnreadMessagesProvider } from "@/context/UnreadMessagesContext";
 
 export default function RootLayout() {
   return (
@@ -23,7 +24,7 @@ export default function RootLayout() {
         <AuthProvider>
           <ProfileProvider>
             <RequestsProvider>
-              <RootNavigator />
+              <UnreadMessagesProvider><RootNavigator /></UnreadMessagesProvider>
             </RequestsProvider>
           </ProfileProvider>
         </AuthProvider>

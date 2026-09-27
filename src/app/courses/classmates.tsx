@@ -1,13 +1,15 @@
 import { FontAwesome5, Ionicons } from "@expo/vector-icons";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import React, {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import {
   ActivityIndicator,
+  AppState,
   Image,
   Pressable,
   ScrollView,
@@ -18,6 +20,9 @@ import {
 
 import ScreenHeader from "../../components/ScreenHeader";
 
+import { useAuth } from "@/context/AuthContext";
+import { useProfile } from "@/context/ProfileContext";
+import { startDirectConversation } from "@/lib/messages";
 import { getProfileAvatarSignedUrl } from "@/lib/avatars";
 import {
   getCourseClassmates,
@@ -119,8 +124,7 @@ function getConnectionNote(
 }
 
 export default function ClassmateMatchesScreen() {
-  const router = useRouter();
-
+  const { user } = useAuth();
   const params = useLocalSearchParams<{
     courseId?: string | string[];
   }>();
@@ -130,6 +134,21 @@ export default function ClassmateMatchesScreen() {
   )
     ? params.courseId[0] ?? ""
     : params.courseId ?? "";
+
+  return <ClassmateMatchesContent key={`${user?.id}:${routeCourseId}`} viewerId={user?.id} routeCourseId={routeCourseId} />;
+}
+
+function ClassmateMatchesContent({ viewerId, routeCourseId }: { viewerId?: string; routeCourseId: string }) {
+  const router = useRouter();
+  const { profile } = useProfile();
+  const canMessage = !!viewerId && profile?.id === viewerId && !!profile?.onboardingCompletedAt;
+  const focused = useRef(false);
+  const foreground = useRef(AppState.currentState === "active");
+  const focusEpoch = useRef(0);
+  const generation = useRef(0);
+  const opening = useRef<object | null>(null);
+  const [openingProfileId, setOpeningProfileId] = useState<string | null>(null);
+  const [messageError, setMessageError] = useState<{ profileId: string; text: string } | null>(null);
 
   const [selectedFilter, setSelectedFilter] =
     useState<MatchFilter>("MOST_SHARED");
@@ -149,11 +168,14 @@ export default function ClassmateMatchesScreen() {
 
   const loadClassmates = useCallback(
     async () => {
-      if (!routeCourseId) {
+      if (!focused.current || !foreground.current) return;
+      const ticket = ++generation.current;
+      const isCurrent = () => focused.current && foreground.current && ticket === generation.current;
+      if (!routeCourseId || !viewerId) {
         setCourse(null);
         setClassmates([]);
         setErrorMessage(
-          "No course was selected."
+          viewerId ? "No course was selected." : "Sign in to see your classmates."
         );
         setIsLoading(false);
         return;
@@ -164,6 +186,7 @@ export default function ClassmateMatchesScreen() {
 
       try {
         const myCourses = await getMyCourses();
+        if (!isCurrent()) return;
 
         const selectedCourse =
           myCourses.find(
@@ -191,6 +214,7 @@ export default function ClassmateMatchesScreen() {
           await getCourseClassmates(
             selectedCourse.id
           );
+        if (!isCurrent()) return;
 
         const displayClassmates =
           await Promise.all(
@@ -221,12 +245,9 @@ export default function ClassmateMatchesScreen() {
             })
           );
 
-        setClassmates(displayClassmates);
-      } catch (error) {
-        console.error(
-          "Failed to load classmates:",
-          error
-        );
+        if (isCurrent()) setClassmates(displayClassmates);
+      } catch {
+        if (!isCurrent()) return;
 
         setClassmates([]);
 
@@ -234,14 +255,33 @@ export default function ClassmateMatchesScreen() {
           "We couldn't load classmates for this course. Please try again."
         );
       } finally {
-        setIsLoading(false);
+        if (isCurrent()) setIsLoading(false);
       }
     },
-    [routeCourseId]
+    [routeCourseId, viewerId]
   );
 
-  useEffect(() => {
+  useFocusEffect(useCallback(() => {
+    focused.current = true;
+    ++focusEpoch.current;
+    setMessageError(null);
     void loadClassmates();
+    return () => {
+      focused.current = false; ++focusEpoch.current; ++generation.current;
+      opening.current = null; setOpeningProfileId(null);
+    };
+  }, [loadClassmates]));
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", state => {
+      foreground.current = state === "active";
+      if (!foreground.current) {
+        ++focusEpoch.current; ++generation.current;
+        opening.current = null; setOpeningProfileId(null);
+      }
+      else if (focused.current) void loadClassmates();
+    });
+    return () => subscription.remove();
   }, [loadClassmates]);
 
   const visibleClassmates = useMemo(() => {
@@ -266,12 +306,36 @@ export default function ClassmateMatchesScreen() {
   const handleViewProfile = (
     profileId: string
   ) => {
+    if (!focused.current || !foreground.current || isLoading || opening.current) return;
     router.push({
       pathname: "/students/[id]",
       params: {
         id: profileId,
       },
     } as any);
+  };
+
+  const handleMessage = async (profileId: string) => {
+    if (!canMessage || !viewerId || profileId.toLowerCase() === viewerId.toLowerCase()
+      || !classmates.some(item => item.profileId === profileId) || !course
+      || !focused.current || !foreground.current || opening.current || isLoading) return;
+    const operation = {};
+    const epoch = focusEpoch.current;
+    opening.current = operation;
+    setOpeningProfileId(profileId);
+    setMessageError(null);
+    try {
+      const conversationId = await startDirectConversation(viewerId, profileId);
+      if (focused.current && foreground.current && focusEpoch.current === epoch) {
+        router.push({ pathname: "/messages/[id]", params: { id: conversationId } });
+      }
+    } catch {
+      if (focused.current && foreground.current && focusEpoch.current === epoch) {
+        setMessageError({ profileId, text: "Unable to open this chat. Check your connection and try again." });
+      }
+    } finally {
+      if (opening.current === operation) { opening.current = null; setOpeningProfileId(null); }
+    }
   };
 
   const emptyMessage =
@@ -443,15 +507,10 @@ export default function ClassmateMatchesScreen() {
                       getConnectionNote(item);
 
                     return (
-                      <Pressable
+                      <View
                         key={item.profileId}
                         style={
                           styles.studentCard
-                        }
-                        onPress={() =>
-                          handleViewProfile(
-                            item.profileId
-                          )
                         }
                       >
                         <View
@@ -637,9 +696,12 @@ export default function ClassmateMatchesScreen() {
                           }
                         >
                           <Pressable
+                            accessibilityRole="button"
+                            accessibilityLabel={`View ${item.displayName}'s profile`}
                             style={
                               styles.actionButton
                             }
+                            disabled={!!openingProfileId}
                             onPress={() =>
                               handleViewProfile(
                                 item.profileId
@@ -655,27 +717,36 @@ export default function ClassmateMatchesScreen() {
                             </Text>
                           </Pressable>
 
+                          {item.profileId.toLowerCase() !== viewerId?.toLowerCase() && <>
                           <View
                             style={
                               styles.actionDivider
                             }
                           />
 
-                          <View
+                          <Pressable
+                            accessibilityRole="button"
+                            accessibilityLabel={`Message ${item.displayName}`}
+                            disabled={!canMessage || !!openingProfileId}
+                            onPress={() => { void handleMessage(item.profileId); }}
                             style={
                               styles.actionButton
                             }
                           >
                             <Text
-                              style={
-                                styles.messageDisabledText
-                              }
+                              style={[
+                                styles.messageText,
+                                (!canMessage || !!openingProfileId) && styles.messageDisabledText,
+                              ]}
                             >
-                              Message from profile
+                              {openingProfileId === item.profileId ? "Opening chat…"
+                                : messageError?.profileId === item.profileId ? "Retry Message" : "Message"}
                             </Text>
-                          </View>
+                          </Pressable>
+                          </>}
                         </View>
-                      </Pressable>
+                        {messageError?.profileId === item.profileId && <Text accessibilityRole="alert" style={styles.messageError}>{messageError.text}</Text>}
+                      </View>
                     );
                   }
                 )}
@@ -943,10 +1014,23 @@ const styles = StyleSheet.create({
     color: "#6E6262",
   },
 
-  messageDisabledText: {
+  messageText: {
     fontSize: 14,
     fontWeight: "800",
+    color: COLORS.primary,
+    textAlign: "center",
+  },
+
+  messageDisabledText: {
     color: COLORS.disabled,
+  },
+
+  messageError: {
+    paddingHorizontal: 18,
+    paddingBottom: 14,
+    color: COLORS.primary,
+    fontSize: 14,
+    lineHeight: 20,
   },
 
   stateContainer: {

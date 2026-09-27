@@ -9,6 +9,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import ScreenHeader from '../../components/ScreenHeader';
 import { useAuth } from '../../context/AuthContext';
+import { useUnreadMessages } from '../../context/UnreadMessagesContext';
 import { env } from '../../lib/env';
 import { loadConversationSummary, loadMessagePage, markConversationRead, messagingError, sendMessage } from '../../lib/messages';
 import { compareSequences, createMessageThread, isConversationId } from '../../lib/messageThread';
@@ -32,7 +33,7 @@ function Unavailable({ signedOut }: { signedOut: boolean }) {
       <Ionicons name="arrow-back" size={24} color="white" /><Text style={styles.headerName}>Messages</Text>
     </Pressable></ScreenHeader>
     <View style={styles.empty}><Text style={styles.emptyTitle}>{signedOut ? 'Sign in to read messages' : 'Conversation unavailable'}</Text>
-      <Text style={styles.description}>{signedOut ? 'Your messages are available only to your signed-in account.' : 'Open a conversation from Messages, a student profile, or an accepted request. Old sample chats are no longer available.'}</Text>
+      <Text style={styles.description}>{signedOut ? 'Your messages are available only to your signed-in account.' : 'Open a conversation from Messages, a classmate, a student profile, or a request. Old sample chats are no longer available.'}</Text>
     </View>
   </View>;
 }
@@ -40,11 +41,16 @@ function Unavailable({ signedOut }: { signedOut: boolean }) {
 function MessageThread({ userId, conversationId }: { userId: string; conversationId: string }) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { refreshUnread } = useUnreadMessages();
   const model = useMemo(() => createMessageThread(userId, conversationId, {
     namespace: env.supabaseUrl, storage: AsyncStorage, randomUUID: () => globalThis.crypto.randomUUID(),
     loadSummary: loadConversationSummary, loadPage: loadMessagePage,
-    send: sendMessage, markRead: markConversationRead, errorText: messagingError,
-  }), [userId, conversationId]);
+    send: sendMessage, markRead: async (actorId, chatId, sequence) => {
+      const result = await markConversationRead(actorId, chatId, sequence);
+      void refreshUnread();
+      return result;
+    }, errorText: messagingError,
+  }), [userId, conversationId, refreshUnread]);
   const state = useSyncExternalStore(model.subscribe, model.getSnapshot, model.getSnapshot);
   const listRef = useRef<FlatList<ConversationMessage>>(null);
   const focused = useRef(false);

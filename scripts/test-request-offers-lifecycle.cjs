@@ -96,6 +96,7 @@ function harness() {
     '../context/RequestsContext': { useRequests: () => ({ invalidate: () => { invalidations += 1; } }) },
     '../lib/offers': api,
     './RatingSummary': { default: 'RatingSummary', __esModule: true },
+    './RequestContact': { default: 'RequestContact', __esModule: true },
   };
   vm.runInNewContext(compiled, { exports, require: name => {
     if (!(name in modules)) throw Error('Unexpected import ' + name);

@@ -183,6 +183,15 @@ export async function loadConversationPage(userId: string, options: {
   });
 }
 
+/** Exact incoming unread total across all of the caller's visible conversations. */
+export async function loadUnreadMessageCount(userId: string): Promise<number> {
+  const data = await call(userId, 'get_my_unread_message_count', {});
+  return parse(() => {
+    if (typeof data !== 'number' || !Number.isSafeInteger(data) || data < 0) throw new Error();
+    return data;
+  });
+}
+
 export async function loadMessagePage(userId: string, conversationId: string, options: {
   limit?: number; beforeSequence?: MessageSequence | null;
 } = {}): Promise<MessagePage> {

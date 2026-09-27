@@ -162,7 +162,7 @@ Task 10 checkpoint 2 record:
 - Real student profiles and current/historical accepted assignments open authorized chats. Original helpers retain their history; replacement helpers get separate conversations.
 - Drafts and uncertain sends persist per backend/account/conversation, retaining the same retry identity without duplicate sends.
 - 50 inbox/thread/entry/assignment-client regression groups, 15 existing messaging client checks, nine offer lifecycle checks and 23 live API checks passed. Lint/typecheck and an Android Hermes bundle export passed.
-- Local phone testing is the next gate. Groups, realtime, hosted rollout and a new Preview APK are later checkpoints.
+- The user reported phone tests 1–4 passing except the unread tab badge and messaging entry issues. September 27 fixes add the tab badge, request contact before offering/acceptance, and direct Message buttons on classmate cards. Focused retesting and tests 5–8 remain; groups, realtime, hosted rollout and a new Preview APK follow later.
 
 Detailed contract and repeatable checks: [Task 10 checkpoint](docs/task-10-messages.md).
 
@@ -342,8 +342,8 @@ npm run test:messages-ui
 
 `npm run check` runs linting and TypeScript checking together.
 `npm run test:offers-lifecycle` runs nine deterministic checks for offer actions across navigation, offline recovery and account changes.
-`npm run test:messages-client` runs 15 contract test groups for messaging authorization, validation, retries, privacy and exact cursor handling without needing a database.
-`npm run test:messages-ui` runs 50 regression groups across the real inbox/thread controllers, entry components and assignment-history client. Device keyboard/scroll rendering is verified separately on Android.
+`npm run test:messages-client` runs messaging and request-contact contract tests for authorization, validation, retries, privacy, unread totals and exact cursor handling without needing a database.
+`npm run test:messages-ui` covers the real inbox/thread controllers, unread provider and tab, classmate/profile/request entry components and assignment-history client. Device keyboard/scroll rendering is verified separately on Android.
 
 Current expected result:
 
@@ -360,7 +360,7 @@ Task 9 expanded the database suite to 770 assertions across 12 files, with typed
 
 Task 10 checkpoint 1 expands the local SQL suite to 942 assertions across 13 files. Ten messaging concurrency cases and 21 real typed-client API checks also passed. These require local Supabase; see [Task 10 validation](docs/task-10-messages.md#validation) for prerequisites and commands. Hosted environments remain at the validated Task 9 schema.
 
-Checkpoint 2 adds 50 deterministic integration/lifecycle groups and expands the actual local API suite to 23 checks, covering request assignment history and replacement-helper isolation. No new migration or dependency was required. Lint/typecheck, existing regressions and Android bundle export passed; [manual phone checks](docs/task-10-messages.md#checkpoint-2-phone-checklist) remain pending.
+Checkpoint 2 initially added 50 deterministic integration/lifecycle groups and expanded the actual local API suite to 23 checks. The September 27 follow-up adds request-contact authorization, an unread-total RPC, and regression coverage for the three issues found during phone tests 1–4. Its migration is applied locally only; no native dependency change is required. See [current validation and amended phone checks](docs/task-10-messages.md#september-27-follow-up-contact-and-unread-badge).
 
 ---
 
@@ -1119,14 +1119,16 @@ Task 10 checkpoint 2 replaces the sample conversation flow in current local sour
 
 - Real inbox rows open `/messages/[id]` using an authorized conversation UUID.
 - All/Unread filtering, search over loaded rows, pagination, refresh and retry are available.
-- Compose opens Courses → Classmates → Student Profile → Message.
+- Compose opens Courses → Classmates, where Message opens the DM and View Profile opens the profile separately.
+- Request details expose basic poster identity and Message poster before offering; posters can message helpers from pending offers and reply to initial enquiries through Messages.
 - Accepted-request history provides Message helper / Message poster for each original assignment pair.
 - Message history, sender, timestamps and unread counts come from Supabase.
+- The Messages bottom tab shows the total incoming unread count across the full inbox, refreshing on navigation, after reading and every 30 seconds while active.
 - Drafts and uncertain sends persist on the device under separate backend/account/conversation keys. Retrying preserves the original body and UUID.
 - Read state advances for observed incoming messages while the thread is focused and the app is active.
 - Keyboard avoidance, safe insets, multiline input and stable older-history loading are retained for Android validation.
 
-Phone checks are pending. This checkpoint uses manual and focus/foreground refresh; realtime, groups, hosted deployment and a new standalone Preview APK remain later work. See [the phone checklist](docs/task-10-messages.md#checkpoint-2-phone-checklist).
+Tests 1–4 passed apart from the badge/contact issues addressed in the follow-up; retest those fixes and complete tests 5–8. Thread arrival still uses manual and focus/foreground refresh; realtime, groups, hosted deployment and a new standalone Preview APK remain later work. See [the phone checklist](docs/task-10-messages.md#checkpoint-2-phone-checklist).
 
 ---
 
@@ -1761,7 +1763,7 @@ Completion condition:
 
 # Task 10 — Persist Conversations and Messages
 
-**Status: In progress — checkpoint 2 implemented locally on September 26, 2026; phone testing pending.** Branch `codex/persist-messages` began from `main` at `0ae8af1`, after Task 9 and its documentation merged. Checkpoint 1's backend/API was saved at `2820f1f`; checkpoint 2 connects the inbox, threads, profiles and accepted-assignment history.
+**Status: In progress — checkpoint 2 phone validation and September 27 follow-up fixes.** Branch `codex/persist-messages` began from `main` at `0ae8af1`, after Task 9 and its documentation merged. Checkpoint 1's backend/API was saved at `2820f1f`; checkpoint 2 was saved at `474cc28`. The user reported tests 1–4 passing apart from the unread tab badge and contact entry issues; those fixes need a focused retest, and tests 5–8 remain unconfirmed.
 
 Checkpoint 1 completed:
 
@@ -1780,7 +1782,9 @@ Checkpoint 2 implemented:
 - Read state follows observed incoming messages while focused/foreground; account/navigation changes suppress stale results and chat-opening actions.
 - Compose opens Courses/classmates; All and Unread filters have real data. No unused `/messages/new` route is created.
 - 50 new controller/component/assignment-client test groups and 23 real API checks passed, alongside existing client/lifecycle regressions, lint/typecheck and Android export.
-- Next gate: [checkpoint 2 phone tests](docs/task-10-messages.md#checkpoint-2-phone-checklist) using the existing development build connected to local Metro/Supabase.
+- Follow-up: the Messages bottom tab shows the total unread count, classmate Message buttons open DMs directly, and request participants can inspect basic identities and message before offering/acceptance. Hidden-profile discovery rules and private assignment histories remain protected.
+- Follow-up validation passed: 994 SQL assertions, 27 actual API checks, 26 messaging/contact client groups, 98 UI/controller/lifecycle groups, nine offer lifecycle checks, lint/typecheck and Android bundle export. The local migration was captured/replayed, and all 25 public-table data fingerprints remained unchanged after test cleanup. Full results are in the checkpoint document.
+- Next gate: [amended checkpoint 2 phone tests](docs/task-10-messages.md#checkpoint-2-phone-checklist) using development build `872b050f` connected to local Metro/Supabase. This replaces the unavailable older development APK; the follow-up needs no further rebuild.
 
 Group conversations and invitation/history rules, realtime updates, hosted deployment, standalone Preview testing, final review, CI and merge remain later Task 10 checkpoints. Hosted Development/Preview and APK `016bd2fd` are unchanged. Full contract and validation: [Task 10 checkpoint](docs/task-10-messages.md).
 
@@ -2003,7 +2007,7 @@ CampusClutch still needs:
 
 # Next Action
 
-Run **Task 10 checkpoint 2 phone tests** on `codex/persist-messages`. The direct-messaging backend/API and screen integration passed automated checks locally. Task 9 remains complete and merged through [PR #27](https://github.com/Marchosias405/CampusClutch/pull/27) at `2b3c081`.
+Continue **Task 10 checkpoint 2 phone validation** on `codex/persist-messages`. Tests 1–4 were reported passing apart from the unread tab badge and messaging entry issues; retest those follow-up fixes, then complete tests 5–8. Task 9 remains complete and merged through [PR #27](https://github.com/Marchosias405/CampusClutch/pull/27) at `2b3c081`.
 
 1. Use the [local phone setup and checklist](docs/task-10-messages.md#local-phone-setup) to verify sending, restart persistence, unread state, assignment isolation, retained retries, keyboard and pagination.
 2. Address any checkpoint failures before moving on.

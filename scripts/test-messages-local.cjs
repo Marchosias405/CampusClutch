@@ -22,6 +22,9 @@ const compiled = ts.transpileModule(fs.readFileSync(path.join(root, 'src/lib/mes
 const compiledAssignments = ts.transpileModule(fs.readFileSync(path.join(root, 'src/lib/requestConversations.ts'), 'utf8'), {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
 }).outputText;
+const compiledContacts = ts.transpileModule(fs.readFileSync(path.join(root, 'src/lib/requestContacts.ts'), 'utf8'), {
+  compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
+}).outputText;
 let checks = 0;
 const pass = label => { checks++; console.log('PASS ' + label); };
 function sql(query) {
@@ -43,7 +46,18 @@ function service(client) {
     if (name === './messages') return exports;
     throw Error('Unexpected runtime import: ' + name);
   } });
-  return { ...exports, ...assignments };
+  const contacts = {};
+  vm.runInNewContext(compiledContacts, { exports: contacts, Error, require: name => {
+    if (name === './supabase') return { supabase: client };
+    if (name === './messages') return exports;
+    throw Error('Unexpected runtime import: ' + name);
+  } });
+  return { ...exports, ...assignments, ...contacts };
+}
+function dataFingerprint() {
+  const tables = sql("select tablename from pg_tables where schemaname='public' order by tablename").split(/\r?\n/).filter(Boolean);
+  assert.ok(tables.every(table => /^[a-z_]+$/.test(table)));
+  return tables.map(table => table + ':' + sql(`select count(*)::text || ':' || md5(coalesce(string_agg(row_to_json(t)::text, chr(10) order by row_to_json(t)::text), '')) from public.${table} t`)).join('\n');
 }
 async function account() {
   const client = createClient(env.EXPO_PUBLIC_SUPABASE_URL, key, { auth: { persistSession: false, autoRefreshToken: false } });
@@ -71,6 +85,7 @@ async function rpc(user, name, args) {
   return data;
 }
 (async () => {
+  const before = dataFingerprint();
   try {
     const a = await account(), b = await account(), c = await account();
     const id = await a.api.startDirectConversation(a.id, b.id);
@@ -80,6 +95,7 @@ async function rpc(user, name, args) {
     assert.equal(summary.other_profile_id, b.id);
     assert.equal(summary.last_message_sequence, '0');
     assert.equal(summary.unread_count, 0);
+    assert.equal(await a.api.loadUnreadMessageCount(a.id), 0);
     pass('empty conversation summary uses exact string cursors and the authorized counterpart');
     assert.equal((await a.api.loadMessagePage(a.id, id)).items.length, 0);
     pass('empty message history is persistent and empty');
@@ -96,6 +112,8 @@ async function rpc(user, name, args) {
     assert.equal(second.sequence, '2');
     assert.equal((await b.api.loadConversationSummary(b.id, id)).unread_count, 1);
     assert.equal((await a.api.loadConversationSummary(a.id, id)).unread_count, 1);
+    assert.equal(await a.api.loadUnreadMessageCount(a.id), 1);
+    assert.equal(await b.api.loadUnreadMessageCount(b.id), 1);
     pass('both participants see only the other participant’s messages counted as unread');
     const latest = await a.api.loadMessagePage(a.id, id, { limit: 1 });
     assert.equal(latest.items[0].id, second.id);
@@ -106,6 +124,7 @@ async function rpc(user, name, args) {
     assert.equal(await a.api.markConversationRead(a.id, id, first.sequence), '2');
     assert.equal((await a.api.loadConversationSummary(a.id, id)).unread_count, 0);
     assert.equal((await b.api.loadConversationSummary(b.id, id)).unread_count, 1);
+    assert.equal(await a.api.loadUnreadMessageCount(a.id), 0);
     pass('read cursors persist monotonically and affect only the caller');
     await assert.rejects(a.api.markConversationRead(a.id, id, '3'));
     pass('a future read cursor cannot hide later messages');
@@ -144,7 +163,30 @@ async function rpc(user, name, args) {
       room_location: 'Library', deadline_at: '2099-01-01T00:00:00Z', points: 10, item_size: 'small',
       details: { pickup_location: 'Cafe', dropoff_location: 'Library' },
     } });
+    sql(`update public.profiles set is_discoverable=false where id='${a.id}';`);
+    const contact = await b.api.loadRequestContact(b.id, requestId, a.id);
+    assert.equal(contact.profileId, a.id);
+    assert.equal(contact.displayName, 'Messaging API Tester');
+    assert.deepEqual(Object.keys(contact).sort(), ['campusDisplayName','displayName','major','profileId','yearOfStudy']);
+    const hiddenPoster = await b.client.from('profiles').select('id').eq('id', a.id);
+    assert.ifError(hiddenPoster.error);
+    assert.equal(hiddenPoster.data.length, 0);
+    pass('preoffer identity is available through the request while the hidden full profile remains private');
+    await assert.rejects(c.api.startDirectConversation(c.id, a.id));
+    const preofferChat = await c.api.startRequestContactConversation(c.id, requestId, a.id);
+    assert.equal(await c.api.startRequestContactConversation(c.id, requestId, a.id), preofferChat);
+    assert.equal(await b.api.startRequestContactConversation(b.id, requestId, a.id), id);
+    assert.equal(sql(`select count(*) from public.request_conversations where request_id='${requestId}'`), '0');
+    pass('preoffer request messaging permits a hidden poster, reuses pairs and creates no assignment links');
+    await assert.rejects(a.api.loadRequestContact(a.id, requestId, c.id));
+    await assert.rejects(b.api.loadRequestContact(b.id, requestId, c.id));
+    await denied(anon, 'get_request_contact', { p_request_id: requestId, p_other_profile_id: a.id });
+    await denied(anon, 'get_my_unread_message_count', {});
+    pass('request contact and unread RPCs reject anonymous or unrelated targets');
     const offerId = await rpc(b, 'create_my_request_offer_for_terms', { p_request_id: requestId, p_expected_round: 1, p_expected_points: 10, p_message: null });
+    assert.equal((await a.api.loadRequestContact(a.id, requestId, b.id)).profileId, b.id);
+    assert.equal(await a.api.startRequestContactConversation(a.id, requestId, b.id), id);
+    pass('poster can inspect and message a hidden pending helper before deciding');
     await assert.rejects(b.api.openRequestConversation(b.id, requestId, 1));
     assert.equal((await b.api.loadRequestConversationAssignments(b.id, requestId)).items.length, 0);
     pass('a pending offer cannot grant request-conversation access');
@@ -176,6 +218,7 @@ async function rpc(user, name, args) {
     await assert.rejects(b.api.openRequestConversation(b.id, requestId, 2));
     await assert.rejects(c.api.openRequestConversation(c.id, requestId, 1));
     const replacementChat = await c.api.openRequestConversation(c.id, requestId, 2);
+    assert.equal(replacementChat, preofferChat);
     assert.notEqual(replacementChat, id);
     assert.equal((await c.api.loadMessagePage(c.id, replacementChat)).items.length, 0);
     assert.equal(await b.api.openRequestConversation(b.id, requestId, 1), id);
@@ -193,6 +236,8 @@ async function rpc(user, name, args) {
     pass('inbox summary reflects persisted latest message and read state');
     await assert.rejects(a.api.loadConversationPage(b.id));
     await assert.rejects(a.api.loadRequestConversationAssignments(b.id, requestId));
+    await assert.rejects(a.api.loadUnreadMessageCount(b.id));
+    await assert.rejects(a.api.loadRequestContact(b.id, requestId, a.id));
     pass('typed service rejects calls made with a different account identity');
     console.log('Local messaging API checks passed: ' + checks + '.');
   } finally {
@@ -209,5 +254,7 @@ async function rpc(user, name, args) {
         delete from auth.users where id in (${ids});
         commit;`);
     }
+    assert.equal(dataFingerprint(), before, 'Existing application rows must remain unchanged after fixture cleanup');
+    console.log('PASS all existing public-table data remains unchanged after exact fixture cleanup');
   }
 })().catch(error => { console.error(error.message ?? error); process.exitCode = 1; });

@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState, useSyncExtern
 import { ActivityIndicator, AppState, FlatList, Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from 'react-native';
 import ScreenHeader from '../../components/ScreenHeader';
 import { useAuth } from '../../context/AuthContext';
+import { useUnreadMessages } from '../../context/UnreadMessagesContext';
 import { createConversationInbox } from '../../lib/conversationInbox';
 import { loadConversationPage } from '../../lib/messages';
 
@@ -16,11 +17,17 @@ export default function MessagesInboxScreen() {
 
 function AccountInbox({ userId }: { userId: string }) {
   const router = useRouter();
-  const model = useMemo(() => createConversationInbox(before => loadConversationPage(userId, { before })), [userId]);
+  const { unreadCount, refreshUnread } = useUnreadMessages();
+  const model = useMemo(() => createConversationInbox(async before => {
+    const page = await loadConversationPage(userId, { before });
+    void refreshUnread();
+    return page;
+  }), [userId, refreshUnread]);
   const state = useSyncExternalStore(model.subscribe, model.getSnapshot, model.getSnapshot);
   const focused = useRef(false);
   const [search, setSearch] = useState('');
   const [unreadOnly, setUnreadOnly] = useState(false);
+  const previousUnreadCount = useRef(unreadCount);
 
   useFocusEffect(useCallback(() => {
     focused.current = true;
@@ -31,12 +38,19 @@ function AccountInbox({ userId }: { userId: string }) {
     const subscription = AppState.addEventListener('change', next => model.setActive(focused.current && next === 'active'));
     return () => subscription.remove();
   }, [model]);
+  useEffect(() => {
+    if (previousUnreadCount.current === unreadCount || state.loading) return;
+    previousUnreadCount.current = unreadCount;
+    // The tab also polls while this screen is open. Refresh its rows when that
+    // total changes, waiting for any current page load rather than dropping it.
+    void model.refresh();
+  }, [model, unreadCount, state.loading]);
 
   const query = search.trim().toLocaleLowerCase();
   const visible = state.items.filter(item => (!unreadOnly || item.unread_count > 0)
     && (!query || `${item.other_display_name ?? ''} ${item.last_message_body ?? ''}`.toLocaleLowerCase().includes(query)));
   const findClassmates = () => router.push('/(tabs)/courses');
-  const emptyText = state.items.length ? 'No conversations match this view.' : 'No conversations yet. Choose a course and classmate to message, or open an accepted request to chat with its participant.';
+  const emptyText = state.items.length ? 'No conversations match this view.' : 'No conversations yet. Message a classmate, contact a request’s poster, or reply to a helper from their offer.';
 
   return <View style={styles.screen}>
     <ScreenHeader>
