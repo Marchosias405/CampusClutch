@@ -1,6 +1,6 @@
 # Task 10 — Conversations and Messages
 
-**Current status:** Checkpoint 2 is in local phone validation on `codex/persist-messages`, based on `main` at `0ae8af1`. The user reported tests 1–4 passing apart from the unread tab badge and messaging entry issues below. September 27 follow-up work adds the bottom-tab badge, contact before offering/acceptance, and a direct Message button on classmate cards. These fixes need a focused retest; original tests 5–8 remain unconfirmed. Task 10 is not complete. Hosted Development and Preview remain on Task 9. Development build `872b050f` replaces the unavailable older development APK; the follow-up needs no further native rebuild.
+**Current status:** Checkpoint 2 is in local phone validation on `codex/persist-messages`, based on `main` at `0ae8af1`. On September 27, the user confirmed that amended phone tests 1–4 pass, including the bottom-tab unread badge, contact before offering/acceptance, and the direct Message button on classmate cards. Tests 5–8 remain unconfirmed. Task 10 is not complete. Hosted Development and Preview remain on Task 9. Development build `872b050f` replaces the unavailable older development APK; the follow-up needs no further native rebuild.
 
 ## Checkpoint 1: direct-messaging foundation
 
@@ -164,7 +164,7 @@ Use two local accounts, A and B, with completed profiles. For the classmate entr
 7. **Account isolation and ordinary drafts:** Type without sending, leave and reopen the chat, and confirm the draft remains. Switch to the other account and confirm that draft is absent there. Return to the original account and verify its draft. Switch screens during refresh/sending and confirm no delayed response opens or changes a different account's chat.
 8. **History and layout:** Exchange more than 30 messages, load older history, then refresh. Confirm the history remains reachable without duplicate bubbles. Test a multiline message and a message long enough to fill more than one screen; viewing it should update unread status. A draft over 4,000 characters should stay editable with a clear length error when sent. The keyboard, send control, timestamps and navigation bar should stay usable. In Messages, verify search, All/Unread and empty states.
 
-The user reported the original tests 1–4 passing, with the three entry/badge issues addressed by the follow-up below. Retest the amended tests 1, 3 and 4, then complete 5–8. Group conversations, invitations, realtime subscriptions, hosted rollout and a new Preview build remain later checkpoints.
+The user confirmed that amended tests 1–4 pass, including the three entry and badge fixes below. Tests 5–8 remain for the next session. Group conversations, invitations, realtime subscriptions, hosted rollout and a new Preview build remain later checkpoints.
 
 ### September 27 follow-up: contact and unread badge
 
@@ -183,7 +183,7 @@ Follow-up validation completed locally:
 - Independent authorization review found no blocker. Security advisors returned no findings; the two existing permissive-policy performance notices on profile tables remain unchanged.
 - UI review fixed stuck chat-opening buttons after navigation/backgrounding, prevented stale-profile badge activation after account changes, and synchronized inbox rows when the total unread count changes.
 
-No hosted deployment or additional APK is part of this follow-up. The amended phone checklist remains the next gate.
+No hosted deployment or additional APK is part of this follow-up. Phone tests 5–8 remain the next gate.
 
 ## Remaining integration and release work
 

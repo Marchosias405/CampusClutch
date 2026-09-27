@@ -162,7 +162,7 @@ Task 10 checkpoint 2 record:
 - Real student profiles and current/historical accepted assignments open authorized chats. Original helpers retain their history; replacement helpers get separate conversations.
 - Drafts and uncertain sends persist per backend/account/conversation, retaining the same retry identity without duplicate sends.
 - 50 inbox/thread/entry/assignment-client regression groups, 15 existing messaging client checks, nine offer lifecycle checks and 23 live API checks passed. Lint/typecheck and an Android Hermes bundle export passed.
-- The user reported phone tests 1–4 passing except the unread tab badge and messaging entry issues. September 27 fixes add the tab badge, request contact before offering/acceptance, and direct Message buttons on classmate cards. Focused retesting and tests 5–8 remain; groups, realtime, hosted rollout and a new Preview APK follow later.
+- The user confirmed the amended phone tests 1–4 pass, including the unread tab badge, request contact before offering/acceptance, and direct Message buttons on classmate cards. Tests 5–8 remain; groups, realtime, hosted rollout and a new Preview APK follow later.
 
 Detailed contract and repeatable checks: [Task 10 checkpoint](docs/task-10-messages.md).
 
@@ -1128,7 +1128,7 @@ Task 10 checkpoint 2 replaces the sample conversation flow in current local sour
 - Read state advances for observed incoming messages while the thread is focused and the app is active.
 - Keyboard avoidance, safe insets, multiline input and stable older-history loading are retained for Android validation.
 
-Tests 1–4 passed apart from the badge/contact issues addressed in the follow-up; retest those fixes and complete tests 5–8. Thread arrival still uses manual and focus/foreground refresh; realtime, groups, hosted deployment and a new standalone Preview APK remain later work. See [the phone checklist](docs/task-10-messages.md#checkpoint-2-phone-checklist).
+The amended tests 1–4 pass, including the badge and request/classmate contact fixes. Tests 5–8 remain for the next session. Thread arrival still uses manual and focus/foreground refresh; realtime, groups, hosted deployment and a new standalone Preview APK remain later work. See [the phone checklist](docs/task-10-messages.md#checkpoint-2-phone-checklist).
 
 ---
 
@@ -1763,7 +1763,7 @@ Completion condition:
 
 # Task 10 — Persist Conversations and Messages
 
-**Status: In progress — checkpoint 2 phone validation and September 27 follow-up fixes.** Branch `codex/persist-messages` began from `main` at `0ae8af1`, after Task 9 and its documentation merged. Checkpoint 1's backend/API was saved at `2820f1f`; checkpoint 2 was saved at `474cc28`. The user reported tests 1–4 passing apart from the unread tab badge and contact entry issues; those fixes need a focused retest, and tests 5–8 remain unconfirmed.
+**Status: In progress — checkpoint 2 phone validation.** Branch `codex/persist-messages` began from `main` at `0ae8af1`, after Task 9 and its documentation merged. Checkpoint 1's backend/API was saved at `2820f1f`; checkpoint 2 was saved at `474cc28`; the September 27 fixes were saved at `2f506b0`. The user confirmed that amended tests 1–4 pass. Tests 5–8 remain unconfirmed.
 
 Checkpoint 1 completed:
 
@@ -2007,7 +2007,7 @@ CampusClutch still needs:
 
 # Next Action
 
-Continue **Task 10 checkpoint 2 phone validation** on `codex/persist-messages`. Tests 1–4 were reported passing apart from the unread tab badge and messaging entry issues; retest those follow-up fixes, then complete tests 5–8. Task 9 remains complete and merged through [PR #27](https://github.com/Marchosias405/CampusClutch/pull/27) at `2b3c081`.
+Continue **Task 10 checkpoint 2 phone validation** on `codex/persist-messages`. The amended tests 1–4 pass; complete tests 5–8 next. Task 9 remains complete and merged through [PR #27](https://github.com/Marchosias405/CampusClutch/pull/27) at `2b3c081`.
 
 1. Use the [local phone setup and checklist](docs/task-10-messages.md#local-phone-setup) to verify sending, restart persistence, unread state, assignment isolation, retained retries, keyboard and pagination.
 2. Address any checkpoint failures before moving on.
