@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import {
   ActivityIndicator, Alert, AppState, FlatList, KeyboardAvoidingView, Platform,
   Pressable, StyleSheet, Text, TextInput, View, type ViewToken,
@@ -59,6 +59,7 @@ function MessageThread({ userId, conversationId }: { userId: string; conversatio
   const visibleSequence = useRef<string | null>(null);
   const atBottom = useRef(true);
   const previousNewest = useRef<string | undefined>(undefined);
+  const revealNewestAfterLayout = useRef<string | undefined>(undefined);
   const [newMessages, setNewMessages] = useState(false);
   const viewabilityConfig = useRef({ viewAreaCoveragePercentThreshold: 60, minimumViewTime: 500 }).current;
   const onViewableItemsChanged = useRef(({ viewableItems }: { viewableItems: ViewToken<ConversationMessage>[] }) => {
@@ -82,14 +83,19 @@ function MessageThread({ userId, conversationId }: { userId: string; conversatio
   useEffect(() => {
     if (active && visibleSequence.current) void model.observe(visibleSequence.current);
   }, [active, model, state.messages]);
-  useEffect(() => {
-    const newest = state.messages[0]?.id;
-    if (newest && previousNewest.current && newest !== previousNewest.current) {
-      if (atBottom.current) listRef.current?.scrollToOffset({ offset: 0, animated: true });
-      else setNewMessages(true);
+  useLayoutEffect(() => {
+    const newest = state.messages[0];
+    if (newest && previousNewest.current && newest.id !== previousNewest.current) {
+      if (newest.sender_id === userId || atBottom.current) {
+        revealNewestAfterLayout.current = newest.id;
+        setNewMessages(false);
+      } else {
+        revealNewestAfterLayout.current = undefined;
+        setNewMessages(true);
+      }
     }
-    previousNewest.current = newest;
-  }, [state.messages]);
+    previousNewest.current = newest?.id;
+  }, [state.messages, userId]);
 
   const name = state.summary?.other_display_name?.trim() || 'Conversation';
   const initials = name.split(/\s+/).slice(0, 2).map(part => part[0]).join('').toUpperCase();
@@ -126,6 +132,14 @@ function MessageThread({ userId, conversationId }: { userId: string; conversatio
         contentContainerStyle={styles.threadContent} keyboardShouldPersistTaps="handled"
         maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
         viewabilityConfig={viewabilityConfig} onViewableItemsChanged={onViewableItemsChanged}
+        onContentSizeChange={() => {
+          const newest = state.messages[0]?.id;
+          if (!newest || revealNewestAfterLayout.current !== newest) return;
+          revealNewestAfterLayout.current = undefined;
+          atBottom.current = true;
+          setNewMessages(false);
+          listRef.current?.scrollToOffset({ offset: 0, animated: true });
+        }}
         onScroll={event => { atBottom.current = event.nativeEvent.contentOffset.y < 48; if (atBottom.current) setNewMessages(false); }} scrollEventThrottle={100}
         ListEmptyComponent={<View style={styles.empty}>
           {state.loading ? <ActivityIndicator color={PRIMARY} /> : <>

@@ -1,6 +1,6 @@
 # Task 10 — Conversations and Messages
 
-**Current status:** Checkpoint 2 is in local phone validation on `codex/persist-messages`, based on `main` at `0ae8af1`. On September 27, the user confirmed that amended phone tests 1–4 pass, including the bottom-tab unread badge, contact before offering/acceptance, and the direct Message button on classmate cards. Tests 5–8 remain unconfirmed. Task 10 is not complete. Hosted Development and Preview remain on Task 9. Development build `872b050f` replaces the unavailable older development APK; the follow-up needs no further native rebuild.
+**Current status:** Checkpoint 2 local phone validation is complete on `codex/persist-messages`, based on `main` at `0ae8af1`. By October 9, the user had confirmed that all amended phone tests 1–8 pass, including the bottom-tab unread badge, contact before offering/acceptance, direct classmate messaging, historical assignment isolation, durable failed-send retry, account-scoped drafts, pagination, long-message layout and the final newest-message scroll correction. Task 10 is not complete; group membership/invitation rules and realtime remain the next feature checkpoints. Hosted Development and Preview remain on Task 9, and development build `872b050f` remains the local test client.
 
 ## Checkpoint 1: direct-messaging foundation
 
@@ -164,7 +164,7 @@ Use two local accounts, A and B, with completed profiles. For the classmate entr
 7. **Account isolation and ordinary drafts:** Type without sending, leave and reopen the chat, and confirm the draft remains. Switch to the other account and confirm that draft is absent there. Return to the original account and verify its draft. Switch screens during refresh/sending and confirm no delayed response opens or changes a different account's chat.
 8. **History and layout:** Exchange more than 30 messages, load older history, then refresh. Confirm the history remains reachable without duplicate bubbles. Test a multiline message and a message long enough to fill more than one screen; viewing it should update unread status. A draft over 4,000 characters should stay editable with a clear length error when sent. The keyboard, send control, timestamps and navigation bar should stay usable. In Messages, verify search, All/Unread and empty states.
 
-The user confirmed that amended tests 1–4 pass, including the three entry and badge fixes below. Tests 5–8 remain for the next session. Group conversations, invitations, realtime subscriptions, hosted rollout and a new Preview build remain later checkpoints.
+The user confirmed all amended tests 1–8 pass by October 9. This covers the three entry and badge fixes below, historical assignment isolation, durable failed-send recovery without duplication, account-scoped ordinary drafts, stale-operation suppression, history pagination, long-message rendering, length validation, keyboard/navigation usability, filters and empty states. Group conversations, invitations, realtime subscriptions, hosted rollout and a new Preview build remain later checkpoints.
 
 ### September 27 follow-up: contact and unread badge
 
@@ -183,14 +183,23 @@ Follow-up validation completed locally:
 - Independent authorization review found no blocker. Security advisors returned no findings; the two existing permissive-policy performance notices on profile tables remain unchanged.
 - UI review fixed stuck chat-opening buttons after navigation/backgrounding, prevented stale-profile badge activation after account changes, and synchronized inbox rows when the total unread count changes.
 
-No hosted deployment or additional APK is part of this follow-up. Phone tests 5–8 remain the next gate.
+No hosted deployment or additional APK is part of this follow-up.
+
+### October 9 phone completion and message-layout correction
+
+- The user confirmed all checkpoint 2 phone tests 1–8 pass. Failed submissions remain available across navigation/reload and reconcile to exactly one server message; ordinary drafts stay isolated by backend, account and conversation.
+- History above 30 messages remains reachable through older-page loading and refresh without duplicate bubbles. Multiline and more-than-one-screen messages, the 4,000-character boundary, keyboard/send controls, timestamps, navigation, search, All/Unread and empty states passed on Android.
+- The final layout run exposed one Android race: after a successful send, `maintainVisibleContentPosition` restored the formerly newest bubble after the screen's early scroll, leaving the new bubble just below the viewport. The thread now records the new row during the layout commit and scrolls only after FlatList reports the updated content size. A local outgoing message always reveals itself; an incoming message follows only when the reader was already at the bottom; loading older history keeps the current position.
+- Six production-screen layout regressions now cover initial history, outgoing-at-bottom, outgoing-while-reading-older, incoming-at-bottom, incoming-while-reading-older with the jump action, and older pagination. The complete messaging UI command passes **104 groups**; all **26 messaging/contact client groups**, lint/typecheck and an Android Hermes export also pass. The previous screen implementation fails the new device-ordering regression, confirming that it detects the reported race.
+- Independent review found no remaining thread lifecycle, stale-reference, pagination, retry, TypeScript or React Native blocker. No database or native dependency changed.
+
+Checkpoint 2 is complete locally. No hosted deployment or additional APK is part of this correction; the next implementation gate is group membership/invitation consent and history visibility.
 
 ## Remaining integration and release work
 
-1. Complete checkpoint 2 phone validation and resolve any failures.
-2. Define group membership/invitation consent and history visibility, then implement that checkpoint.
-3. Add authorized realtime updates and validate reconnect/account-switch behavior.
-4. Deploy and validate hosted Development/Preview, build and test a standalone APK, and complete final review, CI, merge and documentation closure.
+1. Define group membership/invitation consent and history visibility, then implement that checkpoint.
+2. Add authorized realtime updates and validate reconnect/account-switch behavior.
+3. Deploy and validate hosted Development/Preview, build and test a standalone APK, and complete final review, CI, merge and documentation closure.
 
 Group membership/invitation consent and history visibility must be settled before the group checkpoint. Hosted rollout, standalone Preview testing, final review, CI and merge follow completed feature checkpoints.
 

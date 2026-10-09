@@ -105,7 +105,7 @@ function wiringHarness(kind) {
   const readCalls = [], pageCalls = [];
   const state = { summary: null, messages: [], draft: '', items: [], loaded: false, loading: false };
   const model = { subscribe() {}, getSnapshot: () => state, setActive() {}, refresh() {}, observe() {} };
-  const react = { createElement, useMemo: fn => fn(), useCallback: fn => fn, useEffect() {},
+  const react = { createElement, useMemo: fn => fn(), useCallback: fn => fn, useEffect() {}, useLayoutEffect() {},
     useState: initial => [initial, () => {}], useRef: current => ({ current }), useSyncExternalStore: (_subscribe, snapshot) => snapshot() };
   const modules = {
     react,
