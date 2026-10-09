@@ -18,6 +18,7 @@ const CLIENT = '50000000-0000-4000-8000-000000000005';
 const MESSAGE = '60000000-0000-4000-8000-000000000006';
 const EARLIER_MESSAGE = '60000000-0000-4000-8000-000000000005';
 const TIME = '2026-09-26T12:34:56.123456+00:00';
+const EARLIER_TIME = '2026-09-26T12:34:56.123455+00:00';
 const HUGE = '9007199254740993';
 const MAX = '9223372036854775807';
 const plain = value => JSON.parse(JSON.stringify(value));
@@ -111,13 +112,16 @@ const codeIs = code => error => error.code === code;
   });
 
   await test('inbox cursor preserves timestamp precision and ID; short and empty pages end pagination', async () => {
-    const { api, state } = client([summary(), summary({ id: OTHER_CHAT })]);
+    const { api, state } = client([
+      summary({ id: OTHER_CHAT }),
+      summary({ last_activity_at: EARLIER_TIME }),
+    ]);
     const page = await api.loadConversationPage(A, { limit: 2 });
     assert.equal(page.hasMore, true);
-    assert.deepEqual(plain(page.nextCursor), { activityAt: TIME, id: OTHER_CHAT });
-    state.response = [summary({ id: REQUEST })];
+    assert.deepEqual(plain(page.nextCursor), { activityAt: EARLIER_TIME, id: CHAT });
+    state.response = [summary({ id: REQUEST, last_activity_at: '2026-09-26T12:34:56.123454+00:00' })];
     const last = await api.loadConversationPage(A, { limit: 2, before: page.nextCursor });
-    assert.deepEqual(state.calls[1].args, { p_limit: 2, p_before_activity_at: TIME, p_before_id: OTHER_CHAT });
+    assert.deepEqual(state.calls[1].args, { p_limit: 2, p_before_activity_at: EARLIER_TIME, p_before_id: CHAT });
     assert.equal(last.hasMore, false); assert.equal(last.nextCursor, null);
     state.response = [];
     assert.deepEqual(plain(await api.loadConversationPage(A)), { items: [], hasMore: false, nextCursor: null });

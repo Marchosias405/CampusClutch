@@ -84,8 +84,19 @@ export type GroupInvitationSummary = {
   invited_by_profile_id: string;
   invited_by_display_name: string;
   active_member_count: number;
-  status: GroupInvitationStatus;
+  status: 'pending';
   created_at: string;
+};
+
+export type GroupInvitationCursor = {
+  createdAt: string;
+  id: string;
+};
+export type GroupInvitationPage = {
+  items: GroupInvitationSummary[];
+  /** A full page may be followed by an empty page; no unbounded lookahead is requested. */
+  hasMore: boolean;
+  nextCursor: GroupInvitationCursor | null;
 };
 
 export type GroupMemberSummary = {

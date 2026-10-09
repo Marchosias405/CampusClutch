@@ -97,6 +97,8 @@ export type {
   ConversationSummary,
   DirectConversationSummary,
   GroupConversationSummary,
+  GroupInvitationCursor,
+  GroupInvitationPage,
   GroupInvitationStatus,
   GroupInvitationSummary,
   GroupManagementRevision,

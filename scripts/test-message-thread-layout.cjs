@@ -20,6 +20,11 @@ const compiled = ts.transpileModule(fs.readFileSync(path.join(root, 'src/app/mes
     esModuleInterop: true,
   },
 }).outputText;
+const groupUiCompiled = ts.transpileModule(fs.readFileSync(path.join(root, 'src/lib/groupMessagingUi.ts'), 'utf8'), {
+  compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
+}).outputText;
+const groupUi = {};
+vm.runInNewContext(groupUiCompiled, { exports: groupUi }, { filename: 'src/lib/groupMessagingUi.ts' });
 
 const message = (number, senderId = B) => ({
   id: `10000000-0000-4000-8000-${String(number).padStart(12, '0')}`,
@@ -203,6 +208,7 @@ function harness(initialMessages = [message(1)]) {
     '../../context/AuthContext': { useAuth: () => ({ user: { id: A } }) },
     '../../context/UnreadMessagesContext': { useUnreadMessages: () => ({ refreshUnread }) },
     '../../lib/env': { env: { supabaseUrl: 'http://localhost:54321' } },
+    '../../lib/groupMessagingUi': groupUi,
     '../../lib/messages': {
       loadConversationSummary() {},
       loadMessagePage() {},

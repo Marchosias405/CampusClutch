@@ -21,6 +21,7 @@ function production(file, modules = {}, globals = {}) {
   return exports;
 }
 const { createUnreadMessages } = production('src/lib/unreadMessages.ts');
+const groupUi = production('src/lib/groupMessagingUi.ts');
 function deferred() {
   let resolve, reject;
   const promise = new Promise((yes, no) => { resolve = yes; reject = no; });
@@ -119,8 +120,10 @@ function wiringHarness(kind) {
     '../../context/AuthContext': { useAuth: () => ({ user: { id: A } }) },
     '../../context/UnreadMessagesContext': { useUnreadMessages: () => ({ refreshUnread: async () => { refreshes++; } }) },
     '../../lib/env': { env: { supabaseUrl: 'http://localhost:54321' } },
+    '../../lib/groupMessagingUi': groupUi,
     '../../lib/messageThread': { isConversationId: () => true, createMessageThread: (_actor, _chat, dependencies) => { callbacks = dependencies; return model; } },
     '../../lib/conversationInbox': { createConversationInbox: load => { loader = load; return model; } },
+    '../../lib/groupConversations': { loadGroupInvitationPage: async () => ({ items: [], hasMore: false, nextCursor: null }) },
     '../../lib/messages': {
       markConversationRead: (...args) => { readCalls.push(args); return readOperation.promise; },
       loadConversationPage: (...args) => { pageCalls.push(args); return pageOperation.promise; },
@@ -183,6 +186,8 @@ function inboxSyncHarness(initialTotal = 0) {
     '../../context/AuthContext': { useAuth: () => ({ user: { id: A } }) },
     '../../context/UnreadMessagesContext': { useUnreadMessages: () => ({ unreadCount, refreshUnread }) },
     '../../lib/conversationInbox': { createConversationInbox: loader => { creations++; model = createConversationInbox(loader); return model; } },
+    '../../lib/groupConversations': { loadGroupInvitationPage: async () => ({ items: [], hasMore: false, nextCursor: null }) },
+    '../../lib/groupMessagingUi': groupUi,
     '../../lib/messages': { loadConversationPage: (...args) => {
       const pending = deferred(); requests.push({ args, ...pending }); return pending.promise;
     } },

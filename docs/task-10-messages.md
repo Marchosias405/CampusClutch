@@ -1,6 +1,6 @@
 # Task 10 — Conversations and Messages
 
-**Current status:** Checkpoint 3's secure group-conversation backend and typed API are complete locally on `codex/persist-messages`, based on `main` at `0ae8af1`. Checkpoint 2 local phone validation remains complete: by October 9, the user had confirmed all amended direct-message tests 1–8 pass. The group rules, consent model and history boundaries described below are now implemented and independently validated, but group screens are not connected yet. Task 10 is not complete; the next checkpoint is group creation, invitation, inbox, thread and roster UI, followed by realtime. Hosted Development and Preview remain on Task 9, development build `872b050f` remains the local test client, and no new standalone APK was built for this backend checkpoint.
+**Current status:** Checkpoint 4's group-conversation app integration is complete locally on `codex/persist-messages`, based on `main` at `0ae8af1`. Checkpoint 2 direct-message phone validation remains complete: by October 9, the user had confirmed all amended tests 1–8 pass. The checkpoint 3 group contract now has protected creation, invitation, mixed inbox/thread, roster and governance screens, plus rediscoverable privacy-bounded former history. Automated checks pass; focused Android group testing is the next gate before realtime. Hosted Development and Preview remain on Task 9, development build `872b050f` remains the local test client, and no new standalone APK was built for this local integration checkpoint.
 
 ## Checkpoint 1: direct-messaging foundation
 
@@ -224,7 +224,9 @@ Group-management reads use one atomic snapshot containing the title, monotonic m
 | RPC | Purpose |
 |---|---|
 | `create_group_conversation` | Idempotently create a course group and its initial pending invitations |
-| `get_my_group_invitations` | Load the caller's pending invitation previews |
+| `get_my_group_invitations` | Load the caller's pending invitation previews; retained for compatibility |
+| `get_my_group_invitations_page` | Page every pending invitation with an exact timestamp/UUID cursor |
+| `get_my_former_group_conversations` | Rediscover privacy-masked former-group summaries with an exact activity/UUID cursor |
 | `respond_to_group_invitation` | Explicitly accept or decline an invitation |
 | `invite_group_member` | Invite one currently eligible classmate with a retry UUID |
 | `revoke_group_invitation` | Revoke one pending invitation |
@@ -253,13 +255,48 @@ Validated locally on October 9, 2026:
 
 This is a backend/API checkpoint. It adds no group screens, phone-test gate, native dependency, hosted migration, realtime subscription or standalone APK. Hosted Development/Preview and the phone-tested Preview build remain unchanged.
 
+## Checkpoint 4: group-conversation app integration
+
+This checkpoint connects the checkpoint 3 contract to the existing red-and-white messaging experience while preserving the completed direct-message flows. It remains a local-development checkpoint: no hosted migration, realtime subscription, native dependency or standalone APK was added.
+
+### App flow
+
+- A protected creation screen loads current courses and course classmates, validates a 1–80-character title and 1–19 unique invitees, then opens the confirmed server conversation.
+- Creation persists the exact account/backend-scoped title, course, invitees and client UUID before dispatch. An uncertain response can retry only that frozen request; changing details requires an explicit discard that mints a new identity.
+- Pending invitations have a dedicated cursor-paged screen. Accept and decline are serialized, reject stale focus/background/account results, and lock contradictory actions after an ambiguous response until a confirmed refresh.
+- The main inbox renders direct and group conversations together. Group rows show title, course, active count and persisted preview, participate in loaded-row search and unread filtering, and navigate to the shared message thread.
+- Group threads label each sender, share durable drafts and duplicate-safe sends with direct threads, and make `can_send` authoritative. Active members can open group details; former members receive a read-only history notice, no current group details and no composer.
+- Active members can inspect the roster. Owners and administrators can rename and invite; pending invitations can be revoked. Owners can change roles and transfer ownership, administrators can remove ordinary members, and owners must transfer before leaving.
+- Every manager mutation uses one atomic management snapshot's exact revision and target membership period. A failed authorization refresh clears previously privileged data, and an ambiguous mutation disables more changes until a confirmed refresh.
+- Manager invitations persist the exact invitee, retry UUID and management revision before dispatch. The target remains frozen across reload, offline failure or lost response until confirmation or an explicit discard.
+- Leaving or removal moves a conversation out of the active inbox. Paged Past groups lets the former member reopen only their bounded membership-period messages; current roster/count, later activity and sending stay unavailable. A later accepted re-invitation begins a fresh visible period without revealing the gap.
+
+### Discovery migration
+
+Migration `20261009104214_page_group_history_and_invitations.sql` adds bounded keyset RPCs for pending invitations and former groups. Both pair the full PostgreSQL timestamp with a UUID tie-breaker, reject partial/non-finite/replayed cursors, pin the authenticated actor and return only narrow projections. The app preserves PostgreSQL microseconds instead of reducing cursors to JavaScript milliseconds. The legacy invitation RPC remains available.
+
+### Checkpoint 4 validation
+
+Validated locally on October 9, 2026:
+
+- All **1,210 SQL assertions across 16 files** passed, including the new 28-assertion discovery suite and every earlier direct-message, group-message and Task 9 regression.
+- **27 direct-message plus 17 group-message live API checks** passed with exact fixture cleanup and unchanged pre-existing public-table fingerprints.
+- **10 direct plus eight group concurrency cases** passed, covering duplicate identities, races at invitation capacity, acceptance/revocation, removal/send, role and ownership transitions.
+- **40 messaging client contract checks** passed: 16 core messaging, 11 request-contact/unread and 13 group-client groups.
+- **148 messaging UI/controller/lifecycle checks** passed, including 44 group policy, creation and production-route checks. All **nine offer-action lifecycle checks** also pass.
+- Lint/typecheck and whitespace checks pass. Database lint reports no application-schema errors. All 22 migrations replay cleanly in an isolated shadow database with no schema drift and without resetting the working local database.
+- Android production export bundled all 1,642 modules and generated Hermes bytecode successfully after directing the desktop sandbox's temporary output into the repository.
+- Independent UI and client/database reviews found no correctness or authorization blocker. Review hardened durable retries, stale lifecycle suppression, manager-data clearing, exact microsecond cursor advancement and former-member privacy.
+
+Focused phone testing is required now because this checkpoint adds interactive multi-account and lifecycle behavior. Realtime, hosted deployment and a new Preview APK wait until that test gate passes.
+
 ## Remaining integration and release work
 
-1. Connect group creation, invitation accept/decline, mixed direct/group inbox rows, group threads, roster/role controls, leaving/removal and read-only former-member history to the validated API; then run the focused Android phone checklist.
+1. Complete the focused Android group checklist for creation/retry, invitation consent, mixed inbox/thread behavior, governance, leaving/removal, former-history privacy and rejoin gaps.
 2. Add authorized realtime updates and validate reconnect/account-switch behavior for direct and group conversations.
 3. Deploy and validate hosted Development/Preview, build and test a standalone APK, and complete final review, CI, merge and documentation closure.
 
-The group backend contract is complete locally; group app integration is the next implementation gate. Hosted rollout, standalone Preview testing, final review, CI and merge follow completed feature checkpoints.
+The secure group backend and app integration are complete locally; focused Android group testing is the current gate. Hosted rollout, standalone Preview testing, final review, CI and merge follow completed feature checkpoints.
 
 ## References checked for this implementation
 

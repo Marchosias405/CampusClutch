@@ -1,4 +1,6 @@
 import type {
+  GroupInvitationCursor,
+  GroupInvitationPage,
   GroupInvitationSummary,
   GroupManagementMemberSummary,
   GroupManagementRevision,
@@ -7,8 +9,10 @@ import type {
   GroupMemberSummary,
   GroupPendingInvitation,
 } from '../types/messaging';
-import { MessagingError } from './messages';
+import { loadFormerGroupPage, MessagingError } from './messages';
 import { supabase } from './supabase';
+
+export { loadFormerGroupPage };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MAX_REVISION = '9223372036854775807';
@@ -114,6 +118,21 @@ function record(value: unknown): Record<string, unknown> {
 function timestamp(value: unknown): string {
   if (typeof value !== 'string' || !value.trim() || !Number.isFinite(Date.parse(value))) throw new Error();
   return value;
+}
+
+function cursorTimestamp(value: unknown): string {
+  if (typeof value !== 'string' || !value.trim() || !Number.isFinite(Date.parse(value))) {
+    invalid('Refresh the invitation list before continuing.');
+  }
+  return value;
+}
+
+function timestampMicros(value: string): bigint {
+  const milliseconds = Date.parse(value);
+  const fraction = /\.([0-9]+)(?:z|[+-][0-9]{2}:?[0-9]{2})$/i.exec(value)?.[1] ?? '';
+  const micros = Number(fraction.slice(0, 6).padEnd(6, '0'));
+  const millisFraction = Number(fraction.slice(0, 3).padEnd(3, '0'));
+  return BigInt(milliseconds) * 1000n + BigInt(micros - millisFraction * 1000);
 }
 
 function text(value: unknown): string {
@@ -257,6 +276,43 @@ export async function loadMyGroupInvitations(userId: string, pageSize = 20): Pro
     const items = rows(data, pageLimit).map(invitation);
     if (new Set(items.map(item => item.id)).size !== items.length) throw new Error();
     return items;
+  });
+}
+
+export async function loadGroupInvitationPage(userId: string, options: {
+  limit?: number;
+  before?: GroupInvitationCursor | null;
+} = {}): Promise<GroupInvitationPage> {
+  const pageLimit = limit(options.limit ?? 20);
+  const before = options.before
+    ? { createdAt: cursorTimestamp(options.before.createdAt), id: uuid(options.before.id, 'invitation') }
+    : null;
+  const data = await call(userId, 'get_my_group_invitations_page', {
+    p_limit: pageLimit,
+    p_before_created_at: before?.createdAt ?? null,
+    p_before_id: before?.id ?? null,
+  });
+  return parse(() => {
+    const items = rows(data, pageLimit).map(invitation);
+    if (new Set(items.map(item => item.id)).size !== items.length) throw new Error();
+    let previous = before
+      ? { createdAt: timestampMicros(before.createdAt), id: before.id }
+      : null;
+    for (const item of items) {
+      const current = { createdAt: timestampMicros(item.created_at), id: item.id };
+      if (previous && (current.createdAt > previous.createdAt
+        || (current.createdAt === previous.createdAt && current.id >= previous.id))) {
+        throw new Error();
+      }
+      previous = current;
+    }
+    const hasMore = items.length === pageLimit;
+    const last = items[items.length - 1];
+    return {
+      items,
+      hasMore,
+      nextCursor: hasMore ? { createdAt: last.created_at, id: last.id } : null,
+    };
   });
 }
 

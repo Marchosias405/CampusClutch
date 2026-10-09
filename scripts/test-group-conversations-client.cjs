@@ -14,12 +14,14 @@ const A = 'a0000000-0000-4000-8000-000000000001';
 const B = 'b0000000-0000-4000-8000-000000000002';
 const C = 'c0000000-0000-4000-8000-000000000003';
 const CHAT = '30000000-0000-4000-8000-000000000003';
+const OTHER_CHAT = '30000000-0000-4000-8000-000000000004';
 const COURSE = '40000000-0000-4000-8000-000000000004';
 const CREATION = '50000000-0000-4000-8000-000000000005';
 const INVITATION = '60000000-0000-4000-8000-000000000006';
 const OTHER_INVITATION = '60000000-0000-4000-8000-000000000007';
 const REVISION = '7';
 const CREATED = '2026-10-09T12:00:00.000Z';
+const OLDER = '2026-10-08T12:00:00.000Z';
 const plain = value => JSON.parse(JSON.stringify(value));
 const codeIs = code => error => error.code === code;
 const invitation = (patch = {}) => ({
@@ -42,6 +44,15 @@ const snapshot = (patch = {}) => ({
   conversation_id: CHAT, title: 'Algorithms Group', management_revision: REVISION,
   members: [managementMember({ profile_id: A, display_name: 'Student A', role: 'owner' }), managementMember()],
   pending_invitations: [pending()], ...patch,
+});
+const formerSummary = (patch = {}) => ({
+  id: CHAT, type: 'group', status: 'active', other_profile_id: null, other_display_name: null,
+  group_title: 'Algorithms Group', group_course_id: COURSE, group_course_code: 'CMPT 125',
+  active_member_count: 0, my_role: 'member', my_membership_status: 'removed',
+  my_membership_period: 1, management_revision: '0', can_send: false,
+  last_message_body: 'Visible before removal', last_message_at: CREATED,
+  last_activity_at: CREATED, last_message_sequence: '3', last_read_sequence: '3',
+  unread_count: 0, created_at: OLDER, ...patch,
 });
 
 const messagesCode = compile('src/lib/messages.ts');
@@ -127,6 +138,109 @@ function client(initialResponse = null) {
     ]);
     assert.ok(state.calls.every(call => call.header === 'Authorization' && call.value === 'Bearer original-token'));
     assert.equal(state.authCalls, state.calls.length * 2);
+  });
+
+  await test('paged invitation and former-group discovery use exact keyset cursors and pinned sessions', async () => {
+    const invitationBefore = { createdAt: '2026-10-10T12:00:00.000Z', id: CREATION };
+    const olderInvitation = invitation({ id: OTHER_INVITATION, conversation_id: COURSE, created_at: OLDER });
+    const { api, state } = client([invitation(), olderInvitation]);
+    const invitationPage = await api.loadGroupInvitationPage(A, { limit: 2, before: invitationBefore });
+    assert.deepEqual(plain(invitationPage), {
+      items: [invitation(), olderInvitation],
+      hasMore: true,
+      nextCursor: { createdAt: OLDER, id: OTHER_INVITATION },
+    });
+    state.response = [formerSummary()];
+    const formerBefore = { activityAt: '2026-10-10T12:00:00.000Z', id: CREATION };
+    const formerPage = await api.loadFormerGroupPage(A, { limit: 1, before: formerBefore });
+    assert.deepEqual(plain(formerPage), {
+      items: [formerSummary()],
+      hasMore: true,
+      nextCursor: { activityAt: CREATED, id: CHAT },
+    });
+    assert.deepEqual(state.calls.map(({ name, args }) => ({ name, args })), [
+      { name: 'get_my_group_invitations_page', args: {
+        p_limit: 2, p_before_created_at: invitationBefore.createdAt, p_before_id: CREATION,
+      } },
+      { name: 'get_my_former_group_conversations', args: {
+        p_limit: 1, p_before_activity_at: formerBefore.activityAt, p_before_id: CREATION,
+      } },
+    ]);
+    assert.ok(state.calls.every(call => call.value === 'Bearer original-token'));
+    assert.equal(state.authCalls, 4);
+  });
+
+  await test('paged discovery rejects malformed cursors, order violations and active or unmasked former rows', async () => {
+    const { api, state } = client([]);
+    for (const before of [
+      { createdAt: 'invalid', id: INVITATION },
+      { createdAt: CREATED, id: 'invalid' },
+      { createdAt: CREATED },
+    ]) {
+      await assert.rejects(
+        () => api.loadGroupInvitationPage(A, { before }),
+        codeIs('INVALID_INPUT'),
+      );
+    }
+    assert.equal(state.calls.length, 0);
+
+    state.response = [
+      invitation({ created_at: '2026-10-09T12:00:00.000900Z' }),
+      invitation({ id: OTHER_INVITATION, created_at: '2026-10-09T12:00:00.000100Z' }),
+    ];
+    assert.equal((await api.loadGroupInvitationPage(A, { limit: 2 })).items.length, 2);
+    state.response = [
+      invitation({ created_at: '2026-10-09T12:00:00.000100Z' }),
+      invitation({ id: OTHER_INVITATION, created_at: '2026-10-09T12:00:00.000900Z' }),
+    ];
+    await assert.rejects(
+      () => api.loadGroupInvitationPage(A, { limit: 2 }),
+      codeIs('INVALID_RESPONSE'),
+    );
+    state.response = [
+      invitation({ id: OTHER_INVITATION }),
+      invitation(),
+    ];
+    assert.equal((await api.loadGroupInvitationPage(A, { limit: 2 })).items.length, 2);
+    state.response.reverse();
+    await assert.rejects(
+      () => api.loadGroupInvitationPage(A, { limit: 2 }),
+      codeIs('INVALID_RESPONSE'),
+    );
+    state.response = [
+      invitation({ id: OTHER_INVITATION, created_at: OLDER }),
+      invitation({ created_at: CREATED }),
+    ];
+    await assert.rejects(
+      () => api.loadGroupInvitationPage(A, { limit: 2 }),
+      codeIs('INVALID_RESPONSE'),
+    );
+    state.response = [formerSummary({ my_membership_status: 'active', active_member_count: 2, management_revision: '4', can_send: true })];
+    await assert.rejects(
+      () => api.loadFormerGroupPage(A),
+      codeIs('INVALID_RESPONSE'),
+    );
+    state.response = [formerSummary({ active_member_count: 1 })];
+    await assert.rejects(
+      () => api.loadFormerGroupPage(A),
+      codeIs('INVALID_RESPONSE'),
+    );
+    const formerBefore = { activityAt: CREATED, id: CHAT };
+    state.response = [formerSummary()];
+    await assert.rejects(
+      () => api.loadFormerGroupPage(A, { limit: 1, before: formerBefore }),
+      codeIs('INVALID_RESPONSE'),
+    );
+    state.response = [
+      formerSummary({ last_activity_at: '2026-10-09T12:00:00.000900Z' }),
+      formerSummary({ id: OTHER_CHAT, last_activity_at: '2026-10-09T12:00:00.000100Z' }),
+    ];
+    assert.equal((await api.loadFormerGroupPage(A, { limit: 2 })).items.length, 2);
+    state.response.reverse();
+    await assert.rejects(
+      () => api.loadFormerGroupPage(A, { limit: 2 }),
+      codeIs('INVALID_RESPONSE'),
+    );
   });
 
   await test('creation validates and normalizes title, idempotency identity and unique invitees before dispatch', async () => {
@@ -219,7 +333,7 @@ function client(initialResponse = null) {
   });
 
   await test('mutation responses fail closed when UUIDs, exact result values or normalized titles do not match', async () => {
-    const { api, state } = client('invalid');
+    const { api } = client('invalid');
     await assert.rejects(() => api.createGroupConversation(A, { clientCreationId: CREATION, courseId: COURSE, title: 'Group', inviteeIds: [B] }), codeIs('INVALID_RESPONSE'));
     await assert.rejects(() => api.respondToGroupInvitation(A, INVITATION, 'declined'), codeIs('INVALID_RESPONSE'));
     await assert.rejects(() => api.inviteGroupMember(A, { conversationId: CHAT, clientInvitationId: INVITATION, inviteeId: B, expectedManagementRevision: REVISION }), codeIs('INVALID_RESPONSE'));

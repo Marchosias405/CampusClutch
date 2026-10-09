@@ -11,6 +11,7 @@ import ScreenHeader from '../../components/ScreenHeader';
 import { useAuth } from '../../context/AuthContext';
 import { useUnreadMessages } from '../../context/UnreadMessagesContext';
 import { env } from '../../lib/env';
+import { getConversationThreadPresentation, getMessageSenderLabel } from '../../lib/groupMessagingUi';
 import { loadConversationSummary, loadMessagePage, markConversationRead, messagingError, sendMessage } from '../../lib/messages';
 import { compareSequences, createMessageThread, isConversationId } from '../../lib/messageThread';
 import type { ConversationMessage } from '../../types/messaging';
@@ -97,11 +98,13 @@ function MessageThread({ userId, conversationId }: { userId: string; conversatio
     previousNewest.current = newest?.id;
   }, [state.messages, userId]);
 
-  const name = state.summary?.other_display_name?.trim() || 'Conversation';
+  const presentation = state.summary ? getConversationThreadPresentation(state.summary) : null;
+  const name = presentation?.title ?? 'Conversation';
   const initials = name.split(/\s+/).slice(0, 2).map(part => part[0]).join('').toUpperCase();
-  const closed = state.summary?.status !== 'active';
+  const closed = !!presentation?.isReadOnly;
   const canSend = active && state.restored && !!state.summary && !state.sending
     && (!!state.pending || (!closed && !!state.draft.trim()));
+  const subtitle = presentation?.subtitle ?? 'Conversation';
   const count = Array.from(state.pending?.body ?? state.draft.trim()).length;
   const send = () => { if (canSend) void model.send(); };
   const discard = () => Alert.alert('Discard this saved attempt?',
@@ -118,7 +121,11 @@ function MessageThread({ userId, conversationId }: { userId: string; conversatio
       </Pressable>
       <View style={styles.avatar}><Text style={styles.initials}>{initials}</Text></View>
       <View style={styles.headerTitle}><Text style={styles.headerName} numberOfLines={1}>{name}</Text>
-        <Text style={styles.subtitle}>{state.summary?.status === 'closed' ? 'Closed conversation' : 'Direct messages'}</Text></View>
+        <Text style={styles.subtitle}>{subtitle}</Text></View>
+      {presentation?.canOpenGroupDetails && <Pressable accessibilityRole="button" accessibilityLabel="View group details"
+        hitSlop={10} style={styles.refresh} onPress={() => router.push({ pathname: '/messages/groups/[id]', params: { id: conversationId } })}>
+        <Ionicons name="people-outline" size={23} color="white" />
+      </Pressable>}
       <Pressable accessibilityRole="button" accessibilityLabel="Refresh conversation" accessibilityState={{ disabled: !active || state.loading || state.loadingOlder }}
         disabled={!active || state.loading || state.loadingOlder} hitSlop={10} style={styles.refresh} onPress={() => { void model.refresh(); }}>
         {state.loading ? <ActivityIndicator color="white" /> : <Ionicons name="refresh" size={23} color="white" />}
@@ -144,7 +151,9 @@ function MessageThread({ userId, conversationId }: { userId: string; conversatio
         ListEmptyComponent={<View style={styles.empty}>
           {state.loading ? <ActivityIndicator color={PRIMARY} /> : <>
             <Text style={styles.emptyTitle}>{state.summary ? 'No messages yet' : 'Unable to open conversation'}</Text>
-            <Text style={styles.description}>{state.summary ? 'Send a message to start the conversation.' : 'Refresh to load this conversation.'}</Text>
+            <Text style={styles.description}>{state.summary
+              ? closed ? presentation?.readOnlyMessage ?? 'No messages are available in this read-only conversation.' : 'Send a message to start the conversation.'
+              : 'Refresh to load this conversation.'}</Text>
           </>}
         </View>}
         ListFooterComponent={state.hasMore ? <Pressable accessibilityRole="button" disabled={state.loadingOlder || state.loading || !active}
@@ -155,7 +164,7 @@ function MessageThread({ userId, conversationId }: { userId: string; conversatio
           const mine = item.sender_id === userId;
           return <View style={[styles.bubbleRow, mine ? styles.rowMe : styles.rowThem]}>
             <View style={styles.bubbleColumn}>
-              <Text style={[styles.sender, mine && styles.timeRight]}>{mine ? 'You' : name}</Text>
+              <Text style={[styles.sender, mine && styles.timeRight]}>{state.summary ? getMessageSenderLabel(item, userId, state.summary) : mine ? 'You' : item.sender_display_name}</Text>
               <View style={[styles.bubble, mine ? styles.bubbleMe : styles.bubbleThem]}>
                 <Text selectable style={[styles.messageText, mine && styles.textMe]}>{item.body}</Text>
               </View>
@@ -174,7 +183,7 @@ function MessageThread({ userId, conversationId }: { userId: string; conversatio
       {state.pending && <View style={styles.banner}><Text style={styles.note}>{state.sending ? 'Sending…' : 'This message is not confirmed. Retry sends the same saved message once.'}</Text>
         {!state.sending && <Pressable accessibilityRole="button" onPress={discard}><Text style={styles.link}>Discard saved attempt</Text></Pressable>}
       </View>}
-      {state.summary && closed && <Text style={styles.note}>This conversation is closed to new messages. Saved attempts can still be checked with Retry.</Text>}
+      {state.summary && closed && <Text style={styles.note}>{presentation?.readOnlyMessage} Saved attempts can still be checked with Retry.</Text>}
       <View style={[styles.inputBar, { paddingBottom: insets.bottom + 10 }]}>
         <View style={styles.inputWrap}><TextInput accessibilityLabel="Message text" value={state.pending?.body ?? state.draft}
           editable={active && state.restored && !!state.summary && !closed && !state.pending && !state.sending}

@@ -138,6 +138,13 @@ async function assertRowsHidden(user, table, conversationId) {
     assert.equal(bInvites[0].conversation_id, groupId);
     assert.equal(bInvites[0].invited_by_display_name, a.label);
     assert.equal((await outsider.api.loadMyGroupInvitations(outsider.id)).length, 0);
+    const firstBInvitationPage = await b.api.loadGroupInvitationPage(b.id, { limit: 1 });
+    assert.equal(firstBInvitationPage.items[0].id, bInvites[0].id);
+    assert.equal(firstBInvitationPage.hasMore, true);
+    assert.deepEqual((await b.api.loadGroupInvitationPage(b.id, {
+      limit: 1, before: firstBInvitationPage.nextCursor,
+    })).items, []);
+    pass('pending invitation previews support bounded keyset paging without exposing another account');
     pass('only each invitee receives the limited pending invitation preview');
 
     const beforeJoin = await a.api.sendMessage(a.id, {
@@ -252,6 +259,15 @@ async function assertRowsHidden(user, table, conversationId) {
     assert.equal(formerDSummary.group_title, 'Admin-managed Course Group');
     assert.equal(formerDSummary.management_revision, '0');
     assert.notEqual(hiddenFromD.id, visibleD.id);
+    const firstFormerDPage = await d.api.loadFormerGroupPage(d.id, { limit: 1 });
+    assert.equal(firstFormerDPage.items[0].id, groupId);
+    assert.equal(firstFormerDPage.items[0].my_membership_status, 'removed');
+    assert.equal(firstFormerDPage.items[0].active_member_count, 0);
+    assert.equal(firstFormerDPage.items[0].can_send, false);
+    assert.deepEqual((await d.api.loadFormerGroupPage(d.id, {
+      limit: 1, before: firstFormerDPage.nextCursor,
+    })).items, []);
+    pass('former-group discovery pages expose only the caller\'s frozen read-only summary');
     pass('removed members retain bounded history without observing later title or management changes');
 
     const rejoinD = crypto.randomUUID();
@@ -273,6 +289,7 @@ async function assertRowsHidden(user, table, conversationId) {
     assert.deepEqual((await d.api.loadMessagePage(d.id, groupId)).items.map(item => item.sequence),
       [afterDRejoin.sequence, visibleD.sequence]);
     assert.equal(sql(`select count(*) from public.group_membership_periods where conversation_id='${groupId}' and profile_id='${d.id}'`), '2');
+    assert.equal((await d.api.loadFormerGroupPage(d.id)).items.some(item => item.id === groupId), false);
     pass('fresh consent reopens a new history period without revealing the absence gap');
 
     const cAgain = crypto.randomUUID();
@@ -328,6 +345,12 @@ async function assertRowsHidden(user, table, conversationId) {
 
     const anonClient = createClient(env.EXPO_PUBLIC_SUPABASE_URL, key, { auth: { persistSession: false } });
     await denied({ client: anonClient }, 'get_my_group_invitations', { p_limit: 20 });
+    await denied({ client: anonClient }, 'get_my_group_invitations_page', {
+      p_limit: 20, p_before_created_at: null, p_before_id: null,
+    });
+    await denied({ client: anonClient }, 'get_my_former_group_conversations', {
+      p_limit: 20, p_before_activity_at: null, p_before_id: null,
+    });
     await denied({ client: anonClient }, 'create_group_conversation', {
       p_client_creation_id: crypto.randomUUID(), p_course_id: courseId,
       p_title: 'Anonymous', p_invitee_ids: [b.id],

@@ -46,6 +46,14 @@ function timestamp(value: unknown): string {
   return value;
 }
 
+function timestampMicros(value: string): bigint {
+  const milliseconds = Date.parse(value);
+  const fraction = /\.([0-9]+)(?:z|[+-][0-9]{2}:?[0-9]{2})$/i.exec(value)?.[1] ?? '';
+  const micros = Number(fraction.slice(0, 6).padEnd(6, '0'));
+  const millisFraction = Number(fraction.slice(0, 3).padEnd(3, '0'));
+  return BigInt(milliseconds) * 1000n + BigInt(micros - millisFraction * 1000);
+}
+
 function safeError(error: unknown): MessagingError {
   if (error instanceof MessagingError) return error;
   const code = error && typeof error === 'object' && 'code' in error ? error.code : null;
@@ -177,6 +185,31 @@ function rows(value: unknown, limit: number): unknown[] {
   return value;
 }
 
+function conversationPage(
+  value: unknown,
+  userId: string,
+  limit: number,
+  before: ConversationCursor | null,
+): ConversationPage {
+  return parse(() => {
+    const items = rows(value, limit).map(item => summary(item, userId));
+    if (new Set(items.map(item => item.id)).size !== items.length) throw new Error();
+    let previous = before
+      ? { activityAt: timestampMicros(before.activityAt), id: before.id }
+      : null;
+    for (const item of items) {
+      const current = { activityAt: timestampMicros(item.last_activity_at), id: item.id };
+      if (previous && (current.activityAt > previous.activityAt
+        || (current.activityAt === previous.activityAt && current.id >= previous.id))) {
+        throw new Error();
+      }
+      previous = current;
+    }
+    const hasMore = items.length === limit, last = items[items.length - 1];
+    return { items, hasMore, nextCursor: hasMore ? { activityAt: last.last_activity_at, id: last.id } : null };
+  });
+}
+
 export async function startDirectConversation(userId: string, otherProfileId: string): Promise<string> {
   const otherId = uuid(otherProfileId, 'profile');
   if (otherId === uuid(userId, 'account')) invalid('Choose someone else to message.');
@@ -206,17 +239,38 @@ export async function loadConversationPage(userId: string, options: {
   limit?: number; before?: ConversationCursor | null;
 } = {}): Promise<ConversationPage> {
   const limit = pageLimit(options.limit ?? 20);
+  const before = options.before
+    ? { activityAt: timestamp(options.before.activityAt), id: uuid(options.before.id, 'conversation') }
+    : null;
   const data = await call(userId, 'get_my_conversations', {
     p_limit: limit,
-    p_before_activity_at: options.before ? timestamp(options.before.activityAt) : null,
-    p_before_id: options.before ? uuid(options.before.id, 'conversation') : null,
+    p_before_activity_at: before?.activityAt ?? null,
+    p_before_id: before?.id ?? null,
   });
-  return parse(() => {
-    const items = rows(data, limit).map(value => summary(value, userId));
-    if (new Set(items.map(item => item.id)).size !== items.length) throw new Error();
-    const hasMore = items.length === limit, last = items[items.length - 1];
-    return { items, hasMore, nextCursor: hasMore ? { activityAt: last.last_activity_at, id: last.id } : null };
+  return conversationPage(data, userId, limit, before);
+}
+
+export async function loadFormerGroupPage(userId: string, options: {
+  limit?: number; before?: ConversationCursor | null;
+} = {}): Promise<ConversationPage> {
+  const limit = pageLimit(options.limit ?? 20);
+  const before = options.before
+    ? { activityAt: timestamp(options.before.activityAt), id: uuid(options.before.id, 'conversation') }
+    : null;
+  const data = await call(userId, 'get_my_former_group_conversations', {
+    p_limit: limit,
+    p_before_activity_at: before?.activityAt ?? null,
+    p_before_id: before?.id ?? null,
   });
+  const page = conversationPage(data, userId, limit, before);
+  if (page.items.some(item => item.type !== 'group'
+    || item.my_membership_status === 'active'
+    || item.active_member_count !== 0
+    || item.management_revision !== '0'
+    || item.can_send)) {
+    throw new MessagingError('INVALID_RESPONSE', 'Unable to load this conversation. Refresh and try again.');
+  }
+  return page;
 }
 
 /** Exact incoming unread total across all of the caller's visible conversations. */

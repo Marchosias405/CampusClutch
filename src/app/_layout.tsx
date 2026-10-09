@@ -195,6 +195,11 @@ function RootNavigator() {
           <Stack.Screen name="students/[id]" />
           <Stack.Screen name="notifications" />
           <Stack.Screen name="messages/[id]" />
+          <Stack.Screen name="messages/groups/create" />
+          <Stack.Screen name="messages/groups/invitations" />
+          <Stack.Screen name="messages/groups/history" />
+          <Stack.Screen name="messages/groups/[id]" />
+          <Stack.Screen name="messages/groups/invite/[id]" />
           <Stack.Screen name="profile/settings" />
         </Stack.Protected>
 

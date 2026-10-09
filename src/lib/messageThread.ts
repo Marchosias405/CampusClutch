@@ -165,7 +165,8 @@ export function createMessageThread(userId: string, conversationId: string, deps
 
   async function send() {
     if (!active || sendBusy || !state.restored || !state.summary
-      || (!state.pending && state.summary.status !== 'active')) return;
+      || (!state.pending && (state.summary.status !== 'active'
+        || (state.summary.type === 'group' && !state.summary.can_send)))) return;
     const body = state.pending?.body ?? state.draft.trim();
     if (!body || Array.from(body).length > 4000) {
       emit({ sendError: 'Write a message of 1–4,000 characters.' }); return;
