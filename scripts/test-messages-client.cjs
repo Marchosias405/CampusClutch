@@ -28,8 +28,17 @@ const summary = (overrides = {}) => ({
   last_message_sequence: '0', last_read_sequence: '0', unread_count: 0, created_at: TIME,
   ...overrides,
 });
+const groupSummary = (overrides = {}) => ({
+  id: OTHER_CHAT, type: 'group', status: 'active', other_profile_id: null, other_display_name: null,
+  group_title: 'CMPT 125 Study Group', group_course_id: REQUEST, group_course_code: 'CMPT 125',
+  active_member_count: 3, my_role: 'member', my_membership_status: 'active',
+  my_membership_period: 1, management_revision: '0', can_send: true,
+  last_message_body: null, last_message_at: null, last_activity_at: TIME,
+  last_message_sequence: '0', last_read_sequence: '0', unread_count: 0, created_at: TIME,
+  ...overrides,
+});
 const message = (overrides = {}) => ({
-  id: MESSAGE, conversation_id: CHAT, sender_id: A, client_message_id: CLIENT,
+  id: MESSAGE, conversation_id: CHAT, sender_id: A, sender_display_name: 'Student A', client_message_id: CLIENT,
   sequence: HUGE, body: 'Hello', created_at: TIME, ...overrides,
 });
 let checks = 0;
@@ -265,18 +274,39 @@ const codeIs = code => error => error.code === code;
     assert.deepEqual(plain(await api.sendMessage(A, { conversationId: CHAT, clientMessageId: CLIENT, body: 'Hello' })), message());
   });
 
+  await test('group summaries form a validated discriminated union with null direct counterpart fields', async () => {
+    const { api, state } = client(groupSummary({ internal_member_read_state: HUGE }));
+    assert.deepEqual(plain(await api.loadConversationSummary(A, OTHER_CHAT)), groupSummary());
+    state.response = groupSummary({ active_member_count: 0, my_membership_status: 'left', can_send: false });
+    assert.equal((await api.loadConversationSummary(A, OTHER_CHAT)).active_member_count, 0);
+    for (const malformed of [
+      groupSummary({ group_title: '' }), groupSummary({ group_title: ' Group ' }),
+      groupSummary({ group_title: 'x'.repeat(81) }), groupSummary({ group_course_id: 'invalid' }),
+      groupSummary({ group_course_code: null }), groupSummary({ active_member_count: 0 }),
+      groupSummary({ my_role: 'moderator' }), groupSummary({ my_membership_status: 'invited' }),
+      groupSummary({ my_membership_period: 0 }), groupSummary({ my_membership_period: '1' }),
+      groupSummary({ management_revision: 0 }), groupSummary({ management_revision: '-1' }),
+      groupSummary({ management_revision: '9223372036854775808' }),
+      groupSummary({ can_send: 'yes' }), groupSummary({ other_profile_id: B }),
+    ]) {
+      state.response = malformed;
+      await assert.rejects(() => api.loadConversationSummary(A, OTHER_CHAT), codeIs('INVALID_RESPONSE'));
+    }
+  });
+
   await test('malformed or mismatched summary/send responses fail closed instead of inventing fallback data', async () => {
     const { api, state } = client();
     for (const bad of [null, [], summary({ id: OTHER_CHAT }), summary({ other_profile_id: A }),
       summary({ last_message_sequence: 1 }), summary({ last_read_sequence: '01' }),
-      summary({ unread_count: -1 }), summary({ type: 'group' }), summary({ created_at: 'invalid' }),
+      summary({ unread_count: -1 }), summary({ type: 'channel' }), summary({ created_at: 'invalid' }),
       summary({ other_display_name: undefined })]) {
       state.response = bad;
       await assert.rejects(() => api.loadConversationSummary(A, CHAT), codeIs('INVALID_RESPONSE'));
     }
     for (const bad of [null, message({ sequence: 9007199254740993 }), message({ sequence: '0' }),
       message({ conversation_id: OTHER_CHAT }), message({ sender_id: B }),
-      message({ client_message_id: REQUEST }), message({ body: 'Different payload' })]) {
+      message({ client_message_id: REQUEST }), message({ body: 'Different payload' }),
+      message({ sender_display_name: '' }), message({ sender_display_name: 7 })]) {
       state.response = bad;
       await assert.rejects(() => api.sendMessage(A, { conversationId: CHAT, clientMessageId: CLIENT, body: 'Hello' }), codeIs('INVALID_RESPONSE'));
     }

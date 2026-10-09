@@ -228,6 +228,7 @@ finally:
     owned = f"select id from public.conversations where created_by in ({user_list})"
     sql(f"delete from public.request_conversations where conversation_id in ({owned}); "
         f"delete from public.messages where conversation_id in ({owned}); "
+        f"delete from public.group_membership_periods where conversation_id in ({owned}); "
         f"delete from public.direct_conversation_pairs where conversation_id in ({owned}); "
         f"delete from public.conversation_members where conversation_id in ({owned}); "
         f"delete from public.conversations where created_by in ({user_list}); "

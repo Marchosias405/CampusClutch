@@ -108,21 +108,56 @@ function nullableText(value: unknown): string | null {
   return value;
 }
 
+function nonemptyText(value: unknown): string {
+  if (typeof value !== 'string' || !value.trim()) throw new Error();
+  return value;
+}
+
+function normalizedText(value: unknown, maximum: number): string {
+  const result = nonemptyText(value);
+  if (result !== result.trim() || Array.from(result).length > maximum) throw new Error();
+  return result;
+}
+
 function summary(value: unknown, userId: string): ConversationSummary {
   const row = record(value);
-  if (row.type !== 'direct' || !['active', 'closed', 'removed'].includes(String(row.status))
+  if (!['direct', 'group'].includes(String(row.type)) || !['active', 'closed', 'removed'].includes(String(row.status))
     || !Number.isSafeInteger(row.unread_count) || (row.unread_count as number) < 0) throw new Error();
-  const otherId = uuid(row.other_profile_id, 'profile');
-  if (otherId === userId.toLowerCase()) throw new Error();
-  return {
-    id: uuid(row.id, 'conversation'), type: 'direct', status: row.status as ConversationSummary['status'],
-    other_profile_id: otherId, other_display_name: nullableText(row.other_display_name),
+  const base = {
+    id: uuid(row.id, 'conversation'), status: row.status as ConversationSummary['status'],
     last_message_body: nullableText(row.last_message_body),
     last_message_at: row.last_message_at === null ? null : timestamp(row.last_message_at),
     last_activity_at: timestamp(row.last_activity_at),
     last_message_sequence: sequence(row.last_message_sequence, true),
     last_read_sequence: sequence(row.last_read_sequence, true), unread_count: row.unread_count as number,
     created_at: timestamp(row.created_at),
+  };
+  if (row.type === 'direct') {
+    const otherId = uuid(row.other_profile_id, 'profile');
+    if (otherId === userId.toLowerCase()) throw new Error();
+    return { ...base, type: 'direct', other_profile_id: otherId, other_display_name: nullableText(row.other_display_name) };
+  }
+  if (row.other_profile_id != null || row.other_display_name != null
+    || !Number.isSafeInteger(row.active_member_count) || (row.active_member_count as number) < 0
+    || !['owner', 'administrator', 'member'].includes(String(row.my_role))
+    || !['active', 'left', 'removed'].includes(String(row.my_membership_status))
+    || !Number.isSafeInteger(row.my_membership_period) || (row.my_membership_period as number) < 1
+    || typeof row.can_send !== 'boolean'
+    || (row.my_membership_status === 'active' && (row.active_member_count as number) < 1)) throw new Error();
+  return {
+    ...base,
+    type: 'group',
+    other_profile_id: null,
+    other_display_name: null,
+    group_title: normalizedText(row.group_title, 80),
+    group_course_id: uuid(row.group_course_id, 'course'),
+    group_course_code: nonemptyText(row.group_course_code),
+    active_member_count: row.active_member_count as number,
+    my_role: row.my_role as 'owner' | 'administrator' | 'member',
+    my_membership_status: row.my_membership_status as 'active' | 'left' | 'removed',
+    my_membership_period: row.my_membership_period as number,
+    management_revision: sequence(row.management_revision, true),
+    can_send: row.can_send,
   };
 }
 
@@ -131,6 +166,7 @@ function message(value: unknown, conversationId: string): ConversationMessage {
   if (uuid(row.conversation_id, 'conversation') !== conversationId || typeof row.body !== 'string') throw new Error();
   return {
     id: uuid(row.id, 'message'), conversation_id: conversationId, sender_id: uuid(row.sender_id, 'sender'),
+    sender_display_name: nonemptyText(row.sender_display_name),
     client_message_id: uuid(row.client_message_id, 'message'), sequence: sequence(row.sequence),
     body: row.body, created_at: timestamp(row.created_at),
   };

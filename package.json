@@ -12,9 +12,10 @@
     "typecheck": "tsc --noEmit",
     "check": "npm run lint && npm run typecheck",
     "test:offers-lifecycle": "node scripts/test-request-offers-lifecycle.cjs",
-    "test:messages-client": "node scripts/test-messages-client.cjs && node scripts/test-request-contacts-client.cjs",
+    "test:messages-client": "node scripts/test-messages-client.cjs && node scripts/test-request-contacts-client.cjs && node scripts/test-group-conversations-client.cjs",
     "test:messages-ui": "node scripts/test-conversation-inbox.cjs && node scripts/test-message-thread.cjs && node scripts/test-message-thread-layout.cjs && node scripts/test-request-conversations-client.cjs && node scripts/test-message-entry-lifecycle.cjs && node scripts/test-classmate-message-entry.cjs && node scripts/test-unread-messages.cjs && node scripts/test-request-contact-entry.cjs",
-    "test:messages-local": "node scripts/test-messages-local.cjs"
+    "test:messages-local": "node scripts/test-messages-local.cjs && node scripts/test-group-messages-local.cjs",
+    "test:messages-concurrency": "python scripts/test-messages-concurrency.py && python scripts/test-group-messages-concurrency.py"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",

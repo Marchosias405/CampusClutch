@@ -247,6 +247,7 @@ async function rpc(user, name, args) {
       sql(`begin;
         delete from public.request_conversations where conversation_id in (${owned});
         delete from public.messages where conversation_id in (${owned});
+        delete from public.group_membership_periods where conversation_id in (${owned});
         delete from public.conversation_members where conversation_id in (${owned});
         delete from public.direct_conversation_pairs where conversation_id in (${owned});
         delete from public.conversations where created_by in (${ids});

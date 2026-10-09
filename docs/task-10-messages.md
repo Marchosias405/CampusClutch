@@ -1,6 +1,6 @@
 # Task 10 — Conversations and Messages
 
-**Current status:** Checkpoint 2 local phone validation is complete on `codex/persist-messages`, based on `main` at `0ae8af1`. By October 9, the user had confirmed that all amended phone tests 1–8 pass, including the bottom-tab unread badge, contact before offering/acceptance, direct classmate messaging, historical assignment isolation, durable failed-send retry, account-scoped drafts, pagination, long-message layout and the final newest-message scroll correction. Task 10 is not complete; group membership/invitation rules and realtime remain the next feature checkpoints. Hosted Development and Preview remain on Task 9, and development build `872b050f` remains the local test client.
+**Current status:** Checkpoint 3's secure group-conversation backend and typed API are complete locally on `codex/persist-messages`, based on `main` at `0ae8af1`. Checkpoint 2 local phone validation remains complete: by October 9, the user had confirmed all amended direct-message tests 1–8 pass. The group rules, consent model and history boundaries described below are now implemented and independently validated, but group screens are not connected yet. Task 10 is not complete; the next checkpoint is group creation, invitation, inbox, thread and roster UI, followed by realtime. Hosted Development and Preview remain on Task 9, development build `872b050f` remains the local test client, and no new standalone APK was built for this backend checkpoint.
 
 ## Checkpoint 1: direct-messaging foundation
 
@@ -99,7 +99,7 @@ npm run test:offers-lifecycle
 npm run test:messages-client
 npm run test:messages-ui
 npx supabase test db --local
-python scripts/test-messages-concurrency.py
+npm run test:messages-concurrency
 npm run test:messages-local
 ```
 
@@ -193,18 +193,76 @@ No hosted deployment or additional APK is part of this follow-up.
 - Six production-screen layout regressions now cover initial history, outgoing-at-bottom, outgoing-while-reading-older, incoming-at-bottom, incoming-while-reading-older with the jump action, and older pagination. The complete messaging UI command passes **104 groups**; all **26 messaging/contact client groups**, lint/typecheck and an Android Hermes export also pass. The previous screen implementation fails the new device-ordering regression, confirming that it detects the reported race.
 - Independent review found no remaining thread lifecycle, stale-reference, pagination, retry, TypeScript or React Native blocker. No database or native dependency changed.
 
-Checkpoint 2 is complete locally. No hosted deployment or additional APK is part of this correction; the next implementation gate is group membership/invitation consent and history visibility.
+Checkpoint 2 is complete locally. No hosted deployment or additional APK is part of this correction.
+
+## Checkpoint 3: group-conversation backend and typed API
+
+This checkpoint implements the group membership, invitation-consent and history-visibility contract locally. It extends the existing message engine instead of creating a second message store. Direct-message behavior and the completed checkpoint 2 phone flows remain compatible.
+
+### Product and membership rules
+
+- Groups are private, invite-only and scoped to one current course. The creator and every invitee must have a completed profile and be currently enrolled in that course when the invitation is created; eligibility is checked again when an invitation is accepted.
+- Creation requires a title of 1–80 characters and 1–19 unique invitees. The creator starts as the only active owner, while every selected classmate starts with a pending invitation and no message access.
+- A group can have at most 20 active and pending people combined, including the owner. Pending invitees see only the invitation preview needed to decide: group title, course, inviter and active-member count. They cannot read the roster, conversation summary, messages or unread state.
+- Invitations require an explicit accept or decline. Invitations can be revoked, and a former member can return only through a new invitation and acceptance.
+- Active roles are owner, administrator and member. There is exactly one active owner. Owners and administrators can invite people, revoke pending invitations and rename the group. Administrators can remove ordinary members. Only the owner can change roles or transfer ownership, and the owner must transfer ownership before leaving.
+- Accepted membership is not revoked automatically if the member later leaves the course or the term changes. That preserves an existing group's continuity and history. New invitations, invitation acceptance and rejoining still require current course enrollment and a completed profile.
+- There is no automatic invitation expiry in this checkpoint. Public rooms, group avatars, notifications, mute/archive controls, blocking/reporting and system messages remain outside this stage.
+
+### Privacy and history boundaries
+
+`group_conversations` stores private course/title metadata, `group_conversation_invitations` stores consent, and `group_membership_periods` records the exact message-sequence interval visible during each accepted membership. `conversation_members` now records role, active/left/removed state and the membership end time. Existing and future direct members receive a permanent visibility period so the generalized message functions preserve direct-message behavior.
+
+An accepted member can send and read new messages while an active membership period is open. Leaving or removal closes that period at the current sequence and disables sending. A former member retains read-only access only to messages from their accepted membership period; they cannot see later messages. If they rejoin, a fresh period begins and messages from the absence gap remain hidden. A pending, declined or revoked invite never grants membership or history.
+
+The new implementation tables are RPC-only, with RLS enabled and raw table privileges revoked. Public invoker wrappers call private authorization functions using the authenticated profile, fixed search paths and database locks for membership, ownership, invitation and message-sequence races. One deferred database constraint enforces exactly one active owner after each transaction.
+
+Group-management reads use one atomic snapshot containing the title, monotonic management revision, active roster with membership-period numbers and pending invitations. Manager mutations carry the exact revision from that snapshot; leave/removal also carry the relevant membership period. Every invitation, membership, role, owner or title transition advances the revision exactly once. Delayed commands from an older snapshot fail instead of overwriting a newer decision, while exact immediate retries and client-ID retries reconcile without advancing it again. Each closed membership period records whether it ended by leaving or removal, so an old leave cannot close a later rejoin.
+
+### Group API contract
+
+| RPC | Purpose |
+|---|---|
+| `create_group_conversation` | Idempotently create a course group and its initial pending invitations |
+| `get_my_group_invitations` | Load the caller's pending invitation previews |
+| `respond_to_group_invitation` | Explicitly accept or decline an invitation |
+| `invite_group_member` | Invite one currently eligible classmate with a retry UUID |
+| `revoke_group_invitation` | Revoke one pending invitation |
+| `get_group_members` | Load the roster for an active member |
+| `get_group_pending_invitations` | Load pending invitations for an authorized manager |
+| `get_group_management_snapshot` | Atomically load a manager's title, revision, roster periods and pending invitations |
+| `leave_group_conversation` | Close the caller's membership period; owners must transfer first |
+| `remove_group_member` | Close another member's period under the role rules |
+| `set_group_member_role` | Promote or demote an active non-owner member |
+| `transfer_group_ownership` | Atomically move the single owner role to another active member |
+| `rename_group_conversation` | Rename a group as an owner or administrator |
+
+The typed boundary is in `src/lib/groupConversations.ts`, with direct and group summary/message projections in `src/types/messaging.ts` and `src/lib/messages.ts`. Revisions remain exact decimal strings across Postgres and TypeScript. Group conversations use the same bounded inbox, message-page, send, read and unread RPCs as direct conversations. Message rows now include the sender's display name. Inbox activity for a rejoined member starts no earlier than the current join time, so old visible history cannot incorrectly move a rejoined group to the top.
+
+### Checkpoint 3 validation
+
+Validated locally on October 9, 2026:
+
+- All **1,182 SQL assertions across 15 files** passed, including **188 group-message assertions** and all existing direct-message and Task 9 regressions.
+- **27 direct-message API checks** and **15 group-message API checks** passed against local Supabase Auth/PostgREST. Both suites verified their exact public-table fingerprints and removed every temporary user, course, invitation, membership, conversation and message fixture.
+- **10 direct-message concurrency cases** and **eight group concurrency cases** passed. They cover idempotent creation/invitation/acceptance, cap enforcement, stale management revisions, owner/role transitions, removal/rejoin periods, sends and read ordering.
+- **38 messaging client contract groups** passed, including **11 new group-client groups**. The unchanged direct-message app suite still passes **104 UI/controller/lifecycle groups**, and all **nine offer-action lifecycle checks** pass.
+- Lint/typecheck passed. `supabase db lint --local` returned no errors or warnings.
+- All 21 migrations, including `20261009094852_persist_group_conversations.sql`, replayed successfully in an isolated shadow database. The diff command still reports previously documented function-definition drift outside this checkpoint; no unrelated generated diff was saved.
+- Independent schema, authorization, concurrency and client reviews found no blocking issue after corrections. Review added explicit NULL rejection, acceptance-time eligibility checks, future-direct membership initialization, correct rejoin activity ordering, immutable creation fingerprints, group-parent/owner constraints, membership-period operation guards and monotonic management revisions before final validation.
+
+This is a backend/API checkpoint. It adds no group screens, phone-test gate, native dependency, hosted migration, realtime subscription or standalone APK. Hosted Development/Preview and the phone-tested Preview build remain unchanged.
 
 ## Remaining integration and release work
 
-1. Define group membership/invitation consent and history visibility, then implement that checkpoint.
-2. Add authorized realtime updates and validate reconnect/account-switch behavior.
+1. Connect group creation, invitation accept/decline, mixed direct/group inbox rows, group threads, roster/role controls, leaving/removal and read-only former-member history to the validated API; then run the focused Android phone checklist.
+2. Add authorized realtime updates and validate reconnect/account-switch behavior for direct and group conversations.
 3. Deploy and validate hosted Development/Preview, build and test a standalone APK, and complete final review, CI, merge and documentation closure.
 
-Group membership/invitation consent and history visibility must be settled before the group checkpoint. Hosted rollout, standalone Preview testing, final review, CI and merge follow completed feature checkpoints.
+The group backend contract is complete locally; group app integration is the next implementation gate. Hosted rollout, standalone Preview testing, final review, CI and merge follow completed feature checkpoints.
 
 ## References checked for this implementation
 
-- [Supabase changelog](https://supabase.com/changelog): reviewed before implementation; no extension or version change is part of this checkpoint.
+- [Supabase changelog](https://supabase.com/changelog): reviewed again for checkpoint 3; no current Database, Auth or client-library change affects this implementation, and no extension or version change is part of the checkpoint.
 - [Row-level security](https://supabase.com/docs/guides/database/postgres/row-level-security): explicit grants, member predicates and authorization tests.
 - [Database functions](https://supabase.com/docs/guides/database/functions): invoker defaults, fixed search paths and restricted execution.

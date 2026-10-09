@@ -44,7 +44,7 @@ jobs:
       - name: Check offer action lifecycle
         run: npm run test:offers-lifecycle
 
-      - name: Check messaging client contract
+      - name: Check direct and group messaging client contracts
         run: npm run test:messages-client
 
       - name: Check messaging state and navigation boundaries
