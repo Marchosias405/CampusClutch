@@ -1,6 +1,6 @@
 # Task 10 — Conversations and Messages
 
-**Current status:** Checkpoint 5 implements direct-message realtime locally on `codex/persist-messages`. Checkpoint 2 phone tests 1–8 passed; the new realtime checklist below is pending. On October 22, the user deferred group conversations: checkpoints 3–4 remain historical implementation records, but group navigation and server access are now disabled without deleting group data. Group phone testing is no longer a gate for this release. Hosted Development/Preview remain on Task 9, development build `872b050f` remains the local test client, and no new standalone APK was built.
+**Current status:** Checkpoint 5 is complete locally on `codex/persist-messages`: the user confirmed all six direct-message realtime checks passed on October 22, 2026, with two accounts open simultaneously on the same backend. Checkpoint 2 phone tests 1–8 also passed. On October 22, the user deferred group conversations: checkpoints 3–4 remain historical implementation records, but group navigation and server access are now disabled without deleting group data. Group phone testing is no longer a gate for this release. Hosted Development/Preview remain on Task 9, development build `872b050f` remains the local test client, and no new standalone APK was built. Hosted rollout and standalone Preview validation are next.
 
 ## Checkpoint 1: direct-messaging foundation
 
@@ -321,7 +321,7 @@ Validated locally on October 22, 2026:
 - All **23 migrations** replay successfully in an isolated shadow database, the messaging schema diff is empty, and local migration history is aligned. No working database was reset.
 - Independent client lifecycle and database authorization reviews found no blockers. Review also preserved older paginated inbox rows during automatic refresh and retained manual refresh's explicit reset behavior.
 
-Phone results remain pending. Hosted environments and the standalone Preview APK are unchanged.
+The user confirmed all six realtime checks passed on October 22, 2026, closing the local checkpoint 5 gate. Hosted environments and the standalone Preview APK are unchanged.
 
 ### Web testing startup correction
 
@@ -331,7 +331,7 @@ The first laptop-browser attempt crashed Expo with `ReferenceError: window is no
 
 Seven regression checks exercise the production configuration and installed auth SDK, including server initialization and INITIAL_SESSION, memory isolation, real web AsyncStorage persistence, and Android/iOS persistence without `window`. They run through `npm run test:auth-runtime` in CI. Lint/typecheck, web static export (35 routes), Android Hermes export, and loading/reloading the browser sign-in screen pass. The existing web shadow-style deprecation warning is non-fatal.
 
-After a crashed Expo process, restart `npx expo start --dev-client --localhost --clear`. Press `w` in that terminal to open `http://localhost:8081`, then sign into the second local test account. Keep the first account signed in on the phone; a second Metro server is unnecessary. These startup checks do not replace the pending two-account realtime phone checklist.
+After a crashed Expo process, restart `npx expo start --dev-client --localhost --clear`. Press `w` in that terminal to open `http://localhost:8081`, then sign into the second local test account. Keep the first account signed in on the phone; a second Metro server is unnecessary. The subsequent user-confirmed two-account realtime results are recorded below.
 
 ### Checkpoint 5 phone checklist
 
@@ -354,12 +354,12 @@ Keep Metro and Docker running and USB connected. This is a local development-cli
 5. **Account isolation:** Sign B out, then sign in as a third account. Send another A-to-B message from A. B's old conversation, draft and badge must not appear in the third account. Sign back into B and confirm catch-up.
 6. **Deferred groups:** Messages should show direct conversations only, with no create-group, invitation or past-group entry points. An old saved group link should not open group content or allow sending. Direct messaging from profiles/classmates/requests should still work.
 
-Stop at this gate and record failures before moving to hosted deployment. The earlier durable-send/offline tests need repeating only if these checks reveal a regression.
+**Passed — October 22, 2026:** The user confirmed all six checks with two accounts open simultaneously on the same backend: live delivery exactly once without refreshing, inbox and bottom-tab unread updates/clearing, older-history position and draft retention, reconnect/background catch-up, account isolation, and hidden group controls with working profile/classmate/request direct-message entry points. This completes the local checkpoint 5 gate. Retain this checklist for regression testing; hosted deployment and standalone Preview validation remain separate gates.
 
 ## Remaining integration and release work
 
-1. Complete the checkpoint 5 direct realtime phone checklist.
-2. Deploy and validate the full Task 10 migration sequence in hosted Development/Preview, including the group deferral; build and test a new standalone Preview APK.
+1. Deploy and validate the full Task 10 migration sequence in hosted Development/Preview, including the group deferral.
+2. Build and test a new standalone Preview APK against hosted Preview, including two-account realtime and offline/reconnect behavior without local Metro or USB.
 3. Complete final review, CI, merge and documentation closure, then begin Task 11 notifications.
 
 Group conversations and creator-made quests are deferred product work. Their retained code does not mean they are released or phone-validated.
