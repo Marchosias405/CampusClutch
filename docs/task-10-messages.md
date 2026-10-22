@@ -1,6 +1,6 @@
 # Task 10 — Conversations and Messages
 
-**Current status:** Checkpoint 5 is complete locally on `codex/persist-messages`: the user confirmed all six direct-message realtime checks passed on October 22, 2026, with two accounts open simultaneously on the same backend. Checkpoint 2 phone tests 1–8 also passed. On October 22, the user deferred group conversations: checkpoints 3–4 remain historical implementation records, but group navigation and server access are now disabled without deleting group data. Group phone testing is no longer a gate for this release. Hosted Development/Preview remain on Task 9, development build `872b050f` remains the local test client, and no new standalone APK was built. Hosted rollout and standalone Preview validation are next.
+**Current status (October 22, 2026):** Task 10 is ready for standalone phone testing and remains open on `codex/persist-messages`. Checkpoint 2 phone tests 1–8 and all six local checkpoint 5 realtime checks passed. All six Task 10 migrations through `20261022094831` are deployed to hosted Development and Preview (24 migrations total). Each environment passes all 1,066 SQL assertions and 12 hosted realtime smoke groups, with exact fixture cleanup, unchanged existing data and no new advisor warnings. The CLI link is restored to Development. Standalone [Preview build `5b43c4c3`](https://expo.dev/accounts/marchosias405/projects/CampusClutch/builds/5b43c4c3-86cf-4d48-bdd6-ef0ab52873b7) completed from app source `01a1c17` and its downloaded APK passes all 11 artifact checks. The phone checklist below remains pending. Groups are deferred: their implementation/data are retained, but navigation and server access are disabled. Group phone testing is not a release gate. Task 10 is not complete or merged.
 
 ## Checkpoint 1: direct-messaging foundation
 
@@ -356,11 +356,75 @@ Keep Metro and Docker running and USB connected. This is a local development-cli
 
 **Passed — October 22, 2026:** The user confirmed all six checks with two accounts open simultaneously on the same backend: live delivery exactly once without refreshing, inbox and bottom-tab unread updates/clearing, older-history position and draft retention, reconnect/background catch-up, account isolation, and hidden group controls with working profile/classmate/request direct-message entry points. This completes the local checkpoint 5 gate. Retain this checklist for regression testing; hosted deployment and standalone Preview validation remain separate gates.
 
+## Checkpoint 6: hosted rollout and standalone Preview preparation (2026-10-22, America/Vancouver)
+
+All six Task 10 migrations are deployed in hosted Development and Preview, bringing each environment to 24 migration versions:
+
+- `20260926182818_persist_direct_messages.sql`
+- `20260927075447_request_contacts_and_unread_total.sql`
+- `20261009094852_persist_group_conversations.sql`
+- `20261009104214_page_group_history_and_invitations.sql`
+- `20261022090959_defer_groups_and_direct_realtime.sql`
+- `20261022094831_restrict_managed_realtime_client_writes.sql`
+
+The final migration adds three restrictive RLS policies denying client INSERT, UPDATE and DELETE on managed `realtime.messages`. Hosted Supabase retains its managed table grants, so these policies enforce receive-only clients through the supported policy interface. Private broadcast reads remain authorized by the caller's own eligible account topic; group access remains disabled.
+
+The compatibility correction passes 72 local group-deferral/realtime SQL assertions, bringing the active suite to 1,066. Checkpoint 5's earlier 65/1,059 counts above describe the historical local result before this correction.
+
+| Validation | Hosted Development | Hosted Preview |
+| --- | --- | --- |
+| Migration history through `20261022094831` | Applied; 24 versions | Applied; 24 versions |
+| Active SQL suite | 1,066 assertions passed | 1,066 assertions passed |
+| Real hosted realtime smoke | 12 groups passed | 12 groups passed |
+| Disposable fixture cleanup and existing-data fingerprints | Passed; unchanged | Passed; unchanged |
+| Database advisors | No new warnings; eight baseline warnings | No new warnings; eight baseline warnings |
+
+Both environments have all 24 migration versions aligned. All 21 baseline relation fingerprints (20 public tables plus `storage.objects`) stayed unchanged, the eight new messaging tables are empty after validation, and each environment retains the same eight advisor warnings recorded before deployment. Each successful live smoke also preserved all 30 relation fingerprints, including `auth.users`. The repository's Supabase CLI link is restored to Development.
+
+The hosted smoke uses disposable synthetic accounts and verifies private subscriptions, cross-account/anonymous/incomplete-account denial, the production app transport, content-free delivery, authorized history/unread refetch, duplicate-safe sends, private read-state updates, denied client broadcast/presence writes, reconnect catch-up and ineligible-recipient suppression. Cleanup removes only its exact fixtures; full public-table, Auth-user and Storage-object fingerprints are compared afterward. It does not replace the standalone phone test.
+
+The first live connection in each hosted environment encountered `MissingPartition` while the managed Realtime service initialized its partitions. Subsequent subscriptions initialized them and both reruns passed all 12 groups, with cleanup and preservation checks passing. No application fix was needed for that first-use failure.
+
+### Standalone Preview APK
+
+EAS [build `5b43c4c3-86cf-4d48-bdd6-ef0ab52873b7`](https://expo.dev/accounts/marchosias405/projects/CampusClutch/builds/5b43c4c3-86cf-4d48-bdd6-ef0ab52873b7) **completed successfully** from app source `01a1c17`, using the Android `preview` profile and hosted Preview. The downloaded `CampusClutch-Task10-Preview.apk` passes all 11 artifact checks and is ready for the phone checklist below. Use the stable build page to download; signed artifact URLs expire.
+
+- APK size: **154,201,698 bytes** (about 154.2 MB).
+- SHA-256: `96b4eb4d6190a69a0dcde1170dad9f1959b75c36577d78d4c895003984fe408c`.
+- Package `com.marchosias405.campusclutch`, version `1.0.0`, version code `1`; non-debuggable and not test-only, with no development-launcher components.
+- `assets/index.android.bundle` contains **3,769,744 bytes of embedded Hermes bytecode**. APK ZIP integrity passed.
+- The only embedded Supabase origin is `https://udbijakeasbvoycjyghe.supabase.co`; no local backend endpoint was found.
+- Task 9 cancellation/rating/archive calls and all checked Task 10 direct-message, request-contact, unread/read and realtime event markers are embedded.
+
+The build includes the final Task 9 navigation correction and current Task 10 direct messaging; the older phone-tested Preview `016bd2fd` does not contain Task 10. Artifact inspection confirms the package contents, not the manual phone behavior.
+
+### Standalone Preview phone checklist
+
+**Ready to test; manual results pending.** Hosted Preview validation, build completion and APK inspection have passed. Install [Preview build `5b43c4c3`](https://expo.dev/accounts/marchosias405/projects/CampusClutch/builds/5b43c4c3-86cf-4d48-bdd6-ef0ab52873b7). Use two simultaneously signed-in **hosted Preview accounts**, A and B, on two devices or a laptop browser connected to the same Preview backend. Local accounts/data are separate. The Android APK must run from its launcher with USB disconnected and without a Metro connection. Use a third Preview account C for the isolation check.
+
+For a laptop second account, run the following from a **Node 24** terminal with system CA support, then open `http://localhost:8082` and sign in with B's hosted Preview credentials:
+
+```powershell
+Set-Location D:\Projects\CampusClutch
+$env:NODE_USE_SYSTEM_CA = '1'
+npx eas-cli@23.2.0 env:exec preview "npx expo start --web --port 8082" --non-interactive
+```
+
+The EAS Preview environment takes precedence over `.env.local` for this child process; the environment name, hosted Preview origin and publishable-key presence were verified after Expo's environment loading. This command does not replace `.env.local`. Node 22 on this laptop encountered an EAS certificate error; the bundled Node 24 runtime with system CA support passed the environment check. The laptop server serves B's browser only; the phone must keep using its installed standalone APK.
+
+1. **Standalone launch and deferred groups:** Install the new APK and open it from the phone launcher. Sign in, restart and confirm the correct identity with no development-server screen. Messages must show direct chats only, with no create-group, invitation or past-group controls; an old saved group link must not reveal content or allow sending.
+2. **Direct entry and live delivery:** Use a classmate's Message button and the student's profile Message action; both should reach the same DM. From a request, use Message poster **before offering or acceptance**. Send both ways while A and B keep the thread open: each message should appear once without refresh, including with the keyboard open.
+3. **Inbox and unread badge:** Keep B on Home while A sends. B's Messages badge, inbox preview and conversation unread count should update automatically. Open/read the thread and confirm the counts clear correctly; a newly started DM should appear in the recipient's inbox.
+4. **History, draft and scroll:** Type a draft, scroll up and load older messages while the other account sends. Keep the reading position and draft; the new-message jump control should reach the latest message without missing/duplicate bubbles. Check long messages, keyboard spacing, navigation away/back and a restart with a retained draft.
+5. **Offline, reconnect and background:** Turn off the receiving phone's Wi-Fi/mobile data, send from the other account, then reconnect. Missed history should appear without duplicates or draft loss. Try an offline send, restore the network and check saved history before retrying; retry must preserve one message. Separately background B, send from A and reopen B. Allow up to 30 seconds for fallback refresh while the socket reconnects.
+6. **Account isolation:** Sign B out and sign in as C. Send another A-to-B message from A. B's conversation, draft and unread badge must not appear for C. Sign back into B and confirm its own history and missed messages return.
+
+Stop at this manual phone gate. A successful build or automated hosted smoke does not close it; record the user's results before final review, CI and merge.
+
 ## Remaining integration and release work
 
-1. Deploy and validate the full Task 10 migration sequence in hosted Development/Preview, including the group deferral.
-2. Build and test a new standalone Preview APK against hosted Preview, including two-account realtime and offline/reconnect behavior without local Metro or USB.
-3. Complete final review, CI, merge and documentation closure, then begin Task 11 notifications.
+1. Complete the standalone Preview phone checklist above and record the user's results.
+2. After that gate, complete final review, CI, merge and documentation closure before beginning Task 11 notifications.
 
 Group conversations and creator-made quests are deferred product work. Their retained code does not mean they are released or phone-validated.
 
