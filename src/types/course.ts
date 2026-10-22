@@ -49,6 +49,9 @@ export type CourseCatalogItem = {
 
   campusId: string | null;
   campusDisplayName: string | null;
+  units?: number | null;
+  degreeLevel?: string | null;
+  deliveryMode?: string | null;
 };
 
 export type MyCourse = CourseCatalogItem & {

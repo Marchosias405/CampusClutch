@@ -34,6 +34,9 @@ type CourseRow = {
   title: string;
   status: CourseCatalogStatus;
   campus_id: string | null;
+  units?: number | null;
+  degree_level?: string | null;
+  delivery_mode?: string | null;
   academic_terms:
     | AcademicTermRow
     | AcademicTermRow[]
@@ -73,6 +76,9 @@ const COURSE_SELECT = `
   title,
   status,
   campus_id,
+  units,
+  degree_level,
+  delivery_mode,
   academic_terms!inner (
     id,
     code,
@@ -138,6 +144,9 @@ function mapCourse(
     term: mapAcademicTerm(term),
     campusId: row.campus_id,
     campusDisplayName: campus?.display_name ?? null,
+    units: row.units ?? null,
+    degreeLevel: row.degree_level ?? null,
+    deliveryMode: row.delivery_mode ?? null,
   };
 }
 
@@ -186,28 +195,66 @@ export async function getAcademicTerms(): Promise<
   );
 }
 
-export async function getAvailableCourses(): Promise<
-  CourseCatalogItem[]
-> {
-  const { data, error } = await supabase
-    .from("courses")
-    .select(COURSE_SELECT)
-    .eq("status", "active")
-    .order("code");
+export const COURSE_CATALOG_PAGE_SIZE = 30;
+
+export type CourseCatalogCursor = { code: string; id: string };
+export type CourseCatalogPage = {
+  courses: CourseCatalogItem[];
+  nextCursor: CourseCatalogCursor | null;
+};
+
+type CatalogSearchRow = Omit<CourseRow, "academic_terms" | "campuses"> & {
+  campus_display_name: string | null;
+};
+
+export async function searchCourseCatalog(
+  term: AcademicTerm,
+  query = "",
+  after: CourseCatalogCursor | null = null,
+): Promise<CourseCatalogPage> {
+  const { data, error } = await supabase.rpc("search_course_catalog", {
+    p_term_id: term.id,
+    p_query: query.trim(),
+    p_after_code: after?.code ?? null,
+    p_after_id: after?.id ?? null,
+    // One extra row tells us whether another page exists without a total-count scan.
+    p_limit: COURSE_CATALOG_PAGE_SIZE + 1,
+  });
 
   if (error) {
     throw error;
   }
 
-  return (data as unknown as CourseRow[]).map(
-    mapCourse
-  );
+  const rows = (data ?? []) as CatalogSearchRow[];
+  const courses = rows.slice(0, COURSE_CATALOG_PAGE_SIZE).map((row) => ({
+    id: row.id, code: row.code, title: row.title, status: row.status, term,
+    campusId: row.campus_id, campusDisplayName: row.campus_display_name,
+    units: row.units ?? null, degreeLevel: row.degree_level ?? null,
+    deliveryMode: row.delivery_mode ?? null,
+  }));
+  const last = courses[courses.length - 1];
+  return {
+    courses,
+    nextCursor: rows.length > COURSE_CATALOG_PAGE_SIZE && last
+      ? { code: last.code, id: last.id } : null,
+  };
 }
 
-export async function getMyCourses(): Promise<
+async function courseSession(expectedUserId: string) {
+  const { data, error } = await supabase.auth.getSession();
+  if (error) throw error;
+  if (data.session?.user.id.toLowerCase() !== expectedUserId.toLowerCase()
+    || !data.session.access_token) {
+    throw new Error("Your account changed. Reopen this screen before continuing.");
+  }
+  return data.session.access_token;
+}
+
+export async function getMyCourses(expectedUserId?: string): Promise<
   MyCourse[]
 > {
-  const { data, error } = await supabase
+  const token = expectedUserId ? await courseSession(expectedUserId) : null;
+  const request = supabase
     .from("course_memberships")
     .select(
       `
@@ -215,30 +262,16 @@ export async function getMyCourses(): Promise<
         joined_at,
         ended_at,
         courses!inner (
-          id,
-          code,
-          title,
-          status,
-          campus_id,
-          academic_terms!inner (
-            id,
-            code,
-            display_name,
-            year,
-            season,
-            starts_on,
-            ends_on,
-            status
-          ),
-          campuses (
-            id,
-            display_name
-          )
+          ${COURSE_SELECT}
         )
       `
     )
     .neq("status", "left")
     .order("joined_at", { ascending: false });
+
+  const { data, error } = token
+    ? await request.setHeader("Authorization", `Bearer ${token}`) : await request;
+  if (expectedUserId) await courseSession(expectedUserId);
 
   if (error) {
     throw error;
@@ -287,19 +320,33 @@ export function isPreviousCourse(
   );
 }
 
-export async function joinCourse(
-  courseId: string
-): Promise<CourseJoinResult> {
-  const { data, error } = await supabase.rpc(
-    "join_my_course",
-    {
-      p_course_id: courseId,
-    }
-  );
+export function isUpcomingCourse(course: MyCourse): boolean {
+  return course.membershipStatus === "enrolled"
+    && course.status !== "archived" && course.term.status === "upcoming";
+}
 
-  if (error) {
-    throw error;
-  }
+export function courseDetailsLabel(course: CourseCatalogItem): string {
+  const campus = course.deliveryMode === "online"
+    ? "Online" : course.campusDisplayName;
+  return [campus, course.units == null ? null : `${course.units} units`]
+    .filter(Boolean).join(" · ");
+}
+
+async function membershipAction(name: string, courseId: string, expectedUserId?: string) {
+  const token = expectedUserId ? await courseSession(expectedUserId) : null;
+  const request = supabase.rpc(name, { p_course_id: courseId });
+  const { data, error } = token
+    ? await request.setHeader("Authorization", `Bearer ${token}`) : await request;
+  if (expectedUserId) await courseSession(expectedUserId);
+  if (error) throw error;
+  return data;
+}
+
+export async function joinCourse(
+  courseId: string,
+  expectedUserId?: string,
+): Promise<CourseJoinResult> {
+  const data = await membershipAction("join_my_course", courseId, expectedUserId);
 
   if (
     data !== "joined" &&
@@ -315,18 +362,10 @@ export async function joinCourse(
 }
 
 export async function leaveCourse(
-  courseId: string
+  courseId: string,
+  expectedUserId?: string,
 ): Promise<CourseLeaveResult> {
-  const { data, error } = await supabase.rpc(
-    "leave_my_course",
-    {
-      p_course_id: courseId,
-    }
-  );
-
-  if (error) {
-    throw error;
-  }
+  const data = await membershipAction("leave_my_course", courseId, expectedUserId);
 
   if (
     data !== "left" &&
