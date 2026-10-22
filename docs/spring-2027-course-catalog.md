@@ -126,7 +126,7 @@ Allow a few seconds for the gateway to start, then retry Add. Confirm exactly on
 
 The local reset-email inbox remains http://127.0.0.1:54324/.
 
-The six local and six standalone catalog checks are complete. The later banner-removal APK has a quick visual phone check pending; final PR review, required CI and merge remain before Task 11.
+The six local, six standalone catalog and both later banner-removal phone checks are complete. Final PR review, required CI and merge remain before Task 11.
 
 ## Hosted Development and Preview checkpoint — October 22, 2026
 
@@ -145,7 +145,7 @@ Both hosted environments have 25 migrations through `20261022111506` and 990 ver
 
 ## Standalone Preview phone checklist
 
-**Status: PASSED — all six checks, confirmed by the user on October 22, 2026, using build `2fd64d08`.** This is the latest phone-tested standalone APK. The checklist remains below for future regression testing: use hosted Preview accounts with Metro/laptop terminals closed and USB disconnected. Local accounts and enrollments are separate; no Docker or laptop server is required.
+**Status: PASSED — all six checks, confirmed by the user on October 22, 2026, using build `2fd64d08`.** This is the six-check catalog baseline; the later build `b39cde7e` also passed both visual cleanup checks below. The checklist remains below for future regression testing: use hosted Preview accounts with Metro/laptop terminals closed and USB disconnected. Local accounts and enrollments are separate; no Docker or laptop server is required.
 
 1. Open **Courses → + → Spring 2027**. Confirm the undergraduate/3+ unit scope and published-coverage notice, with units and campus/Online on results. Search a known course such as **CMPT 120**.
 2. Search by course code and part of a title, clear search and use **Load more courses**. Change searches/terms quickly; results must match the latest selection without duplicates or mixed-term rows.
@@ -154,19 +154,19 @@ Both hosted environments have 25 migrations through `20261022111506` and 990 ver
 5. Switch to another hosted Preview account. Courses must stay isolated; both accounts may independently add the same offering. Confirm existing current-course/classmate direct-message entry still works.
 6. Select a course not already added, then turn off **both Wi-Fi and mobile data**. Add must show a failure while retaining selection. Reconnect and retry; confirm one saved entry after reopening. Repeat the offline/reconnect sequence with a changed search and **Retry course search**. Finish online.
 
-The six-check standalone catalog phone gate is complete. Confirm the later banner-removal visual check below, then finish final review, required CI and merge before starting **Task 11 — Notifications**. Groups and creator-made quests remain deferred.
+The six-check standalone catalog phone gate and both later banner-removal visual checks are complete. Finish final review, required CI and merge before starting **Task 11 — Notifications**. Groups and creator-made quests remain deferred.
 
 ## Banner-removal Preview checkpoint
 
-**APK ready; quick visual phone check pending.** [Preview build `b39cde7e`](https://expo.dev/accounts/marchosias405/projects/CampusClutch/builds/b39cde7e-7549-4785-bfd5-c6336bb51f62) completed on October 22, 2026 from app source `70875ef`. It removes the redundant Find Classmates / Courses banner while retaining each current course’s Classmates button. No backend changes were made for this rebuild.
+**PASSED — both visual phone checks, confirmed by the user on October 22, 2026: the banner is gone and Classmates still works.** [Preview build `b39cde7e`](https://expo.dev/accounts/marchosias405/projects/CampusClutch/builds/b39cde7e-7549-4785-bfd5-c6336bb51f62) completed on October 22, 2026 from app source `70875ef`. It removes the redundant Find Classmates / Courses banner while retaining each current course’s Classmates button. No backend changes were made for this rebuild.
 
 Lint/typecheck and all 16 existing catalog UI runtime checks passed after the banner removal. The finished APK passes all 18 artifact checks: the prior 16 standalone/catalog checks plus absence of the redundant banner text and presence of the classmates route. The new checks were calibrated against build `2fd64d08`, which correctly fails only the banner-absence check.
 
 APK size: 154,209,090 bytes. SHA-256: `bc773fac94f4e75edb0cf185bdadf436e31b21ccafb087b83650090f063147f1`. Use the stable Expo build page above to download; temporary signed artifact URLs expire.
 
-Install this Preview APK over the existing app, close Metro/laptop terminals and disconnect USB. Open **Courses**, then check **Current Term**, **Upcoming** and **Previous Terms**: the Find Classmates / Courses banner should be gone. Open an existing current course’s **Classmates** button and confirm it still opens the classmates page. Upcoming courses should continue to hide classmates until their term is marked current.
+Retain these steps for regression testing: install this Preview APK over the existing app, close Metro/laptop terminals and disconnect USB. Open **Courses**, then check **Current Term**, **Upcoming** and **Previous Terms**: the Find Classmates / Courses banner should be gone. Open an existing current course’s **Classmates** button and confirm it still opens the classmates page. Upcoming courses should continue to hide classmates until their term is marked current.
 
-The six passed catalog phone checks remain recorded against build `2fd64d08`; this UI-only cleanup needs the quick visual confirmation above, not a repeat of the full checklist.
+The six passed catalog phone checks remain recorded against build `2fd64d08`; the two visual cleanup checks passed against `b39cde7e`. All manual gates for this catalog checkpoint are complete.
 
 ## Spring 2027 launch requirement
 
