@@ -1,4 +1,4 @@
-# Spring 2027 SFU course catalog — local checkpoint
+# Spring 2027 SFU course catalog — local and hosted checkpoints
 
 This is a focused catalog checkpoint before Task 11. Tasks 1–10 remain complete; notifications, group messaging and creator-made quests remain deferred.
 
@@ -18,7 +18,7 @@ The API location labels `GOLDCORP` and `DT VSAR` map to Vancouver using [SFU Stu
 
 The reviewed snapshot lives at `supabase/catalogs/sfu/2027-spring.json`. It includes eligible rows, fetch times, public source URLs, exclusions and unresolved records. Neither instructor details nor student information is collected. The app queries the database in 30-row pages; it does not download this snapshot or fetch SFU data on the phone.
 
-The importer defaults to a complete transactional dry run that rolls back. It only connects to local Postgres at `127.0.0.1:54322`; hosted rollout is a later checkpoint. Repeated imports preserve IDs and enrollments, reject unmanaged collisions and older records, and update only matching source-managed offerings. Empty snapshots fail closed.
+The importer defaults to a complete transactional dry run that rolls back. It only connects to local Postgres at `127.0.0.1:54322`. The hosted checkpoint below used a separately reviewed administrative SQL transaction generated from the same importer; the local-only CLI was not pointed at a hosted database. Repeated imports preserve IDs and enrollments, reject unmanaged collisions and older records, and update only matching source-managed offerings. Empty snapshots fail closed.
 
 Incomplete source coverage requires an explicit `--allow-source-gaps` after reviewing the snapshot. This imports verified rows only. Missing courses are retained by default. `--close-missing` is available only for a complete inventory with no quarantined records, affects only source-managed offerings in this term, and refuses an older snapshot that would close newer data. It never deletes a course or its enrollments.
 
@@ -56,7 +56,7 @@ npm run check
 
 The initial collection on this Windows/Node 22 laptop needed `NODE_EXTRA_CA_CERTS` pointing to its trusted Windows CA export. The local export is in the workspace at `catalog-spring2027/windows-trusted-ca.pem`; it is not part of the repository. TLS verification remained enabled.
 
-`--plan-only --output <file.sql>` writes a reviewable rollback SQL plan without connecting. Do not use `--allow-source-gaps` without reviewing the actual failures, or treat the API inventory as a guarantee of every eventual offering. Refresh the source before hosted rollout and again near launch. Term status currently follows the existing administrative reference-data model; this change does not add a scheduled term rollover.
+`--plan-only --output <file.sql>` writes a reviewable rollback SQL plan without connecting. Do not use `--allow-source-gaps` without reviewing the actual failures, or treat the API inventory as a guarantee of every eventual offering. The source was refreshed and independently reviewed before the hosted import below; refresh and reconcile it again near launch. Term status currently follows the existing administrative reference-data model; this change does not add a scheduled term rollover.
 
 ## Local checkpoint results — October 22, 2026
 
@@ -81,7 +81,7 @@ Validation passed:
 
 The Supabase CLI completed advisors, capture and history operations but returned a telemetry shutdown timeout afterward. Database results and migration history were independently verified with PostgreSQL. The captured migration was narrowed to the reviewed catalog DDL; unrelated private-function serialization and the test extension were excluded.
 
-Hosted Development and Preview are unchanged at their 24 Task 10 migrations, and no new APK has been built for this checkpoint. Existing 2026 fixture term statuses are retained locally; explicitly select **Spring 2027** for these checks.
+At this local checkpoint, hosted Development and Preview still had their 24 Task 10 migrations and there was no catalog APK. The subsequent hosted checkpoint is recorded below. Existing 2026 fixture term statuses are retained locally; explicitly select **Spring 2027** for local checks.
 
 ## Manual phone checkpoint
 
@@ -126,4 +126,32 @@ Allow a few seconds for the gateway to start, then retry Add. Confirm exactly on
 
 The local reset-email inbox remains http://127.0.0.1:54324/.
 
-The local phone gate is complete. Hosted deployment and a standalone Preview build are the next checkpoint; stop for standalone phone validation before final PR review/merge. Task 11 remains next after this catalog work.
+The local phone gate is complete. The hosted checkpoint below is ready for standalone phone validation; final PR review/merge follows that gate. Task 11 remains next after this catalog work.
+
+## Hosted Development and Preview checkpoint — October 22, 2026
+
+**Deployment, automated hosted checks and APK inspection passed. All six standalone phone checks below are PENDING.**
+
+Both hosted environments have 25 migrations through `20261022111506` and 990 verified offerings covering 933 course codes. Each passes 66 catalog SQL assertions, 25 imported-data assertions and 12 live Auth/PostgREST smoke groups; existing data and the complete imported catalog are preserved after exact fixture cleanup.
+
+- The freshly collected snapshot was generated at `2026-10-22T12:32:02.304Z` (UTC), SHA-256 `a639d989009d1c9bd272d8360e5b1c36e40cf0e448c9cd8bb35c02a184d4a671`. Every included source section was independently rechecked against the sanitized source cache (1,091 section checks).
+- The refreshed import includes 723 Burnaby, 115 Surrey, 92 Vancouver and 60 online offerings. The refreshed SFU source still has 9 unavailable endpoints and 770 quarantined section records. Only verified undergraduate offerings worth at least 3 units were imported; missing offerings were not closed or deleted, and complete eventual Spring coverage is not claimed.
+- Both imports used reviewed transactions with source-gap acceptance and no absence-based closing. Repeated rollback plans add zero rows and match all 990 existing offerings.
+- Before/after deployment fingerprints preserved all 31 Development and 31 Preview baseline relations, including existing courses, memberships, Auth users/identities and Storage objects. Live API fixture cleanup also preserved complete fingerprints including the newly imported catalog.
+- Both hosted environments retain the same eight baseline advisor warnings, with no new findings. These existing findings remain tracked for launch.
+- The 66 SQL assertions cover metadata constraints, RLS, literal search and stable paging. The 25 imported-data assertions compare every reviewed value/source section, campus totals and real catalog pagination. The 12 live Auth/PostgREST groups use the production typed course client, test both account identities, persist/remove/rejoin memberships, enforce session-switch guards, and verify access denials.
+- [Standalone Preview build `2fd64d08`](https://expo.dev/accounts/marchosias405/projects/CampusClutch/builds/2fd64d08-8255-4907-ad06-b7506ae3d0ae) completed from source `5bf8320`, the same app code that passed the six local phone checks. Later source-snapshot/reference-data updates do not change its app code. All 16 artifact checks pass: release/non-debuggable package, embedded Hermes bundle, hosted Preview only, no local backend/development launcher, current messaging APIs, catalog search and cursors, scope/coverage notices, Upcoming courses, retry and pagination.
+- APK size: 154,210,018 bytes. SHA-256: `caed2a94978362b3aea32e3bbf5ee72b51d909e2137c7845fa1bbdf2e5531f0a`. Use the stable Expo build page above to obtain a current download; do not reuse old temporary signed APK links.
+
+## Standalone Preview phone checklist
+
+**Status: PENDING — all six checks.** Install build `2fd64d08` from the link above. Close Metro and other laptop terminals, disconnect USB, and use a hosted Preview account; local accounts and enrollments are separate. No Docker or laptop server is required for these checks.
+
+1. Open **Courses → + → Spring 2027**. Confirm the undergraduate/3+ unit scope and published-coverage notice, with units and campus/Online on results. Search a known course such as **CMPT 120**.
+2. Search by course code and part of a title, clear search and use **Load more courses**. Change searches/terms quickly; results must match the latest selection without duplicates or mixed-term rows.
+3. Add a Spring course, open **Courses → Upcoming**, close/reopen the app and confirm one saved entry. Repeated Add must not duplicate it; upcoming classmates must remain unavailable with an explanation.
+4. Remove that upcoming course and reopen the app; removal must persist. Add it again and confirm one entry.
+5. Switch to another hosted Preview account. Courses must stay isolated; both accounts may independently add the same offering. Confirm existing current-course/classmate direct-message entry still works.
+6. Select a course not already added, then turn off **both Wi-Fi and mobile data**. Add must show a failure while retaining selection. Reconnect and retry; confirm one saved entry after reopening. Repeat the offline/reconnect sequence with a changed search and **Retry course search**. Finish online.
+
+Stop at this phone gate. After all six checks pass, complete final review, required CI and merge before starting **Task 11 — Notifications**. Reconcile the documented SFU coverage gaps and refresh the catalog again before launch; groups and creator-made quests remain deferred.
