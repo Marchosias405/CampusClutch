@@ -126,11 +126,11 @@ Allow a few seconds for the gateway to start, then retry Add. Confirm exactly on
 
 The local reset-email inbox remains http://127.0.0.1:54324/.
 
-The local phone gate is complete. The hosted checkpoint below is ready for standalone phone validation; final PR review/merge follows that gate. Task 11 remains next after this catalog work.
+The local and standalone phone gates are complete. Final PR review, required CI and merge remain before Task 11.
 
 ## Hosted Development and Preview checkpoint — October 22, 2026
 
-**Deployment, automated hosted checks and APK inspection passed. All six standalone phone checks below are PENDING.**
+**Deployment, automated hosted checks and APK inspection passed. The user confirmed all six standalone phone checks passed on build `2fd64d08` on October 22, 2026.**
 
 Both hosted environments have 25 migrations through `20261022111506` and 990 verified offerings covering 933 course codes. Each passes 66 catalog SQL assertions, 25 imported-data assertions and 12 live Auth/PostgREST smoke groups; existing data and the complete imported catalog are preserved after exact fixture cleanup.
 
@@ -145,7 +145,7 @@ Both hosted environments have 25 migrations through `20261022111506` and 990 ver
 
 ## Standalone Preview phone checklist
 
-**Status: PENDING — all six checks.** Install build `2fd64d08` from the link above. Close Metro and other laptop terminals, disconnect USB, and use a hosted Preview account; local accounts and enrollments are separate. No Docker or laptop server is required for these checks.
+**Status: PASSED — all six checks, confirmed by the user on October 22, 2026, using build `2fd64d08`.** This is the latest phone-tested standalone APK. The checklist remains below for future regression testing: use hosted Preview accounts with Metro/laptop terminals closed and USB disconnected. Local accounts and enrollments are separate; no Docker or laptop server is required.
 
 1. Open **Courses → + → Spring 2027**. Confirm the undergraduate/3+ unit scope and published-coverage notice, with units and campus/Online on results. Search a known course such as **CMPT 120**.
 2. Search by course code and part of a title, clear search and use **Load more courses**. Change searches/terms quickly; results must match the latest selection without duplicates or mixed-term rows.
@@ -154,4 +154,12 @@ Both hosted environments have 25 migrations through `20261022111506` and 990 ver
 5. Switch to another hosted Preview account. Courses must stay isolated; both accounts may independently add the same offering. Confirm existing current-course/classmate direct-message entry still works.
 6. Select a course not already added, then turn off **both Wi-Fi and mobile data**. Add must show a failure while retaining selection. Reconnect and retry; confirm one saved entry after reopening. Repeat the offline/reconnect sequence with a changed search and **Retry course search**. Finish online.
 
-Stop at this phone gate. After all six checks pass, complete final review, required CI and merge before starting **Task 11 — Notifications**. Reconcile the documented SFU coverage gaps and refresh the catalog again before launch; groups and creator-made quests remain deferred.
+The standalone phone gate is complete. Finish final review, required CI and merge before starting **Task 11 — Notifications**. Groups and creator-made quests remain deferred.
+
+## Source cleanup after phone validation
+
+A small source-only cleanup removes the redundant Find Classmates banner from Courses while retaining each current course’s Classmates button. Build `2fd64d08` predates this cleanup; the next APK will include it. The six passed catalog checks remain recorded against the tested build. Lint/typecheck and all 16 existing catalog UI runtime checks passed after the banner removal.
+
+## Spring 2027 launch requirement
+
+Before launch, arrange for an administrator to mark the `2027-spring` academic term `current` in the launch backend at the term start on January 5, 2027. Reaching its calendar start date alone does not change the stored status; this checkpoint implements no scheduled term rollover. Current-course classification and classmate access require a `current` term, an `enrolled` membership and a course that is not `archived`, alongside the existing profile/privacy rules. Verify the term status and eligible classmate access as part of launch readiness. Refresh the catalog and reconcile the documented SFU source gaps again before launch.

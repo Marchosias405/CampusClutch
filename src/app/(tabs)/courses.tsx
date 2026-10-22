@@ -1,4 +1,4 @@
-import { FontAwesome5, Ionicons } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
 import React, {
@@ -526,35 +526,6 @@ function CoursesIndexScreen({ userId }: { userId: string }) {
                 </View>
               )}
 
-              <View style={styles.findCard}>
-                <View style={styles.findIcon}>
-                  <FontAwesome5
-                    name="user-friends"
-                    size={16}
-                    color="#FFFFFF"
-                  />
-                </View>
-
-                <View style={styles.findTextBlock}>
-                  <Text style={styles.findTitle}>
-                    Find Classmates
-                  </Text>
-
-                  <Text
-                    style={styles.findDescription}
-                    numberOfLines={2}
-                  >
-                    Open a current course above to
-                    discover students enrolled with you.
-                  </Text>
-                </View>
-
-                <View style={styles.discoverPill}>
-                  <Text style={styles.discoverText}>
-                    Courses
-                  </Text>
-                </View>
-              </View>
             </>
           )}
         </ScrollView>
@@ -831,59 +802,5 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.softPink,
     alignItems: "center",
     justifyContent: "center",
-  },
-
-  findCard: {
-    marginTop: 28,
-    borderRadius: 16,
-    backgroundColor: COLORS.softPink,
-    paddingHorizontal: 14,
-    paddingVertical: 14,
-    flexDirection: "row",
-    alignItems: "center",
-  },
-
-  findIcon: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: COLORS.primary,
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 13,
-  },
-
-  findTextBlock: {
-    flex: 1,
-    marginRight: 12,
-  },
-
-  findTitle: {
-    fontSize: 16,
-    fontWeight: "900",
-    color: COLORS.textDark,
-  },
-
-  findDescription: {
-    marginTop: 2,
-    fontSize: 12,
-    lineHeight: 16,
-    fontWeight: "600",
-    color: COLORS.mutedText,
-  },
-
-  discoverPill: {
-    height: 36,
-    paddingHorizontal: 16,
-    borderRadius: 18,
-    backgroundColor: COLORS.primary,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  discoverText: {
-    fontSize: 13,
-    fontWeight: "800",
-    color: "#FFFFFF",
   },
 });
