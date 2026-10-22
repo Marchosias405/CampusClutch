@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+import { Redirect, useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import React, {
   useCallback,
   useEffect,
@@ -32,6 +32,7 @@ import {
 } from "../../../lib/courses";
 import { createGroupConversation } from "../../../lib/groupConversations";
 import { validateGroupCreation } from "../../../lib/groupMessagingUi";
+import { GROUP_MESSAGING_ENABLED } from "../../../lib/messagingFeatures";
 import type { CourseClassmate, MyCourse } from "../../../types";
 
 const COLORS = {
@@ -137,6 +138,11 @@ function creationError(error: unknown): string {
 }
 
 export default function CreateGroupRoute() {
+  if (!GROUP_MESSAGING_ENABLED) return <Redirect href="/(tabs)/messages" />;
+  return <EnabledCreateGroupRoute />;
+}
+
+function EnabledCreateGroupRoute() {
   const { user } = useAuth();
   if (!user) return null;
   return <CreateGroupScreen key={user.id} userId={user.id.toLowerCase()} />;

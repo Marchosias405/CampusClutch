@@ -206,9 +206,10 @@ function harness(initialMessages = [message(1)]) {
     'react-native-safe-area-context': { useSafeAreaInsets: () => ({ bottom: 0 }) },
     '../../components/ScreenHeader': { default: 'ScreenHeader', __esModule: true },
     '../../context/AuthContext': { useAuth: () => ({ user: { id: A } }) },
-    '../../context/UnreadMessagesContext': { useUnreadMessages: () => ({ refreshUnread }) },
+    '../../context/UnreadMessagesContext': { useUnreadMessages: () => ({ refreshUnread, subscribeMessages: () => () => {} }) },
     '../../lib/env': { env: { supabaseUrl: 'http://localhost:54321' } },
     '../../lib/groupMessagingUi': groupUi,
+    '../../lib/messagingFeatures': { GROUP_MESSAGING_ENABLED: false },
     '../../lib/messages': {
       loadConversationSummary() {},
       loadMessagePage() {},

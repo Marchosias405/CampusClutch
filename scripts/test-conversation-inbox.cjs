@@ -10,7 +10,13 @@ const compiled = ts.transpileModule(fs.readFileSync(path.join(root, 'src/lib/con
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
 }).outputText;
 const production = {};
-vm.runInNewContext(compiled, { exports: production }, { filename: 'conversationInbox.ts' });
+class MillisecondDate extends Date {
+  static parse(value) {
+    assert.ok(!/\.\d{4,}/.test(value), 'Date.parse must not depend on Android accepting sub-millisecond digits');
+    return Date.parse(value);
+  }
+}
+vm.runInNewContext(compiled, { exports: production, Date: MillisecondDate }, { filename: 'conversationInbox.ts' });
 const plain = value => JSON.parse(JSON.stringify(value));
 const tick = () => new Promise(setImmediate);
 let checks = 0;
@@ -262,6 +268,204 @@ async function loaded(items = [row(1), row(2)], hasMore = true) {
     await tick();
     assert.equal(notifications.length, count);
     assert.equal(h.state().items.length, 0);
+  });
+
+  await test('realtime invalidation ignores inactive screens and coalesces events during initial loading', async () => {
+    const h = harness();
+    h.model.invalidate();
+    assert.equal(h.calls.length, 0);
+    h.model.setActive(true);
+    h.model.invalidate(); h.model.invalidate(); h.model.invalidate();
+    assert.equal(h.calls.length, 1);
+    h.calls[0].resolve(page([row(1)]));
+    await tick();
+    assert.equal(h.calls.length, 2);
+    assert.equal(h.calls[1].before, null);
+    assert.equal(h.state().loading, true);
+    h.calls[1].resolve(page([row(2), row(1)]));
+    await tick(); await tick();
+    assert.deepEqual(h.state().items, [row(2), row(1)]);
+    assert.equal(h.calls.length, 2, 'Finishing catch-up must not enqueue itself');
+    assert.equal(h.state().loading, false);
+  });
+
+  await test('idle realtime invalidation starts a fresh page and manual taps do not queue extra work', async () => {
+    const h = await loaded();
+    h.model.invalidate();
+    assert.equal(h.calls.length, 2);
+    assert.equal(h.calls[1].before, null);
+    await h.model.refresh(); await h.model.refresh(true);
+    h.calls[1].resolve(page([row(3)]));
+    await tick();
+    assert.equal(h.calls.length, 2);
+    assert.deepEqual(h.state().items, [row(3)]);
+  });
+
+  await test('an event during pagination refreshes ordering from the first page after append settles', async () => {
+    const h = await loaded();
+    const older = h.model.refresh(true);
+    h.model.invalidate(); h.model.invalidate();
+    assert.equal(h.calls.length, 2);
+    h.calls[1].resolve(page([row(2), row(3)], true));
+    await older;
+    assert.equal(h.calls.length, 3);
+    assert.equal(h.calls[2].before, null);
+    assert.deepEqual(h.state().items, [row(1), row(2), row(3)]);
+    const changed = row(3, { unread_count: 2, last_message_body: 'Newest arrival', last_activity_at: '2026-09-26T13:00:00.000001+00:00' });
+    h.calls[2].resolve(page([changed, row(1)], true));
+    await tick();
+    assert.deepEqual(h.state().items, [changed, row(1), row(2)]);
+    assert.equal(new Set(h.state().items.map(item => item.id)).size, 3);
+    assert.deepEqual(h.state().cursor, page([row(3)], true).nextCursor);
+  });
+
+  await test('queued realtime catch-up runs after failure once and retains data if it also fails', async () => {
+    const h = await loaded();
+    const before = h.state();
+    const older = h.model.refresh(true);
+    h.model.invalidate(); h.model.invalidate();
+    h.calls[1].reject(Error('Offline while paging'));
+    await older;
+    assert.equal(h.calls.length, 3);
+    assert.equal(h.calls[2].before, null);
+    h.calls[2].reject(Error('Still offline'));
+    await tick(); await tick();
+    assert.equal(h.calls.length, 3, 'A failed catch-up must await another event or manual retry');
+    assert.deepEqual(h.state().items, before.items);
+    assert.deepEqual(h.state().cursor, before.cursor);
+    assert.match(h.state().error, /connection/i);
+    assert.equal(h.state().loading, false);
+  });
+
+  await test('blur clears queued events and stale responses cannot drain the new focus queue', async () => {
+    const h = harness();
+    h.model.setActive(true); h.model.invalidate();
+    h.model.setActive(false); h.model.invalidate();
+    h.calls[0].resolve(page([row(1)]));
+    await tick();
+    assert.equal(h.calls.length, 1);
+    h.model.setActive(true);
+    h.model.invalidate();
+    h.model.setActive(false);
+    h.model.setActive(true); h.model.invalidate();
+    h.calls[1].reject(Error('Previous visit'));
+    await tick();
+    assert.equal(h.calls.length, 3);
+    assert.equal(h.state().loading, true);
+    h.calls[2].resolve(page([row(2)]));
+    await tick();
+    assert.equal(h.calls.length, 4);
+    h.calls[3].resolve(page([row(3)]));
+    await tick();
+    assert.deepEqual(h.state().items, [row(3)]);
+    assert.equal(h.calls.length, 4);
+    assert.equal(h.state().error, null);
+  });
+
+  await test('automatic catch-up retains older loaded rows and cursor while manual refresh resets both', async () => {
+    const h = await loaded([row(1), row(2)], true);
+    const older = h.model.refresh(true);
+    h.calls[1].resolve(page([row(3), row(4)], true)); await older;
+    const cursor = h.state().cursor;
+    const newest = row(5, { last_activity_at: '2026-09-26T13:00:00Z' });
+    h.model.invalidate();
+    h.calls[2].resolve(page([newest, row(1)], true)); await tick();
+    assert.deepEqual(h.state().items, [newest, row(1), row(2), row(3), row(4)]);
+    assert.deepEqual(h.state().cursor, cursor);
+    const manual = h.model.refresh();
+    h.calls[3].resolve(page([newest, row(1)], true)); await manual;
+    assert.deepEqual(h.state().items, [newest, row(1)]);
+    assert.deepEqual(h.state().cursor, page([row(1)], true).nextCursor);
+  });
+
+  await test('fresh-page omissions delete only cached rows within its authoritative activity range', async () => {
+    const h = await loaded([row(1), row(2), row(3), row(4)], true);
+    const cursor = h.state().cursor;
+    h.model.invalidate();
+    h.calls[1].resolve(page([row(2), row(3)], true)); await tick();
+    assert.deepEqual(h.state().items, [row(2), row(3), row(4)], 'Absent newer row is dropped; unqueried older row remains');
+    assert.deepEqual(h.state().cursor, cursor);
+    h.model.invalidate();
+    h.calls[2].resolve(page([row(2)], false)); await tick();
+    assert.deepEqual(h.state().items, [row(2)], 'An exhausted fresh page is authoritative for the whole inbox');
+    assert.equal(h.state().cursor, null);
+    h.model.invalidate(); h.calls[3].resolve(page([])); await tick();
+    assert.deepEqual(h.state().items, []);
+  });
+
+  await test('catch-up fills new activity beyond page one before retaining the older pagination boundary', async () => {
+    const h = await loaded([row(3), row(4), row(5)], true);
+    const cursor = h.state().cursor;
+    h.model.invalidate();
+    h.calls[1].resolve(page([row(1), row(2)], true)); await tick();
+    assert.equal(h.calls.length, 3);
+    assert.deepEqual(h.calls[2].before, page([row(2)], true).nextCursor);
+    assert.deepEqual(h.state().items, [row(3), row(4), row(5)], 'Keep the prior snapshot until the gap is complete');
+    h.calls[2].resolve(page([row(3), row(4)], true)); await tick();
+    assert.deepEqual(h.state().items, [row(1), row(2), row(3), row(4), row(5)]);
+    assert.deepEqual(h.state().cursor, cursor);
+    assert.equal(h.calls.length, 3);
+    const older = h.model.refresh(true);
+    assert.deepEqual(h.calls[3].before, cursor);
+    h.calls[3].resolve(page([row(6)])); await older;
+    assert.deepEqual(h.state().items, [row(1), row(2), row(3), row(4), row(5), row(6)]);
+  });
+
+  await test('a failed catch-up gap retains the entire previous snapshot and retries from the top', async () => {
+    const h = await loaded([row(3), row(4)], true);
+    const previous = h.state();
+    h.model.invalidate();
+    h.calls[1].resolve(page([row(1), row(2)], true)); await tick();
+    h.calls[2].reject(Error('Disconnected during catch-up')); await tick();
+    assert.deepEqual(h.state().items, previous.items);
+    assert.deepEqual(h.state().cursor, previous.cursor);
+    assert.match(h.state().error, /connection/i);
+    assert.equal(h.state().loading, false);
+    h.model.invalidate(); assert.equal(h.calls[3].before, null);
+    h.calls[3].resolve(page([row(1), row(2), row(3)], true)); await tick();
+    assert.deepEqual(h.state().items, [row(1), row(2), row(3), row(4)]);
+    assert.deepEqual(h.state().cursor, previous.cursor);
+  });
+
+  await test('overlapping catch-up pages retain one updated row per conversation', async () => {
+    const h = await loaded([row(4), row(5)], true);
+    const cursor = h.state().cursor;
+    h.model.invalidate();
+    h.calls[1].resolve(page([row(1), row(2)], true)); await tick();
+    const changed = row(2, { unread_count: 3, last_message_body: 'Updated overlapping preview' });
+    h.calls[2].resolve(page([changed, row(3), row(4)], true)); await tick();
+    assert.deepEqual(h.state().items, [row(1), changed, row(3), row(4), row(5)]);
+    assert.equal(new Set(h.state().items.map(item => item.id)).size, h.state().items.length);
+    assert.deepEqual(h.state().cursor, cursor);
+  });
+
+  await test('catch-up preserves an exhausted loaded inbox and advances a partial cursor if it reaches farther', async () => {
+    const complete = await loaded([row(2), row(3)], false);
+    complete.model.invalidate();
+    complete.calls[1].resolve(page([row(1), row(2)], true)); await tick();
+    assert.deepEqual(complete.state().items, [row(1), row(2), row(3)]);
+    assert.equal(complete.state().cursor, null);
+    const partial = await loaded([row(1), row(2)], true);
+    partial.model.invalidate();
+    partial.calls[1].resolve(page([row(1), row(2), row(3)], true)); await tick();
+    assert.deepEqual(partial.state().items, [row(1), row(2), row(3)]);
+    assert.deepEqual(partial.state().cursor, page([row(3)], true).nextCursor);
+  });
+
+  await test('automatic range comparisons preserve microseconds, timezone offsets, and UUID tie ordering', async () => {
+    const exact = (number, time) => row(number, { last_activity_at: time });
+    const newer = exact(1, '2026-09-26T12:00:00.123457+00:00');
+    const sameTimeHigherId = exact(3, '2026-09-26T05:00:00.123456-07:00');
+    const boundary = exact(2, '2026-09-26T12:00:00.123456Z');
+    const sameTimeLowerId = exact(1, '2026-09-26T12:00:00.123456+00:00');
+    const oldest = exact(4, '2026-09-26T12:00:00.123455+00:00');
+    const h = await loaded([sameTimeHigherId, boundary, sameTimeLowerId, oldest], true);
+    h.model.invalidate();
+    h.calls[1].resolve(page([newer, boundary], true)); await tick();
+    assert.equal(h.calls.length, 2, 'Equal instants with different offsets must not create an extra gap page');
+    // The UUID shared with newer must appear only at its new activity time.
+    assert.deepEqual(h.state().items, [newer, boundary, oldest]);
+    assert.deepEqual(h.state().cursor, page([oldest], true).nextCursor);
   });
 
   console.log(`Conversation inbox lifecycle: ${checks} checks passed.`);

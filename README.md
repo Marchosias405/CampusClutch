@@ -1,10 +1,10 @@
 # CampusClutch
 
-CampusClutch is an Expo React Native mobile app for university students to connect through courses, classmates, student profiles, campus help requests, direct messages, group conversations, notifications, and user profiles.
+CampusClutch is an Expo React Native mobile app for university students to connect through courses, classmates, student profiles, campus help requests, direct messages, notifications, and user profiles. Group conversations are deferred to a later release.
 
-Authentication, user profiles, courses, course memberships, classmates, campus requests, offers, points and reliability ratings now use persistent Supabase data. Task 9 local and hosted validation passed, including offers, history, reopening, points transfers, changed-reward confirmation, the three-active-request cap, cancellation/archive and mutual ratings. All ten Task 9 migrations are deployed in hosted Development and Preview; 770 SQL assertions passed in each. The user confirmed all standalone and cancelled-assignment phone tests passed on September 26, including offline refresh/save and the fresh password-reset link. Ratings reveal only after both participants submit. Task 9 is complete and merged through [PR #27](https://github.com/Marchosias405/CampusClutch/pull/27) at `2b3c081`. Task 10 is in progress: direct messaging is integrated and phone-tested locally, and checkpoint 4 now connects the validated invite-only group backend to the app. Group creation, invitation decisions, mixed inbox/thread rows, roster and role management, ownership transfer, leaving/removal, and privacy-bounded former-group history are complete locally. Focused Android phone validation is the next gate; realtime and hosted rollout follow. Hosted environments and the standalone Preview APK are unchanged.
+Authentication, user profiles, courses, course memberships, classmates, campus requests, offers, points and reliability ratings now use persistent Supabase data. Task 9 local and hosted validation passed, including offers, history, reopening, points transfers, changed-reward confirmation, the three-active-request cap, cancellation/archive and mutual ratings. All ten Task 9 migrations are deployed in hosted Development and Preview; 770 SQL assertions passed in each. The user confirmed all standalone and cancelled-assignment phone tests passed on September 26, including offline refresh/save and the fresh password-reset link. Ratings reveal only after both participants submit. Task 9 is complete and merged through [PR #27](https://github.com/Marchosias405/CampusClutch/pull/27) at `2b3c081`. Task 10 is in progress: persistent direct messaging is phone-tested locally, and checkpoint 5 adds automatic direct-message updates. Group conversations are deferred at the user's request; the earlier implementation and data are retained, with app entry points hidden and server access disabled. Focused Android realtime validation is the next gate, followed by hosted rollout and a standalone Preview APK.
 
-> **Current status:** Tasks 1–9 are complete and merged. Task 9 merged through [PR #27](https://github.com/Marchosias405/CampusClutch/pull/27) at `2b3c081`, followed by documentation closure in [PR #28](https://github.com/Marchosias405/CampusClutch/pull/28) at `0ae8af1`. Task 10 is in progress on `codex/persist-messages`: checkpoints 1–2 established and integrated secure direct messaging, and all checkpoint 2 phone tests pass. Checkpoint 3 established the private course-group contract; checkpoint 4 now connects its complete app flow locally. The final local suite passes 1,210 SQL assertions, 44 live API checks, 18 concurrency cases, 40 messaging client checks, 148 messaging UI checks and nine offer lifecycle checks. Focused Android group testing is next, followed by realtime, hosted rollout and a new Preview APK. Phone-tested Preview `016bd2fd` is unchanged; the next Preview build must also include the final Task 9 navigation correction. Creator-made quests remain later work.
+> **Current status:** Tasks 1–9 are complete and merged. Task 9 merged through [PR #27](https://github.com/Marchosias405/CampusClutch/pull/27) at `2b3c081`, followed by documentation closure in [PR #28](https://github.com/Marchosias405/CampusClutch/pull/28) at `0ae8af1`. Task 10 continues on `codex/persist-messages`. Checkpoint 2 phone tests 1–8 pass; checkpoint 5 adds private direct-message invalidations, reconnect catch-up and foreground fallback refresh. Group work from checkpoints 3–4 is preserved but disabled and no longer blocks this release. Hosted environments and phone-tested Preview `016bd2fd` are unchanged. The next APK must include the final Task 9 navigation correction. Creator-made quests remain later work.
 
 ---
 
@@ -113,10 +113,8 @@ Completed major milestones:
 - Helper cancellation with points release and reopening for fresh offers
 - Account-scoped Home identity and real Profile balances
 - Task 9 merged with passing CI, including nine offer-action lifecycle regression checks
-- Persistent invite-only, course-scoped group-conversation foundation
-- Explicit group invitation consent, owner/administrator/member roles and period-bounded message history
-- Persistent group creation, invitation decisions and mixed direct/group inbox and thread screens
-- Group roster/role controls, ownership transfer, leaving/removal and read-only former-member history
+- Persistent direct messaging with account-scoped drafts and duplicate-safe retries
+- Group backend/app foundation retained for later work; disabled for the current release
 
 Current roadmap position:
 
@@ -125,7 +123,7 @@ Task 6 — Complete and merged (PR #22, 870b6a7)
 Task 7 — Complete and merged (PR #24, 13d2202)
 Task 8 — Complete and merged (PR #25, 19f3e61)
 Task 9 — Complete and merged (PR #27, 2b3c081)
-Task 10 — In progress: checkpoint 4 group app integration complete locally; Android group testing next
+Task 10 — In progress: checkpoint 5 direct realtime implemented locally; Android realtime testing next; groups deferred
 ```
 
 Task 8 completion record:
@@ -185,7 +183,16 @@ Task 10 checkpoint 4 record:
 - Leaving/removal moves the conversation out of the active inbox into paged Past groups. Former members receive only read-only messages from their accepted membership periods and no current roster, current count, later messages or composer.
 - Pending invitations and former history use exact timestamp-plus-UUID keyset pagination. Migration `20261009104214_page_group_history_and_invitations.sql` preserves the legacy invitation RPC while adding bounded discovery endpoints.
 - Local validation passes 1,210 SQL assertions across 16 files, 27 direct plus 17 group API checks, 10 direct plus eight group concurrency cases, 40 messaging client checks, 148 messaging UI checks and nine offer lifecycle checks. Lint/typecheck, database lint, isolated migration replay and Android Hermes export pass.
-- This checkpoint remains local. Focused Android group testing is the next gate; realtime, hosted deployment and a new APK remain later work.
+- Historical checkpoint: the group implementation was completed locally. On October 22, groups were deferred before phone validation; checkpoint 5 disables access without deleting that work.
+
+Task 10 checkpoint 5 record:
+
+- Deferred group creation, invitations, threads, management and history in both app navigation and server APIs without deleting group data or the implementation.
+- Added private per-account realtime signals for new direct conversations, messages and the caller's own read-state changes. Signals contain no message content or peer read receipts.
+- Inbox, open threads and the Messages badge reload authorized data after signals, subscription/reconnection and foreground return. A 30-second foreground fallback and manual refresh remain available.
+- Backgrounding/sign-out closes the account connection; stale events are ignored. Bursts coalesce and events arriving during a load trigger one follow-up refresh.
+- Local validation passes 1,059 active SQL assertions, 27 direct API checks, 19 live websocket checks, 10 concurrency cases, 40 client checks, 177 UI/controller checks, 17 realtime lifecycle checks and nine offer lifecycle checks. All 23 migrations replay; lint/typecheck, database checks and Android export pass. The 216 historical group SQL assertions are preserved outside the active suite.
+- Direct-message realtime phone checks are the next gate. Hosted deployment, standalone Preview testing, final review, CI and merge follow.
 
 Detailed contract and repeatable checks: [Task 10 checkpoint](docs/task-10-messages.md).
 
@@ -198,7 +205,7 @@ CampusClutch has persistent authentication, profiles, courses, memberships, requ
 This means:
 
 - Requests persist in the selected backend environment; local, hosted Development, and hosted Preview accounts/data are separate.
-- Current local source connects persistent direct and group messaging, with retained drafts and duplicate-safe retries. All checkpoint 2 direct-message phone tests pass. Checkpoint 4's group screens are implemented locally and await focused Android validation; the installed standalone Preview APK remains on the earlier source.
+- Current local source enables persistent direct messaging and realtime refresh, with retained drafts and duplicate-safe retries. Checkpoint 2 phone tests pass; checkpoint 5 realtime phone validation is pending. Groups are deferred and disabled. The installed standalone Preview APK remains on the earlier source.
 - Task 9 local, hosted Development/Preview and standalone phone validation passed, including real points, reward-change confirmation, active limits, completed/cancelled mutual ratings and offline recovery. Fresh-link password reset also passed.
 - Every existing and new account in each configured backend receives 100 welcome points once. Accepting reserves the poster's available points; reopening releases them; only poster-confirmed completion transfers them to the helper. Old acceptances without a reservation must be reopened and accepted again with fresh helper consent.
 - Mutual ratings cover completed paid work and cancelled accepted assignments in the current source. Only the poster and accepted helper for that assignment can each submit one immutable 1–5-star rating; scores and profile averages reveal the pair only after both rate, with no automatic publication deadline. When the accepted helper cancels, points release without payment and the request reopens for fresh offers unless its deadline has passed. Creator-made quests for earning extra points remain later work. No quest or arbitrary client points-grant action is implemented.
@@ -206,7 +213,7 @@ This means:
 - Classmates load from real course membership with backend visibility rules.
 - Legacy classmate profile IDs such as `aisha-r`, `jordan-t`, and `mei-l` remain explicitly supported by the student-profile screen.
 - Real Supabase UUID student profiles can load persisted backend profile data.
-- Real UUID profiles can start direct chats in local source. Sample profiles cannot create real chats. Private course groups can now be created and managed through the local app; realtime arrival remains a later Task 10 checkpoint.
+- Real UUID profiles can start direct chats in local source. Sample profiles cannot create real chats. Direct realtime is implemented locally; groups are deferred and disabled.
 - Signed-in user identity loads from hosted Supabase.
 - Profile onboarding and profile editing persist.
 - Profile discoverability is persisted and enforced by RLS.
@@ -221,7 +228,7 @@ This means:
 - Public profile avatar rendering uses authenticated signed URLs.
 - Initials remain as a fallback when no avatar exists or avatar loading fails.
 - Task 6 migrations are applied and synchronized in both hosted Development and Preview.
-- Offers and their notification events persist in local and hosted backends. Direct messaging is integrated and phone-tested locally; group app integration is complete locally and awaits focused Android validation. Realtime and hosted rollout remain pending. Notification UI still needs backend integration.
+- Offers and their notification events persist in local and hosted backends. Direct messaging is phone-tested locally; realtime phone validation and hosted rollout remain pending. Groups are deferred. Notification UI still needs backend integration.
 - There are no real push notifications.
 - There is no production reporting or moderation workflow.
 - The production Supabase project and production EAS variables are not configured.
@@ -361,12 +368,14 @@ npm run check
 npm run test:offers-lifecycle
 npm run test:messages-client
 npm run test:messages-ui
+npm run test:messages-realtime
 ```
 
 `npm run check` runs linting and TypeScript checking together.
 `npm run test:offers-lifecycle` runs nine deterministic checks for offer actions across navigation, offline recovery and account changes.
 `npm run test:messages-client` runs direct-message, request-contact and group-conversation contract tests for authorization, validation, retries, privacy, unread totals and exact cursor handling without needing a database.
-`npm run test:messages-ui` covers the real inbox/thread controllers, unread provider and tab, classmate/profile/request entry components and assignment-history client. Device keyboard/scroll rendering is verified separately on Android.
+`npm run test:messages-ui` covers the real inbox/thread controllers, unread provider and tab, classmate/profile/request entry components and assignment-history client, including deferred group routes. Device keyboard/scroll rendering is verified separately on Android.
+`npm run test:messages-realtime` checks connection lifecycle, batching, fallback, token/account isolation and the private transport contract without a database. `npm run test:messages-local` runs direct API and real websocket security/delivery checks against local Supabase; `npm run test:messages-concurrency` covers direct-message races. Historical group live/SQL tests are retained but excluded while groups are disabled.
 
 Current expected result:
 
@@ -405,6 +414,7 @@ npm run check
 npm run test:offers-lifecycle
 npm run test:messages-client
 npm run test:messages-ui
+npm run test:messages-realtime
 ```
 
 The required GitHub check is displayed as:
@@ -628,7 +638,7 @@ Courses
 
 Current messaging integration:
 
-- Real profiles open persistent direct conversations in Task 10's local source; checkpoint 2 phone testing passes locally. The checkpoint 3 group backend/API is validated, while group screens, realtime and hosted rollout remain.
+- Real profiles open persistent direct conversations in Task 10's local source; checkpoint 2 phone testing passes locally. Direct realtime is implemented locally and awaits phone validation; hosted rollout follows. Groups are deferred.
 - Legacy mock profiles remain display-only compatibility paths and do not supply the current classmates list or real chats.
 
 ---
@@ -694,7 +704,7 @@ Behavior:
 - Message opens the authorized persistent direct conversation for the signed-in user and target profile.
 - Self profiles omit the action. Loading, unavailable profiles, account changes and background navigation cannot open a stale chat.
 
-Task 10's current local source enables direct messaging and its checkpoint 2 phone validation passes. Checkpoint 3's group backend/API is validated; group screens, realtime and the hosted release remain pending.
+Task 10's current local source enables direct messaging and its checkpoint 2 phone validation passes. Checkpoint 5 adds direct realtime and defers groups. Realtime phone validation and the hosted release remain pending.
 
 Manual Android validation completed:
 
@@ -1153,7 +1163,7 @@ Task 10 checkpoint 2 replaces the sample conversation flow in current local sour
 - Read state advances for observed incoming messages while the thread is focused and the app is active.
 - Keyboard avoidance, safe insets, multiline input and stable older-history loading are retained for Android validation.
 
-All amended tests 1–8 pass, including the badge and request/classmate contact fixes, durable retry, account isolation, history pagination, long-message layout and the newest-message scroll correction. Thread arrival still uses manual and focus/foreground refresh. The group backend/API is complete locally, while group screens, realtime, hosted deployment and a new standalone Preview APK remain later work. See [the completed phone checklist](docs/task-10-messages.md#checkpoint-2-phone-checklist) and [group backend contract](docs/task-10-messages.md#checkpoint-3-group-conversation-backend-and-typed-api).
+All amended tests 1–8 pass, including the badge and request/classmate contact fixes, durable retry, account isolation, history pagination, long-message layout and the newest-message scroll correction. Checkpoint 5 adds automatic direct-message updates with reconnect catch-up and fallback refresh. Groups are deferred. Realtime phone testing, hosted deployment and a new standalone Preview APK remain pending. See [the completed phone checklist](docs/task-10-messages.md#checkpoint-2-phone-checklist) and [group backend contract](docs/task-10-messages.md#checkpoint-3-group-conversation-backend-and-typed-api).
 
 ---
 
@@ -1788,7 +1798,7 @@ Completion condition:
 
 # Task 10 — Persist Conversations and Messages
 
-**Status: In progress — checkpoint 3 backend/API complete locally.** Branch `codex/persist-messages` began from `main` at `0ae8af1`, after Task 9 and its documentation merged. Checkpoint 1's backend/API was saved at `2820f1f`; checkpoint 2 was saved at `474cc28`; the September 27 fixes were saved at `2f506b0`. By October 9, the user had confirmed all amended direct-message tests 1–8 pass. Checkpoint 3 now implements and validates group membership, invitation consent and period-bounded history. Group app integration is next.
+**Status: In progress — checkpoint 5 direct realtime implemented locally; phone validation pending.** Branch `codex/persist-messages` began from `main` at `0ae8af1`, after Task 9 and its documentation merged. By October 9, the user confirmed all amended direct-message tests 1–8 pass. Checkpoints 3–4 implemented groups locally; on October 22 the user deferred that feature. Group source and data remain, but group UI and server access are disabled. The current release focuses on persistent direct messages with private realtime refresh.
 
 Checkpoint 1 completed:
 
@@ -1821,12 +1831,12 @@ Checkpoint 3 backend/API implemented:
 - Local validation passes 1,182 SQL assertions, 42 live API checks, 18 concurrency cases, 38 client contract groups and the unchanged 104 UI groups.
 - The migration replays from a clean shadow database, database lint is clean, temporary fixtures are removed and independent review found no blocker.
 
-Group screens and phone testing, realtime updates, hosted deployment, standalone Preview testing, final review, CI and merge remain later Task 10 checkpoints. Hosted Development/Preview and APK `016bd2fd` are unchanged. Full contract and validation: [Task 10 checkpoint](docs/task-10-messages.md#checkpoint-3-group-conversation-backend-and-typed-api).
+Group implementation is retained but disabled for this release. Direct realtime phone testing, hosted deployment, standalone Preview testing, final review, CI and merge remain Task 10 checkpoints. Hosted Development/Preview and APK `016bd2fd` are unchanged. Full contract and validation: [Task 10 checkpoint](docs/task-10-messages.md#checkpoint-3-group-conversation-backend-and-typed-api).
 
 Requirements:
 
 - One-to-one conversations
-- Group conversations
+- Group conversations — deferred; retained implementation disabled for this release
 - Conversation membership
 - Message sender
 - Message timestamps
@@ -1867,7 +1877,7 @@ Completion condition:
 
 # Task 12 — Add Automated Tests
 
-Course/request/offer/points/rating/messaging database, API and concurrency tests already exist. CI is configured to run lint/typecheck, nine offer-action lifecycle checks, 26 messaging/contact client groups and 104 messaging UI/controller/lifecycle groups. This task expands component/end-to-end coverage and adds backend test execution to CI.
+Course/request/offer/points/rating/messaging database, API and concurrency tests already exist. CI is configured to run lint/typecheck, offer-action lifecycle checks, messaging client/UI/controller checks and realtime lifecycle tests. This task expands component/end-to-end coverage and adds backend test execution to CI.
 
 Recommended coverage:
 
@@ -2009,7 +2019,7 @@ Possible work:
 - Courses/Classmates persistence: Task 7 complete, PR #24 (`13d2202`)
 - Requests persistence: Task 8 complete, PR #25 (`19f3e61`)
 - Offers, points and mutual reliability ratings: Task 9 complete, PR #27 (`2b3c081`)
-- Messaging persistence: Task 10 checkpoint 2 direct UI phone-tested; checkpoint 3 group backend/API validated locally; group UI, realtime and hosted rollout pending
+- Messaging persistence: Task 10 direct UI phone-tested; direct realtime implemented locally with phone validation pending; groups deferred; hosted rollout pending
 - Production Android build: Not started
 - Production iOS build: Not started
 - Google Play submission: Not started
@@ -2024,7 +2034,8 @@ No secrets, private keys, database passwords, store credentials, or real environ
 CampusClutch still needs:
 
 - Creator-managed quests and controlled points rewards
-- Group-conversation app integration, realtime and hosted messaging rollout
+- Direct realtime phone validation and hosted messaging rollout
+- Group conversations deferred to a later release
 - Real notifications
 - Broader component/end-to-end tests and backend test execution in CI
 - Accessibility audit
@@ -2042,10 +2053,10 @@ CampusClutch still needs:
 
 # Next Action
 
-Continue **Task 10 with group-conversation app integration** on `codex/persist-messages`. Checkpoint 2 direct-message phone tests 1–8 pass, and checkpoint 3's secure group backend/API is complete locally. Task 9 remains complete and merged through [PR #27](https://github.com/Marchosias405/CampusClutch/pull/27) at `2b3c081`.
+Validate **Task 10 checkpoint 5: direct-message realtime** on `codex/persist-messages`. Group conversations are deferred and disabled; their phone checklist is not a release gate. Task 9 remains complete and merged.
 
-1. Connect group creation, invitations, mixed inbox rows, threads, roster/role controls and former-member history to the validated API, then run focused Android phone tests.
-2. Add authorized realtime updates with reconnect/account-switch validation for direct and group conversations.
-3. Follow with hosted deployment, standalone Preview testing, final review, CI, merge and documentation closure.
+1. Run the [checkpoint 5 Android checklist](docs/task-10-messages.md#checkpoint-5-phone-checklist): live delivery, inbox/badge updates, older-history positioning, reconnect, account isolation and group deferral.
+2. After it passes, deploy and validate hosted Development/Preview and build/test a standalone Preview APK.
+3. Complete final review, CI, merge and documentation closure, then begin Task 11 notifications.
 
-Creator-made quests remain later work. Preview build `016bd2fd` is the last phone-tested standalone APK and is unchanged; use the development build when the group UI reaches its phone gate. The next Preview APK must include the final Task 9 navigation correction as well as the validated Task 10 changes.
+Creator-made quests and group conversations remain later work. Preview `016bd2fd` is the last phone-tested standalone APK and is unchanged. Use the local development client for this checkpoint; no new native dependency was added.

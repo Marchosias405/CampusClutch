@@ -49,3 +49,6 @@ jobs:
 
       - name: Check messaging state and navigation boundaries
         run: npm run test:messages-ui
+
+      - name: Check realtime lifecycle and session isolation
+        run: npm run test:messages-realtime

@@ -1,15 +1,21 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect, useRouter } from 'expo-router';
+import { Redirect, useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, AppState, FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import ScreenHeader from '../../../components/ScreenHeader';
 import { useAuth } from '../../../context/AuthContext';
+import { GROUP_MESSAGING_ENABLED } from '../../../lib/messagingFeatures';
 import { loadFormerGroupPage } from '../../../lib/groupConversations';
 import type { ConversationCursor, GroupConversationSummary } from '../../../types/messaging';
 
 const COLORS = { primary: '#9B1C31', text: '#2B2525', muted: '#736B6B', border: '#ECE3E3', pink: '#FBECEC' };
 
-export default function PastGroupsScreen() {
+export default function PastGroupsRoute() {
+  if (!GROUP_MESSAGING_ENABLED) return <Redirect href="/(tabs)/messages" />;
+  return <PastGroupsScreen />;
+}
+
+function PastGroupsScreen() {
   const { user } = useAuth();
   return user ? <AccountHistory key={user.id} userId={user.id.toLowerCase()} /> : null;
 }

@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { Redirect, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, AppState, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import ScreenHeader from '../../../components/ScreenHeader';
@@ -10,11 +10,17 @@ import {
 } from '../../../lib/groupConversations';
 import { loadConversationSummary } from '../../../lib/messages';
 import { isConversationId } from '../../../lib/messageThread';
+import { GROUP_MESSAGING_ENABLED } from '../../../lib/messagingFeatures';
 import type { GroupConversationSummary, GroupManagementMemberSummary, GroupManagementSnapshot, GroupMemberSummary } from '../../../types/messaging';
 
 const COLORS = { primary: '#9B1C31', text: '#2B2525', muted: '#736B6B', border: '#ECE3E3', pink: '#FBECEC' };
 
-export default function GroupDetailsScreen() {
+export default function GroupDetailsRoute() {
+  if (!GROUP_MESSAGING_ENABLED) return <Redirect href="/(tabs)/messages" />;
+  return <GroupDetailsScreen />;
+}
+
+function GroupDetailsScreen() {
   const { user } = useAuth();
   const { id } = useLocalSearchParams<{ id: string | string[] }>();
   const conversationId = typeof id === 'string' ? id.toLowerCase() : '';

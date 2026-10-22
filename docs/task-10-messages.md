@@ -1,6 +1,6 @@
 # Task 10 — Conversations and Messages
 
-**Current status:** Checkpoint 4's group-conversation app integration is complete locally on `codex/persist-messages`, based on `main` at `0ae8af1`. Checkpoint 2 direct-message phone validation remains complete: by October 9, the user had confirmed all amended tests 1–8 pass. The checkpoint 3 group contract now has protected creation, invitation, mixed inbox/thread, roster and governance screens, plus rediscoverable privacy-bounded former history. Automated checks pass; focused Android group testing is the next gate before realtime. Hosted Development and Preview remain on Task 9, development build `872b050f` remains the local test client, and no new standalone APK was built for this local integration checkpoint.
+**Current status:** Checkpoint 5 implements direct-message realtime locally on `codex/persist-messages`. Checkpoint 2 phone tests 1–8 passed; the new realtime checklist below is pending. On October 22, the user deferred group conversations: checkpoints 3–4 remain historical implementation records, but group navigation and server access are now disabled without deleting group data. Group phone testing is no longer a gate for this release. Hosted Development/Preview remain on Task 9, development build `872b050f` remains the local test client, and no new standalone APK was built.
 
 ## Checkpoint 1: direct-messaging foundation
 
@@ -288,18 +288,76 @@ Validated locally on October 9, 2026:
 - Android production export bundled all 1,642 modules and generated Hermes bytecode successfully after directing the desktop sandbox's temporary output into the repository.
 - Independent UI and client/database reviews found no correctness or authorization blocker. Review hardened durable retries, stale lifecycle suppression, manager-data clearing, exact microsecond cursor advancement and former-member privacy.
 
-Focused phone testing is required now because this checkpoint adds interactive multi-account and lifecycle behavior. Realtime, hosted deployment and a new Preview APK wait until that test gate passes.
+Historical gate: focused group phone testing was pending after checkpoint 4. On October 22 the user deferred groups; the implementation is preserved but disabled by checkpoint 5. Group testing no longer blocks the direct-message release.
+
+## Checkpoint 5: direct realtime and group deferral
+
+On October 22, 2026, the user chose to postpone group conversations. This checkpoint finishes the next local direct-message stage without changing hosted environments or building another APK.
+
+### Group deferral
+
+- `GROUP_MESSAGING_ENABLED = false` hides group rows, creation, invitations and former-group history. The root navigator and each group route independently block old deep links; the shared thread also rejects a group summary.
+- Migration `20261022090959_defer_groups_and_direct_realtime.sql` removes client execution permissions from dedicated group APIs and private entry points. The common conversation/message authorization guard rejects groups, and inbox/unread queries include direct conversations only. An older APK cannot bypass the deferral.
+- No group rows, messages, invitations or membership periods are deleted. Earlier migrations and dormant code remain available for a separately reviewed re-enablement, including fresh validation and phone tests.
+- Historical group SQL suites are retained under `supabase/deferred-tests`; group-only live API/concurrency scripts remain as historical tests and are not part of the active commands. They require a deliberately re-enabled group schema. Pure group client/UI tests remain to protect the retained implementation, and new tests assert that production routes stay disabled.
+
+### Realtime contract and lifecycle
+
+- Each completed, signed-in account joins its own **private** `messages:<profile UUID>` topic. RLS allows receiving only that topic. Clients cannot publish messages to it or subscribe as another account.
+- Direct message inserts and new direct memberships emit `messages_changed`. A read-cursor advance emits only to its owner; peers receive no read receipt. The payload carries only a conversation UUID plus Supabase's random broadcast ID, never message text, participant metadata or read cursors.
+- Signals invalidate local views. The inbox, open thread and tab unread total refetch through the existing authorized APIs. Automatic inbox catch-up retains older loaded conversations and fills activity gaps; manual refresh resets the page. Repeated events coalesce; an event received during a load or pagination queues one catch-up load instead of being lost.
+- Subscription success/reconnect and foreground return trigger catch-up. A 30-second foreground fallback recovers missed events or unavailable realtime service. Manual refresh/retry remains available.
+- Each session uses an isolated realtime client. Token changes replace the connection; backgrounding, sign-out and cleanup disconnect it. Late callbacks from an older connection are ignored. Screens only refresh while focused/foreground, and a thread ignores signals for other conversations.
+- Drafts, frozen send retries, exact message cursors, pagination and the existing newest-message scroll behavior remain intact. No new native dependency, push notification, typing indicator, presence or peer read receipt is introduced.
+
+### Checkpoint 5 validation
+
+Validated locally on October 22, 2026:
+
+- **1,059 active SQL assertions** pass, including 65 new group-deferral/realtime assertions. The 216 historical group assertions are retained outside the active test directory because the current contract intentionally denies groups.
+- **27 direct API checks**, **19 actual websocket checks** and **10 direct-message concurrency cases** pass. Both live API suites cleaned their temporary fixtures and verified unchanged pre-existing public-table fingerprints.
+- **40 messaging client checks**, **177 messaging UI/controller checks**, **17 realtime lifecycle/transport checks** and **nine offer-action lifecycle checks** pass.
+- Lint/typecheck, Android Hermes bundle export and whitespace validation pass. Scoped database lint and local security advisors report no application issues.
+- All **23 migrations** replay successfully in an isolated shadow database, the messaging schema diff is empty, and local migration history is aligned. No working database was reset.
+- Independent client lifecycle and database authorization reviews found no blockers. Review also preserved older paginated inbox rows during automatic refresh and retained manual refresh's explicit reset behavior.
+
+Phone results remain pending. Hosted environments and the standalone Preview APK are unchanged.
+
+### Checkpoint 5 phone checklist
+
+Use the development client connected to current local source and local Supabase. Two simultaneously signed-in sessions (two devices, or a phone and a second supported client) are needed to observe delivery without manually changing accounts. Both accounts must use the same backend.
+
+```powershell
+Set-Location D:\Projects\CampusClutch
+adb devices
+adb reverse tcp:8081 tcp:8081
+adb reverse tcp:54321 tcp:54321
+npx expo start --dev-client --localhost
+```
+
+Keep Metro and Docker running and USB connected. This is a local development-client test, not the older standalone Preview APK. For two USB Android devices, use `adb -s <device-id> reverse ...` for each device. Local reset emails remain at `http://127.0.0.1:54324/` on the laptop.
+
+1. **Live thread:** Open the same direct conversation on A and B. Send both ways without refreshing. Each new message should appear once, and the sender's newest message should stay visible with the keyboard open.
+2. **Inbox and badge:** Keep B on Home while A sends. B's Messages tab badge should increase automatically. Open B's inbox: the conversation preview and individual unread count should match. Reading the incoming messages should clear the appropriate counts without a manual refresh. Also start one new direct conversation to confirm it appears in the recipient's inbox.
+3. **Older history:** On B, scroll up and load earlier messages while A sends several. B should keep its reading position and offer the new-message jump control. Jump to the newest messages and confirm there are no missing or duplicate bubbles; the draft should remain intact.
+4. **Reconnect/background:** Disconnect B's database access while leaving Metro reachable (`adb reverse --remove tcp:54321` for that device), send from A, then restore `adb reverse tcp:54321 tcp:54321`. B should catch up without losing the draft or duplicating messages. Separately background B, send from A, and reopen B; the missed messages should appear. Allow up to 30 seconds for the fallback if the socket is still reconnecting.
+5. **Account isolation:** Sign B out, then sign in as a third account. Send another A-to-B message from A. B's old conversation, draft and badge must not appear in the third account. Sign back into B and confirm catch-up.
+6. **Deferred groups:** Messages should show direct conversations only, with no create-group, invitation or past-group entry points. An old saved group link should not open group content or allow sending. Direct messaging from profiles/classmates/requests should still work.
+
+Stop at this gate and record failures before moving to hosted deployment. The earlier durable-send/offline tests need repeating only if these checks reveal a regression.
 
 ## Remaining integration and release work
 
-1. Complete the focused Android group checklist for creation/retry, invitation consent, mixed inbox/thread behavior, governance, leaving/removal, former-history privacy and rejoin gaps.
-2. Add authorized realtime updates and validate reconnect/account-switch behavior for direct and group conversations.
-3. Deploy and validate hosted Development/Preview, build and test a standalone APK, and complete final review, CI, merge and documentation closure.
+1. Complete the checkpoint 5 direct realtime phone checklist.
+2. Deploy and validate the full Task 10 migration sequence in hosted Development/Preview, including the group deferral; build and test a new standalone Preview APK.
+3. Complete final review, CI, merge and documentation closure, then begin Task 11 notifications.
 
-The secure group backend and app integration are complete locally; focused Android group testing is the current gate. Hosted rollout, standalone Preview testing, final review, CI and merge follow completed feature checkpoints.
+Group conversations and creator-made quests are deferred product work. Their retained code does not mean they are released or phone-validated.
 
 ## References checked for this implementation
 
 - [Supabase changelog](https://supabase.com/changelog): reviewed again for checkpoint 3; no current Database, Auth or client-library change affects this implementation, and no extension or version change is part of the checkpoint.
 - [Row-level security](https://supabase.com/docs/guides/database/postgres/row-level-security): explicit grants, member predicates and authorization tests.
 - [Database functions](https://supabase.com/docs/guides/database/functions): invoker defaults, fixed search paths and restricted execution.
+
+- [Realtime broadcast](https://supabase.com/docs/guides/realtime/broadcast) and [Realtime authorization](https://supabase.com/docs/guides/realtime/authorization): checkpoint 5 uses private database broadcasts and receive-only topic authorization. The changelog was rechecked on October 22; the announced legacy TLS cipher retirement does not require a client or extension change here.

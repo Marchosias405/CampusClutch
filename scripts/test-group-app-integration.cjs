@@ -125,6 +125,7 @@ function message(id, senderId, senderName, body) {
 }
 
 const policy = production('src/lib/groupMessagingUi.ts');
+const featureDefaults = production('src/lib/messagingFeatures.ts');
 let checks = 0;
 function test(name, run) {
   run();
@@ -132,8 +133,10 @@ function test(name, run) {
   console.log('PASS ' + name);
 }
 
-function inboxHarness(search = '') {
+function inboxHarness(search = '', groupsEnabled = true) {
   const pushes = [];
+  const focusEffects = [];
+  let invitationLoads = 0;
   const items = [groupSummary(), directSummary()];
   const state = {
     items,
@@ -166,7 +169,7 @@ function inboxHarness(search = '') {
     react,
     '@expo/vector-icons': { Ionicons: 'Ionicons' },
     'expo-router': {
-      useFocusEffect() {},
+      useFocusEffect(callback) { focusEffects.push(callback); },
       useRouter: () => ({ push: value => pushes.push(value) }),
     },
     'react-native': {
@@ -182,10 +185,11 @@ function inboxHarness(search = '') {
     },
     '../../components/ScreenHeader': { default: 'ScreenHeader', __esModule: true },
     '../../context/AuthContext': { useAuth: () => ({ user: { id: USER } }) },
-    '../../context/UnreadMessagesContext': { useUnreadMessages: () => ({ unreadCount: 3, refreshUnread() {} }) },
+    '../../context/UnreadMessagesContext': { useUnreadMessages: () => ({ unreadCount: 3, refreshUnread() {}, subscribeMessages: () => () => {} }) },
     '../../lib/conversationInbox': { createConversationInbox: () => model },
-    '../../lib/groupConversations': { loadGroupInvitationPage: async () => ({ items: [], hasMore: false, nextCursor: null }) },
+    '../../lib/groupConversations': { loadGroupInvitationPage: async () => { invitationLoads++; return { items: [], hasMore: false, nextCursor: null }; } },
     '../../lib/groupMessagingUi': policy,
+    '../../lib/messagingFeatures': { GROUP_MESSAGING_ENABLED: groupsEnabled },
     '../../lib/messages': { loadConversationPage: async () => ({ items, hasMore: false, nextCursor: null }) },
   };
   const component = production('src/app/(tabs)/messages.tsx', modules).default;
@@ -193,10 +197,10 @@ function inboxHarness(search = '') {
   const tree = outer.type(outer.props);
   const flatList = nodes(tree).find(node => node.type === 'FlatList');
   assert.ok(flatList, 'Production inbox must render a FlatList');
-  return { flatList, pushes, tree };
+  return { flatList, pushes, tree, focus: () => focusEffects.forEach(callback => callback()), invitationLoads: () => invitationLoads };
 }
 
-function threadHarness(summary) {
+function threadHarness(summary, groupsEnabled = true) {
   const pushes = [];
   const messages = [
     message('40000000-0000-4000-8000-000000000001', OTHER, 'Alex Helper', 'First'),
@@ -275,9 +279,10 @@ function threadHarness(summary) {
     'react-native-safe-area-context': { useSafeAreaInsets: () => ({ bottom: 0 }) },
     '../../components/ScreenHeader': { default: 'ScreenHeader', __esModule: true },
     '../../context/AuthContext': { useAuth: () => ({ user: { id: USER } }) },
-    '../../context/UnreadMessagesContext': { useUnreadMessages: () => ({ refreshUnread() {} }) },
+    '../../context/UnreadMessagesContext': { useUnreadMessages: () => ({ refreshUnread() {}, subscribeMessages: () => () => {} }) },
     '../../lib/env': { env: { supabaseUrl: 'http://localhost:54321' } },
     '../../lib/groupMessagingUi': policy,
+    '../../lib/messagingFeatures': { GROUP_MESSAGING_ENABLED: groupsEnabled },
     '../../lib/messages': {
       loadConversationSummary() {}, loadMessagePage() {}, markConversationRead() {},
       messagingError: () => 'error', sendMessage() {},
@@ -290,12 +295,70 @@ function threadHarness(summary) {
   };
   const component = production('src/app/messages/[id].tsx', modules).default;
   const outer = component();
-  const tree = outer.type(outer.props);
+  let tree = outer.type(outer.props);
+  while (typeof tree.type === 'function') tree = tree.type(tree.props);
   const all = nodes(tree);
   const flatList = all.find(node => node.type === 'FlatList');
-  assert.ok(flatList, 'Production thread must render a FlatList');
+  if (groupsEnabled || summary.type === 'direct') assert.ok(flatList, 'Available thread must render a FlatList');
   return { all, flatList, messages, pushes, tree };
 }
+
+test('release defaults defer group messaging', () => {
+  assert.equal(featureDefaults.GROUP_MESSAGING_ENABLED, false);
+});
+
+test('deferred inbox hides group rows and all group entry points while direct messages remain available', () => {
+  const app = inboxHarness('', featureDefaults.GROUP_MESSAGING_ENABLED);
+  assert.equal(app.flatList.props.data.length, 1);
+  assert.equal(app.flatList.props.data[0].type, 'direct');
+  const controls = [...nodes(app.tree), ...nodes(app.flatList.props.ListHeaderComponent)];
+  assert.equal(controls.some(node => node.props.accessibilityLabel === 'Create course group'), false);
+  assert.equal(controls.some(node => /Group invitations|Open past groups/.test(node.props.accessibilityLabel ?? '')), false);
+  const row = app.flatList.props.renderItem({ item: app.flatList.props.data[0] });
+  row.props.onPress();
+  assert.equal(app.pushes[0].params.id, DIRECT);
+  assert.equal(inboxHarness('cmpt 125', false).flatList.props.data.length, 0);
+});
+
+test('deferred inbox focus does not query invitation previews', () => {
+  const app = inboxHarness('', featureDefaults.GROUP_MESSAGING_ENABLED);
+  app.focus();
+  assert.equal(app.invitationLoads(), 0);
+});
+
+test('saved group conversation links cannot render messages, details or a composer', () => {
+  for (const status of ['active', 'left', 'removed']) {
+    const app = threadHarness(groupSummary({ my_membership_status: status }), featureDefaults.GROUP_MESSAGING_ENABLED);
+    assert.equal(app.flatList, undefined);
+    assert.match(textOf(app.tree), /Conversation unavailable/);
+    assert.equal(app.all.some(node => node.type === 'TextInput'), false);
+    assert.equal(app.all.some(node => node.props.accessibilityLabel === 'View group details'), false);
+    assert.equal(textOf(app.tree).includes('Study Crew'), false);
+  }
+  assert.ok(threadHarness(directSummary(), false).flatList);
+});
+
+test('all deferred group deep links redirect before mounting account, data or storage hooks', () => {
+  for (const file of ['create.tsx', 'invitations.tsx', 'history.tsx', '[id].tsx', 'invite/[id].tsx']) {
+    const fullPath = `src/app/messages/groups/${file}`;
+    const exported = {};
+    vm.runInNewContext(compile(fullPath).outputText, {
+      exports: exported,
+      require(name) {
+        if (name === 'react') return { createElement };
+        if (name === 'expo-router') return { Redirect: 'Redirect' };
+        if (name === 'react-native') return { StyleSheet: { create: value => value } };
+        if (name.endsWith('/messagingFeatures')) return featureDefaults;
+        // No auth/router/data functions exist in this harness: reaching any
+        // account-specific hook before redirect is an immediate test failure.
+        return {};
+      },
+    }, { filename: fullPath });
+    const result = exported.default();
+    assert.equal(result.type, 'Redirect', file);
+    assert.equal(result.props.href, '/(tabs)/messages', file);
+  }
+});
 
 test('production inbox renders group metadata/preview and navigates to the shared thread', () => {
   const app = inboxHarness();

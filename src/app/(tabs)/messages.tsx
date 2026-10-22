@@ -9,6 +9,7 @@ import { createConversationInbox } from '../../lib/conversationInbox';
 import { loadGroupInvitationPage } from '../../lib/groupConversations';
 import { conversationMatchesSearch, getConversationInboxPresentation } from '../../lib/groupMessagingUi';
 import { loadConversationPage } from '../../lib/messages';
+import { GROUP_MESSAGING_ENABLED } from '../../lib/messagingFeatures';
 
 const COLORS = { primary: '#9B1C31', text: '#2B2525', muted: '#736B6B', border: '#ECE3E3', pink: '#FBECEC' };
 
@@ -19,7 +20,7 @@ export default function MessagesInboxScreen() {
 
 function AccountInbox({ userId }: { userId: string }) {
   const router = useRouter();
-  const { unreadCount, refreshUnread } = useUnreadMessages();
+  const { unreadCount, refreshUnread, subscribeMessages } = useUnreadMessages();
   const model = useMemo(() => createConversationInbox(async before => {
     const page = await loadConversationPage(userId, { before });
     void refreshUnread();
@@ -34,8 +35,9 @@ function AccountInbox({ userId }: { userId: string }) {
   const [invitationCount, setInvitationCount] = useState(0);
   const [invitationCountMore, setInvitationCountMore] = useState(false);
   const previousUnreadCount = useRef(unreadCount);
+  useEffect(() => subscribeMessages(() => model.invalidate()), [model, subscribeMessages]);
   const loadInvitationPreview = useCallback(async () => {
-    if (!focused.current || !foreground.current) return;
+    if (!GROUP_MESSAGING_ENABLED || !focused.current || !foreground.current) return;
     const ticket = ++invitationEpoch.current;
     try {
       const page = await loadGroupInvitationPage(userId, { limit: 20 });
@@ -67,9 +69,9 @@ function AccountInbox({ userId }: { userId: string }) {
   useEffect(() => {
     if (previousUnreadCount.current === unreadCount || state.loading) return;
     previousUnreadCount.current = unreadCount;
-    // The tab also polls while this screen is open. Refresh its rows when that
-    // total changes, waiting for any current page load rather than dropping it.
-    void model.refresh();
+    // Read-state changes also affect row badges. Keep older loaded rows when
+    // reconciling this automatic update; manual refresh still resets the page.
+    model.invalidate();
   }, [model, unreadCount, state.loading]);
   const refreshInbox = useCallback(() => {
     void model.refresh();
@@ -77,19 +79,20 @@ function AccountInbox({ userId }: { userId: string }) {
   }, [loadInvitationPreview, model]);
 
   const query = search.trim().toLocaleLowerCase();
-  const visible = state.items.filter(item => (!unreadOnly || item.unread_count > 0)
+  const available = state.items.filter(item => GROUP_MESSAGING_ENABLED || item.type === 'direct');
+  const visible = available.filter(item => (!unreadOnly || item.unread_count > 0)
     && conversationMatchesSearch(item, query));
   const findClassmates = () => router.push('/(tabs)/courses');
-  const emptyText = state.items.length ? 'No conversations match this view.' : 'No conversations yet. Message a classmate, create a course group, contact a request’s poster, or reply to a helper from their offer.';
+  const emptyText = available.length ? 'No conversations match this view.' : 'No conversations yet. Message a classmate, contact a request’s poster, or reply to a helper from their offer.';
 
   return <View style={styles.screen}>
     <ScreenHeader>
       <Text style={styles.title}>Messages</Text>
       <View style={styles.headerActions}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Create course group" style={styles.headerButton}
+        {GROUP_MESSAGING_ENABLED && <Pressable accessibilityRole="button" accessibilityLabel="Create course group" style={styles.headerButton}
           onPress={() => router.push('/messages/groups/create')}>
           <Ionicons name="people-outline" size={24} color="white" />
-        </Pressable>
+        </Pressable>}
         <Pressable accessibilityRole="button" accessibilityLabel="Find classmates to message" style={styles.headerButton} onPress={findClassmates}>
           <Ionicons name="create-outline" size={24} color="white" />
         </Pressable>
@@ -107,7 +110,7 @@ function AccountInbox({ userId }: { userId: string }) {
           <TextInput accessibilityLabel="Search loaded conversations" value={search} onChangeText={setSearch} placeholder="Search conversations" placeholderTextColor={COLORS.muted} style={styles.searchInput} autoCorrect={false} returnKeyType="search" />
           {!!search && <Pressable accessibilityRole="button" accessibilityLabel="Clear conversation search" style={styles.clear} onPress={() => setSearch('')}><Ionicons name="close-circle" size={20} color={COLORS.muted} /></Pressable>}
         </View>
-        <View style={styles.groupActions}>
+        {GROUP_MESSAGING_ENABLED && <View style={styles.groupActions}>
           <Pressable accessibilityRole="button" accessibilityLabel={`Group invitations${invitationCount ? `, ${invitationCount}${invitationCountMore ? ' or more' : ''} pending` : ''}`} style={styles.groupAction}
             onPress={() => router.push('/messages/groups/invitations')}>
             <Ionicons name="mail-unread-outline" size={20} color={COLORS.primary} />
@@ -118,7 +121,7 @@ function AccountInbox({ userId }: { userId: string }) {
             <Ionicons name="archive-outline" size={20} color={COLORS.primary} />
             <Text style={styles.groupActionText}>Past groups</Text>
           </Pressable>
-        </View>
+        </View>}
         <View style={styles.filters}>
           {[false, true].map(unread => <Pressable key={String(unread)} accessibilityRole="button" accessibilityState={{ selected: unreadOnly === unread }} onPress={() => setUnreadOnly(unread)} style={[styles.filter, unreadOnly === unread && styles.selected]}>
             <Text style={[styles.filterText, unreadOnly === unread && styles.selectedText]}>{unread ? 'Unread' : 'All'}</Text>
@@ -137,7 +140,7 @@ function AccountInbox({ userId }: { userId: string }) {
       </>}
       ListEmptyComponent={state.loaded && !state.error ? <View style={styles.notice}>
         <Text style={styles.muted}>{emptyText}</Text>
-        {!state.items.length && <Pressable accessibilityRole="button" style={styles.button} onPress={findClassmates}><Text style={styles.filterText}>Find classmates</Text></Pressable>}
+        {!available.length && <Pressable accessibilityRole="button" style={styles.button} onPress={findClassmates}><Text style={styles.filterText}>Find classmates</Text></Pressable>}
       </View> : null}
       renderItem={({ item }) => {
         const presentation = getConversationInboxPresentation(item);

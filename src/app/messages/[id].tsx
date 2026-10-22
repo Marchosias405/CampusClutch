@@ -14,6 +14,7 @@ import { env } from '../../lib/env';
 import { getConversationThreadPresentation, getMessageSenderLabel } from '../../lib/groupMessagingUi';
 import { loadConversationSummary, loadMessagePage, markConversationRead, messagingError, sendMessage } from '../../lib/messages';
 import { compareSequences, createMessageThread, isConversationId } from '../../lib/messageThread';
+import { GROUP_MESSAGING_ENABLED } from '../../lib/messagingFeatures';
 import type { ConversationMessage } from '../../types/messaging';
 
 const PRIMARY = '#9B1C31';
@@ -42,7 +43,7 @@ function Unavailable({ signedOut }: { signedOut: boolean }) {
 function MessageThread({ userId, conversationId }: { userId: string; conversationId: string }) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { refreshUnread } = useUnreadMessages();
+  const { refreshUnread, subscribeMessages } = useUnreadMessages();
   const model = useMemo(() => createMessageThread(userId, conversationId, {
     namespace: env.supabaseUrl, storage: AsyncStorage, randomUUID: () => globalThis.crypto.randomUUID(),
     loadSummary: loadConversationSummary, loadPage: loadMessagePage,
@@ -53,6 +54,9 @@ function MessageThread({ userId, conversationId }: { userId: string; conversatio
     }, errorText: messagingError,
   }), [userId, conversationId, refreshUnread]);
   const state = useSyncExternalStore(model.subscribe, model.getSnapshot, model.getSnapshot);
+  useEffect(() => subscribeMessages(changedId => {
+    if (changedId === null || changedId === conversationId) model.invalidate();
+  }), [conversationId, model, subscribeMessages]);
   const listRef = useRef<FlatList<ConversationMessage>>(null);
   const focused = useRef(false);
   const foreground = useRef(AppState.currentState === 'active');
@@ -112,6 +116,10 @@ function MessageThread({ userId, conversationId }: { userId: string; conversatio
       { text: 'Keep message', style: 'cancel' },
       { text: 'Discard', style: 'destructive', onPress: () => { if (focused.current && foreground.current) void model.discardPending(); } },
     ]);
+
+  // Also gate the shared route: an old conversation link must not reopen a
+  // group while its dedicated screens are deferred.
+  if (!GROUP_MESSAGING_ENABLED && state.summary?.type === 'group') return <Unavailable signedOut={false} />;
 
   return <View style={styles.screen}>
     <ScreenHeader>

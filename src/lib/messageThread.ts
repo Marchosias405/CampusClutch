@@ -68,6 +68,7 @@ export function createMessageThread(userId: string, conversationId: string, deps
   };
   const listeners = new Set<() => void>();
   let active = false, epoch = 0, generation = 0;
+  let invalidated = false;
   let oldestCursor: string | null = null, readThrough = '0', readBusy = false, queuedRead: string | null = null;
   let newestFetched: string | null = null;
   let restoring: Promise<void> | null = null;
@@ -113,6 +114,7 @@ export function createMessageThread(userId: string, conversationId: string, deps
   async function refresh() {
     if (!active || state.loading || state.loadingOlder) return;
     const focus = epoch, ticket = ++generation;
+    invalidated = false;
     emit({ loading: true, error: '' });
     try {
       const [summary, first] = await Promise.all([deps.loadSummary(userId, conversationId), deps.loadPage(userId, conversationId)]);
@@ -139,7 +141,12 @@ export function createMessageThread(userId: string, conversationId: string, deps
         if (denied) { newestFetched = null; oldestCursor = null; }
         emit({ error: deps.errorText(error), ...(denied ? { summary: null, messages: [], hasMore: false } : {}) });
       }
-    } finally { if (valid(ticket, focus)) emit({ loading: false }); }
+    } finally {
+      if (valid(ticket, focus)) {
+        emit({ loading: false });
+        if (invalidated) void refresh();
+      }
+    }
   }
 
   async function loadOlder() {
@@ -153,7 +160,12 @@ export function createMessageThread(userId: string, conversationId: string, deps
       emit({ messages: merged(state.messages, page.items), hasMore: page.hasMore });
       await reconcilePending(page.items);
     } catch (error) { if (valid(ticket, focus)) emit({ error: deps.errorText(error) }); }
-    finally { if (valid(ticket, focus)) emit({ loadingOlder: false }); }
+    finally {
+      if (valid(ticket, focus)) {
+        emit({ loadingOlder: false });
+        if (invalidated) void refresh();
+      }
+    }
   }
 
   function setDraft(draft: string) {
@@ -235,8 +247,16 @@ export function createMessageThread(userId: string, conversationId: string, deps
     setActive(value: boolean) {
       if (active === value) return;
       active = value; epoch += 1; generation += 1;
+      invalidated = false;
       if (value) { void restore(); void refresh(); }
       else { queuedRead = null; emit({ loading: false, loadingOlder: false }); }
+    },
+    invalidate() {
+      if (!active) return;
+      // Keep one catch-up refresh behind any in-flight load; manual refresh taps
+      // retain their existing behavior and never enqueue extra work.
+      invalidated = true;
+      if (!state.loading && !state.loadingOlder) void refresh();
     },
     refresh, loadOlder, setDraft, send, observe, discardPending,
     retryStorage: async () => {

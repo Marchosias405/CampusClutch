@@ -43,8 +43,8 @@ function nodes(node, result = []) {
 }
 
 function providerHarness(initial = {}) {
-  const state = { userId: A, completed: true, path: '/', ...initial };
-  const slots = [], effects = [], listeners = new Set(), timers = new Map(), requests = [];
+  const state = { userId: A, token: 'token-a', completed: true, path: '/', ...initial };
+  const slots = [], effects = [], listeners = new Set(), timers = new Map(), requests = [], connections = [];
   let cursor = 0, dirty = true, tree, timerId = 0;
   const equal = (left, right) => left?.length === right?.length && left.every((item, index) => Object.is(item, right[index]));
   const react = {
@@ -73,23 +73,38 @@ function providerHarness(initial = {}) {
   const AppState = { currentState: initial.appState ?? 'active', addEventListener: (_event, listener) => {
     listeners.add(listener); return { remove: () => listeners.delete(listener) };
   } };
+  const timerGlobals = {
+    setTimeout: (callback, duration) => { const id = ++timerId; timers.set(id, { callback, duration, repeat: false }); return id; },
+    clearTimeout: id => timers.delete(id),
+    setInterval: (callback, duration) => { const id = ++timerId; timers.set(id, { callback, duration, repeat: true }); return id; },
+    clearInterval: id => timers.delete(id),
+  };
+  function flushRealtime() {
+    for (const [id, timer] of [...timers]) if (!timer.repeat && timer.duration === 100) {
+      timers.delete(id); timer.callback();
+    }
+  }
+  const realtime = production('src/lib/messagesRealtime.ts', {}, timerGlobals);
   const modules = {
     react, 'expo-router': { usePathname: () => state.path }, 'react-native': { AppState },
     '../lib/unreadMessages': { createUnreadMessages },
     '../lib/messages': { loadUnreadMessageCount: userId => { const pending = deferred(); requests.push({ userId, ...pending }); return pending.promise; } },
-    './AuthContext': { useAuth: () => ({ user: state.userId ? { id: state.userId } : null }) },
+    '../lib/messagesRealtime': realtime,
+    '../lib/messagesRealtimeTransport': { connectAccountMessages: (userId, token) => callbacks => {
+      const connection = { userId, token, ...callbacks, closed: 0 }; connections.push(connection);
+      return () => { connection.closed++; };
+    } },
+    './AuthContext': { useAuth: () => ({ user: state.userId ? { id: state.userId } : null,
+      session: state.token ? { access_token: state.token } : null }) },
     './ProfileContext': { useProfile: () => ({ isProfileComplete: state.completed,
       profile: state.userId ? { id: state.profileId ?? state.userId } : null }) },
   };
-  const component = production('src/context/UnreadMessagesContext.tsx', modules, {
-    setInterval: (callback, duration) => { const id = ++timerId; timers.set(id, { callback, duration }); return id; },
-    clearInterval: id => timers.delete(id),
-  }).UnreadMessagesProvider;
+  const component = production('src/context/UnreadMessagesContext.tsx', modules).UnreadMessagesProvider;
   function render(runEffects = true) {
     let rounds = 0;
     while (dirty) {
       assert.ok(++rounds < 100); dirty = false; cursor = 0; tree = component({ children: 'app' });
-      if (runEffects) while (effects.length) effects.shift()();
+      if (runEffects) { while (effects.length) effects.shift()(); flushRealtime(); }
     }
   }
   async function settle() { for (let i = 0; i < 4; i++) { render(); await tick(); } render(); }
@@ -98,29 +113,32 @@ function providerHarness(initial = {}) {
   function appState(value) { AppState.currentState = value; for (const listener of listeners) listener(value); render(); }
   function unmount() { for (const slot of slots) slot?.cleanup?.(); }
   render();
-  return { requests, timers, settle, mutate, flushEffects, appState, unmount, value: () => tree.props.value };
+  return { requests, timers, connections, flushRealtime, settle, mutate, flushEffects, appState, unmount, value: () => tree.props.value };
 }
 
 function wiringHarness(kind) {
   let callbacks, loader, readOperation = deferred(), pageOperation = deferred(), refreshes = 0;
-  const readCalls = [], pageCalls = [];
+  const readCalls = [], pageCalls = [], effects = [], cleanups = [], changes = new Set();
+  let invalidations = 0;
   const state = { summary: null, messages: [], draft: '', items: [], loaded: false, loading: false };
-  const model = { subscribe() {}, getSnapshot: () => state, setActive() {}, refresh() {}, observe() {} };
-  const react = { createElement, useMemo: fn => fn(), useCallback: fn => fn, useEffect() {}, useLayoutEffect() {},
+  const model = { subscribe() {}, getSnapshot: () => state, setActive() {}, refresh() {}, observe() {}, invalidate() { invalidations++; } };
+  const subscribeMessages = listener => { changes.add(listener); return () => changes.delete(listener); };
+  const react = { createElement, useMemo: fn => fn(), useCallback: fn => fn, useEffect: callback => effects.push(callback), useLayoutEffect() {},
     useState: initial => [initial, () => {}], useRef: current => ({ current }), useSyncExternalStore: (_subscribe, snapshot) => snapshot() };
   const modules = {
     react,
     '@expo/vector-icons': { Ionicons: 'Ionicons' },
     '@react-native-async-storage/async-storage': { default: {}, __esModule: true },
     'expo-router': { useRouter: () => ({}), useFocusEffect() {}, useLocalSearchParams: () => ({ id: CHAT }) },
-    'react-native': { AppState: { currentState: 'active' }, StyleSheet: { create: value => value }, Platform: { OS: 'android' },
+    'react-native': { AppState: { currentState: 'active', addEventListener: () => ({ remove() {} }) }, StyleSheet: { create: value => value }, Platform: { OS: 'android' },
       FlatList: 'FlatList', Pressable: 'Pressable', View: 'View', Text: 'Text', TextInput: 'TextInput', KeyboardAvoidingView: 'KeyboardAvoidingView', RefreshControl: 'RefreshControl' },
     'react-native-safe-area-context': { useSafeAreaInsets: () => ({ bottom: 0 }) },
     '../../components/ScreenHeader': { default: 'ScreenHeader', __esModule: true },
     '../../context/AuthContext': { useAuth: () => ({ user: { id: A } }) },
-    '../../context/UnreadMessagesContext': { useUnreadMessages: () => ({ refreshUnread: async () => { refreshes++; } }) },
+    '../../context/UnreadMessagesContext': { useUnreadMessages: () => ({ refreshUnread: async () => { refreshes++; }, subscribeMessages }) },
     '../../lib/env': { env: { supabaseUrl: 'http://localhost:54321' } },
     '../../lib/groupMessagingUi': groupUi,
+    '../../lib/messagingFeatures': { GROUP_MESSAGING_ENABLED: false },
     '../../lib/messageThread': { isConversationId: () => true, createMessageThread: (_actor, _chat, dependencies) => { callbacks = dependencies; return model; } },
     '../../lib/conversationInbox': { createConversationInbox: load => { loader = load; return model; } },
     '../../lib/groupConversations': { loadGroupInvitationPage: async () => ({ items: [], hasMore: false, nextCursor: null }) },
@@ -132,6 +150,10 @@ function wiringHarness(kind) {
   const outer = production(kind === 'thread' ? 'src/app/messages/[id].tsx' : 'src/app/(tabs)/messages.tsx', modules).default();
   outer.type(outer.props);
   return { callbacks, loader, readCalls, pageCalls, refreshes: () => refreshes,
+    subscribe: () => { for (const effect of effects) cleanups.push(effect()); },
+    changed: id => { for (const listener of changes) listener(id); },
+    invalidations: () => invalidations,
+    unmount: () => { for (const cleanup of cleanups) if (typeof cleanup === 'function') cleanup(); },
     resolveRead: value => readOperation.resolve(value), rejectRead: error => readOperation.reject(error),
     resolvePage: value => pageOperation.resolve(value), rejectPage: error => pageOperation.reject(error),
   };
@@ -139,7 +161,7 @@ function wiringHarness(kind) {
 
 function inboxSyncHarness(initialTotal = 0) {
   const { createConversationInbox } = production('src/lib/conversationInbox.ts');
-  const slots = [], effects = [], focusEffects = new Set(), events = new Set(), requests = [];
+  const slots = [], effects = [], focusEffects = new Set(), events = new Set(), requests = [], messageListeners = new Set();
   let cursor = 0, dirty = true, focused = true, unreadCount = 0, total = initialTotal, model, creations = 0, refreshes = 0;
   const equal = (left, right) => left?.length === right?.length && left.every((item, index) => Object.is(item, right[index]));
   const react = {
@@ -175,6 +197,7 @@ function inboxSyncHarness(initialTotal = 0) {
   }
   function setTotal(next) { total = next; if (unreadCount !== next) { unreadCount = next; dirty = true; } }
   const refreshUnread = async () => { refreshes++; setTotal(total); };
+  const subscribeMessages = listener => { messageListeners.add(listener); return () => messageListeners.delete(listener); };
   const AppState = { currentState: 'active', addEventListener: (_event, listener) => {
     events.add(listener); return { remove: () => events.delete(listener) };
   } };
@@ -184,10 +207,11 @@ function inboxSyncHarness(initialTotal = 0) {
       TextInput: 'TextInput', RefreshControl: 'RefreshControl', StyleSheet: { create: value => value } },
     '../../components/ScreenHeader': { default: 'ScreenHeader', __esModule: true },
     '../../context/AuthContext': { useAuth: () => ({ user: { id: A } }) },
-    '../../context/UnreadMessagesContext': { useUnreadMessages: () => ({ unreadCount, refreshUnread }) },
+    '../../context/UnreadMessagesContext': { useUnreadMessages: () => ({ unreadCount, refreshUnread, subscribeMessages }) },
     '../../lib/conversationInbox': { createConversationInbox: loader => { creations++; model = createConversationInbox(loader); return model; } },
     '../../lib/groupConversations': { loadGroupInvitationPage: async () => ({ items: [], hasMore: false, nextCursor: null }) },
     '../../lib/groupMessagingUi': groupUi,
+    '../../lib/messagingFeatures': { GROUP_MESSAGING_ENABLED: false },
     '../../lib/messages': { loadConversationPage: (...args) => {
       const pending = deferred(); requests.push({ args, ...pending }); return pending.promise;
     } },
@@ -207,6 +231,7 @@ function inboxSyncHarness(initialTotal = 0) {
   function resolve(index, count) { requests[index].resolve({ items: [{ id: CHAT, unread_count: count }], nextCursor: null }); }
   render();
   return { requests, settle, blur, focus, appState, resolve,
+    changed: id => { for (const listener of messageListeners) listener(id); render(); },
     setCount: value => { setTotal(value); render(); }, state: () => model.getSnapshot(), creations: () => creations, refreshes: () => refreshes };
 }
 
@@ -270,9 +295,10 @@ function inboxSyncHarness(initialTotal = 0) {
     app.requests.at(-1).resolve(2); await app.settle(); assert.equal(app.value().unreadCount, 2);
     assert.equal(app.value().refreshUnread, refresh);
     assert.equal(app.timers.size, 1); assert.equal([...app.timers.values()][0].duration, 30000);
-    [...app.timers.values()][0].callback(); assert.equal(app.requests.length, 4);
+    const fallback = [...app.timers.values()][0];
+    fallback.callback(); app.flushRealtime(); assert.equal(app.requests.length, 4);
     app.appState('background'); app.requests.at(-1).resolve(55); await app.settle(); assert.equal(app.value().unreadCount, 2);
-    [...app.timers.values()][0].callback(); assert.equal(app.requests.length, 4);
+    fallback.callback(); app.flushRealtime(); assert.equal(app.requests.length, 4);
     app.appState('active'); assert.equal(app.requests.length, 5); app.requests.at(-1).resolve(1); await app.settle();
     assert.equal(app.value().unreadCount, 1); app.unmount(); assert.equal(app.timers.size, 0);
   });
@@ -289,8 +315,51 @@ function inboxSyncHarness(initialTotal = 0) {
   await test('signed-out, incomplete or stale-profile and background providers issue no count requests', async () => {
     for (const config of [{ userId: null }, { completed: false }, { profileId: B }, { appState: 'background' }]) {
       const app = providerHarness(config); await app.settle(); assert.equal(app.requests.length, 0); assert.equal(app.value().unreadCount, 0);
+      assert.equal(app.connections.length, 0, 'Ineligible providers must not open private channels');
       for (const timer of app.timers.values()) timer.callback(); assert.equal(app.requests.length, 0); app.unmount();
     }
+  });
+  await test('provider delivers authorized invalidation hints and refreshes its badge after reconnect', async () => {
+    const app = providerHarness();
+    for (let i = 0; i < 3; i++) { for (const request of app.requests) request.resolve(2); await app.settle(); }
+    assert.equal(app.connections.length, 1); assert.equal(app.connections[0].userId, A);
+    const changes = []; const unsubscribe = app.value().subscribeMessages(id => changes.push(id));
+    const before = app.requests.length;
+    app.connections[0].changed(CHAT); app.flushRealtime();
+    assert.deepEqual(changes, [CHAT]); assert.equal(app.requests.length, before + 1);
+    app.requests.at(-1).resolve(3); await app.settle(); assert.equal(app.value().unreadCount, 3);
+    app.connections[0].ready(); app.flushRealtime(); assert.equal(changes.at(-1), null);
+    app.requests.at(-1).resolve(4); await app.settle(); assert.equal(app.value().unreadCount, 4);
+    unsubscribe(); app.unmount();
+  });
+  await test('token replacement retires old subscriptions and ignores their late callbacks', async () => {
+    const app = providerHarness();
+    for (let i = 0; i < 3; i++) { for (const request of app.requests) request.resolve(2); await app.settle(); }
+    const oldSubscribe = app.value().subscribeMessages, old = app.connections[0], staleChanges = [];
+    oldSubscribe(id => staleChanges.push(id));
+    app.mutate({ token: 'token-a-renewed' });
+    assert.equal(old.closed, 1); assert.equal(app.connections.length, 2);
+    assert.equal(app.connections[1].token, 'token-a-renewed');
+    assert.notEqual(app.value().subscribeMessages, oldSubscribe);
+    const freshChanges = []; app.value().subscribeMessages(id => freshChanges.push(id));
+    old.changed(CHAT); old.ready(); old.unavailable(); app.flushRealtime();
+    assert.deepEqual(staleChanges, []); assert.deepEqual(freshChanges, []);
+    app.connections[1].changed(CHAT); app.flushRealtime(); assert.deepEqual(freshChanges, [CHAT]);
+    app.unmount(); assert.equal(app.connections[1].closed, 1); assert.equal(app.timers.size, 0);
+  });
+  await test('account replacement retires its channel and sends future hints only to the new account', async () => {
+    const app = providerHarness(); const old = app.connections[0], oldChanges = [];
+    app.value().subscribeMessages(id => oldChanges.push(id));
+    app.mutate({ userId: B, token: 'token-b' });
+    assert.equal(app.value().unreadCount, 0); assert.equal(old.closed, 1);
+    assert.equal(app.connections[1].userId, B); assert.equal(app.connections[1].token, 'token-b');
+    const changes = []; app.value().subscribeMessages(id => changes.push(id));
+    old.changed(CHAT); old.ready(); old.unavailable(); app.flushRealtime();
+    assert.deepEqual(oldChanges, []); assert.deepEqual(changes, []);
+    app.connections[1].changed(CHAT); app.flushRealtime(); assert.deepEqual(changes, [CHAT]);
+    app.mutate({ userId: null, token: null }); assert.equal(app.connections[1].closed, 1);
+    app.connections[1].changed(CHAT); app.flushRealtime(); assert.deepEqual(changes, [CHAT]);
+    assert.equal(app.timers.size, 0); app.unmount();
   });
   await test('the real Messages tab displays zero, exact counts and 99+ from the shared provider', () => {
     let count = 0;
@@ -320,6 +389,17 @@ function inboxSyncHarness(initialTotal = 0) {
     const failed = wiringHarness('inbox'), attempt = failed.loader(null); failed.rejectPage(Error('offline'));
     await assert.rejects(attempt, /offline/); assert.equal(failed.refreshes(), 0);
   });
+  await test('thread subscribes only to matching or full-refresh hints and cleans up on unmount', () => {
+    const app = wiringHarness('thread'); app.subscribe();
+    app.changed(B); assert.equal(app.invalidations(), 0);
+    app.changed(CHAT); app.changed(null); assert.equal(app.invalidations(), 2);
+    app.unmount(); app.changed(CHAT); app.changed(null); assert.equal(app.invalidations(), 2);
+  });
+  await test('inbox invalidates previews on every conversation hint and unsubscribes on unmount', () => {
+    const app = wiringHarness('inbox'); app.subscribe();
+    app.changed(CHAT); app.changed(B); app.changed(null); assert.equal(app.invalidations(), 3);
+    app.unmount(); app.changed(CHAT); assert.equal(app.invalidations(), 3);
+  });
   await test('the active inbox follows a new global count without rebuilding or looping', async () => {
     const app = inboxSyncHarness(1);
     app.resolve(0, 1); await app.settle(); assert.equal(app.requests.length, 2);
@@ -343,6 +423,16 @@ function inboxSyncHarness(initialTotal = 0) {
     app.appState('background'); app.setCount(3); await app.settle(); assert.equal(app.requests.length, 2);
     app.appState('active'); assert.equal(app.requests.length, 3); app.resolve(2, 3); await app.settle();
     assert.equal(app.state().items[0].unread_count, 3); assert.equal(app.requests.length, 3); assert.equal(app.creations(), 1);
+  });
+  await test('realtime inbox hints refresh previews even when the unread total stays unchanged', async () => {
+    const app = inboxSyncHarness(); app.resolve(0, 0); await app.settle();
+    app.changed(CHAT); assert.equal(app.requests.length, 2);
+    app.resolve(1, 0); await app.settle(); assert.equal(app.requests.length, 2);
+    app.blur(); app.changed(CHAT); app.changed(null); await app.settle(); assert.equal(app.requests.length, 2);
+    app.focus(); app.resolve(2, 0); await app.settle();
+    app.appState('background'); app.changed(CHAT); await app.settle(); assert.equal(app.requests.length, 3);
+    app.appState('active'); app.resolve(3, 0); await app.settle(); assert.equal(app.requests.length, 4);
+    assert.equal(app.creations(), 1);
   });
   console.log('Unread message checks passed: ' + checks + '.');
 })().catch(error => { console.error(error); process.exitCode = 1; });

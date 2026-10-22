@@ -227,5 +227,137 @@ async function test(name, run) { await run(); count++; console.log('PASS ' + nam
     f.deps.loadSummary = async () => { throw Object.assign(Error('denied'), { code: '42501' }); };
     await model.refresh(); assert.equal(model.getSnapshot().summary, null); assert.equal(model.getSnapshot().messages.length, 0); model.setActive(false);
   });
+
+  await test('realtime invalidation ignores inactive threads and queues one catch-up after initial loading', async () => {
+    const f = fixture(), calls = [];
+    f.deps.loadPage = () => { const pending = defer(); calls.push(pending); return pending.promise; };
+    const model = f.create(); model.invalidate();
+    assert.equal(calls.length, 0);
+    model.setActive(true);
+    model.invalidate(); model.invalidate(); model.invalidate();
+    assert.equal(calls.length, 1);
+    calls[0].resolve({ items: [row(1)], hasMore: false, nextCursor: null });
+    await until(() => calls.length === 2);
+    assert.equal(model.getSnapshot().loading, true);
+    calls[1].resolve({ items: [row(2), row(1)], hasMore: false, nextCursor: null });
+    await until(() => !model.getSnapshot().loading);
+    await tick();
+    assert.deepEqual(plain(model.getSnapshot().messages.map(item => item.sequence)), ['2', '1']);
+    assert.equal(calls.length, 2, 'A completed refresh must not invalidate itself');
+    model.setActive(false);
+  });
+
+  await test('idle realtime refresh preserves drafts and manual taps do not queue follow-up work', async () => {
+    const f = fixture(), model = f.create(); await ready(model);
+    model.setDraft('Still composing');
+    const pending = defer(); let loads = 0;
+    f.deps.loadPage = () => { loads++; return pending.promise; };
+    model.invalidate();
+    await model.refresh(); await model.loadOlder();
+    assert.equal(loads, 1);
+    pending.resolve({ items: [row(1)], hasMore: false, nextCursor: null });
+    await until(() => !model.getSnapshot().loading);
+    assert.equal(loads, 1);
+    assert.equal(model.getSnapshot().draft, 'Still composing');
+    assert.equal(model.getSnapshot().pending, null);
+    model.setActive(false);
+  });
+
+  await test('events during pagination catch up missing incoming pages while preserving loaded history and pending sends', async () => {
+    const f = fixture(), model = f.create();
+    f.state.page = { items: [row(4), row(3)], hasMore: true, nextCursor: '3' };
+    await ready(model); model.setDraft('Keep this retry');
+    f.deps.send = async () => { throw Error('Lost reply'); };
+    await model.send();
+    const saved = plain(model.getSnapshot().pending), calls = [];
+    f.deps.loadPage = (_user, _chat, options) => {
+      const pending = defer(); calls.push({ before: options?.beforeSequence ?? null, ...pending }); return pending.promise;
+    };
+    const older = model.loadOlder(); model.invalidate(); model.invalidate();
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].before, '3');
+    calls[0].resolve({ items: [row(2), row(1)], hasMore: false, nextCursor: null });
+    await older;
+    assert.equal(calls.length, 2);
+    assert.equal(calls[1].before, null);
+    calls[1].resolve({ items: [row(8), row(7)], hasMore: true, nextCursor: '7' });
+    await until(() => calls.length === 3);
+    assert.equal(calls[2].before, '7');
+    calls[2].resolve({ items: [row(6), row(5), row(4)], hasMore: true, nextCursor: '4' });
+    await until(() => !model.getSnapshot().loading);
+    assert.deepEqual(plain(model.getSnapshot().messages.map(item => item.sequence)), ['8', '7', '6', '5', '4', '3', '2', '1']);
+    assert.equal(model.getSnapshot().hasMore, false);
+    assert.equal(model.getSnapshot().draft, 'Keep this retry');
+    assert.deepEqual(plain(model.getSnapshot().pending), saved);
+    assert.equal(calls.length, 3);
+    model.setActive(false);
+  });
+
+  await test('a queued realtime catch-up runs after failed pagination once and keeps its retry boundary', async () => {
+    const f = fixture(), model = f.create();
+    f.state.page = { items: [row(3)], hasMore: true, nextCursor: '3' }; await ready(model);
+    const calls = [];
+    f.deps.loadPage = (_user, _chat, options) => {
+      const pending = defer(); calls.push({ before: options?.beforeSequence ?? null, ...pending }); return pending.promise;
+    };
+    const older = model.loadOlder(); model.invalidate(); model.invalidate();
+    calls[0].reject(Error('Offline page'));
+    await older;
+    assert.equal(calls.length, 2);
+    assert.equal(calls[1].before, null);
+    calls[1].reject(Error('Still offline'));
+    await until(() => !model.getSnapshot().loading);
+    await tick();
+    assert.equal(calls.length, 2, 'Errors cannot create an unbounded automatic retry loop');
+    assert.equal(model.getSnapshot().messages[0].sequence, '3');
+    assert.equal(model.getSnapshot().hasMore, true);
+    assert.ok(model.getSnapshot().error);
+    const retry = model.loadOlder(); assert.equal(calls[2].before, '3');
+    calls[2].resolve({ items: [row(2), row(1)], hasMore: false, nextCursor: null });
+    await retry; assert.equal(model.getSnapshot().messages.length, 3);
+    model.setActive(false);
+  });
+
+  await test('blur clears queued invalidations and stale responses cannot consume current-focus catch-up', async () => {
+    const f = fixture(), calls = [];
+    f.deps.loadPage = () => { const pending = defer(); calls.push(pending); return pending.promise; };
+    const model = f.create(); model.setActive(true); model.invalidate();
+    model.setActive(false); model.invalidate();
+    calls[0].resolve({ items: [row(1)], hasMore: false, nextCursor: null });
+    await tick(); assert.equal(calls.length, 1);
+    assert.equal(model.getSnapshot().messages.length, 0);
+    model.setActive(true); model.invalidate();
+    model.setActive(false); model.setActive(true); model.invalidate();
+    calls[1].reject(Error('Stale visit'));
+    await tick(); assert.equal(calls.length, 3); assert.equal(model.getSnapshot().loading, true);
+    calls[2].resolve({ items: [row(2)], hasMore: false, nextCursor: null });
+    await until(() => calls.length === 4);
+    calls[3].resolve({ items: [row(3), row(2)], hasMore: false, nextCursor: null });
+    await until(() => !model.getSnapshot().loading);
+    assert.deepEqual(plain(model.getSnapshot().messages.map(item => item.sequence)), ['3', '2']);
+    assert.equal(model.getSnapshot().error, '');
+    assert.equal(calls.length, 4);
+    model.setActive(false);
+  });
+
+  await test('repeated event refreshes deduplicate messages and reconcile a confirmed pending send once', async () => {
+    const f = fixture(), model = f.create(); await ready(model); model.setDraft('Already saved remotely');
+    f.deps.send = async (_user, input) => { f.state.calls.push(input); throw Error('Lost response'); };
+    await model.send();
+    const pending = model.getSnapshot().pending;
+    const confirmed = row(1, { sender_id: A, client_message_id: pending.clientMessageId, body: pending.body });
+    f.state.page = { items: [row(2), confirmed], hasMore: false, nextCursor: null };
+    model.invalidate(); model.invalidate(); model.invalidate();
+    await until(() => !model.getSnapshot().loading);
+    assert.equal(model.getSnapshot().messages.length, 2);
+    assert.equal(model.getSnapshot().pending, null);
+    assert.equal(model.getSnapshot().draft, '');
+    assert.equal(f.state.calls.length, 1, 'Invalidation only reconciles and cannot dispatch another send');
+    model.invalidate();
+    await until(() => !model.getSnapshot().loading);
+    assert.equal(model.getSnapshot().messages.length, 2);
+    assert.equal(JSON.parse([...f.data.values()][0]).pending, null);
+    model.setActive(false);
+  });
   console.log(`Message thread: ${count} checks passed.`);
 })().catch(error => { console.error(error); process.exitCode = 1; });

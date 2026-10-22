@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { Redirect, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, AppState, FlatList, Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from 'react-native';
 import ScreenHeader from '../../../../components/ScreenHeader';
@@ -11,6 +11,7 @@ import { inviteGroupMember, loadGroupManagementSnapshot } from '../../../../lib/
 import { getGroupInviteOptions } from '../../../../lib/groupMessagingUi';
 import { loadConversationSummary } from '../../../../lib/messages';
 import { isConversationId } from '../../../../lib/messageThread';
+import { GROUP_MESSAGING_ENABLED } from '../../../../lib/messagingFeatures';
 import type { CourseClassmate } from '../../../../types/course';
 import type { GroupConversationSummary, GroupManagementSnapshot } from '../../../../types/messaging';
 
@@ -41,7 +42,12 @@ function parseSavedAttempt(raw: string | null): Attempt | null {
   return { profileId: profileId.toLowerCase(), clientInvitationId: clientInvitationId.toLowerCase(), revision };
 }
 
-export default function InviteGroupMemberScreen() {
+export default function InviteGroupMemberRoute() {
+  if (!GROUP_MESSAGING_ENABLED) return <Redirect href="/(tabs)/messages" />;
+  return <InviteGroupMemberScreen />;
+}
+
+function InviteGroupMemberScreen() {
   const { user } = useAuth();
   const { id } = useLocalSearchParams<{ id: string | string[] }>();
   const conversationId = typeof id === 'string' ? id.toLowerCase() : '';

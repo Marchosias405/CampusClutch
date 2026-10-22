@@ -16,6 +16,7 @@ import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { ProfileProvider, useProfile } from "@/context/ProfileContext";
 import { RequestsProvider } from "@/context/RequestsContext";
 import { UnreadMessagesProvider } from "@/context/UnreadMessagesContext";
+import { GROUP_MESSAGING_ENABLED } from "@/lib/messagingFeatures";
 
 export default function RootLayout() {
   return (
@@ -195,11 +196,13 @@ function RootNavigator() {
           <Stack.Screen name="students/[id]" />
           <Stack.Screen name="notifications" />
           <Stack.Screen name="messages/[id]" />
-          <Stack.Screen name="messages/groups/create" />
-          <Stack.Screen name="messages/groups/invitations" />
-          <Stack.Screen name="messages/groups/history" />
-          <Stack.Screen name="messages/groups/[id]" />
-          <Stack.Screen name="messages/groups/invite/[id]" />
+          <Stack.Protected guard={GROUP_MESSAGING_ENABLED}>
+            <Stack.Screen name="messages/groups/create" />
+            <Stack.Screen name="messages/groups/invitations" />
+            <Stack.Screen name="messages/groups/history" />
+            <Stack.Screen name="messages/groups/[id]" />
+            <Stack.Screen name="messages/groups/invite/[id]" />
+          </Stack.Protected>
           <Stack.Screen name="profile/settings" />
         </Stack.Protected>
 

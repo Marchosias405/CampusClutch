@@ -1,15 +1,21 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect, useRouter } from 'expo-router';
+import { Redirect, useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, AppState, FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import ScreenHeader from '../../../components/ScreenHeader';
 import { useAuth } from '../../../context/AuthContext';
+import { GROUP_MESSAGING_ENABLED } from '../../../lib/messagingFeatures';
 import { loadGroupInvitationPage, respondToGroupInvitation } from '../../../lib/groupConversations';
 import type { GroupInvitationCursor, GroupInvitationSummary } from '../../../types/messaging';
 
 const COLORS = { primary: '#9B1C31', text: '#2B2525', muted: '#736B6B', border: '#ECE3E3', pink: '#FBECEC' };
 
-export default function GroupInvitationsScreen() {
+export default function GroupInvitationsRoute() {
+  if (!GROUP_MESSAGING_ENABLED) return <Redirect href="/(tabs)/messages" />;
+  return <GroupInvitationsScreen />;
+}
+
+function GroupInvitationsScreen() {
   const { user } = useAuth();
   return user ? <AccountInvitations key={user.id} userId={user.id.toLowerCase()} /> : null;
 }
