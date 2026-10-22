@@ -192,6 +192,7 @@ Task 10 checkpoint 5 record:
 - Inbox, open threads and the Messages badge reload authorized data after signals, subscription/reconnection and foreground return. A 30-second foreground fallback and manual refresh remain available.
 - Backgrounding/sign-out closes the account connection; stale events are ignored. Bursts coalesce and events arriving during a load trigger one follow-up refresh.
 - Local validation passes 1,059 active SQL assertions, 27 direct API checks, 19 live websocket checks, 10 concurrency cases, 40 client checks, 177 UI/controller checks, 17 realtime lifecycle checks and nine offer lifecycle checks. All 23 migrations replay; lint/typecheck, database checks and Android export pass. The 216 historical group SQL assertions are preserved outside the active suite.
+- Web-test follow-up: fixed the `window is not defined` crash during Expo static rendering. The Node render uses non-persistent auth; browser and native sessions retain AsyncStorage. Browser sign-in rendering/reload, seven auth runtime checks and web/Android exports pass. A second account can run in the laptop browser by pressing `w` in the existing Expo terminal.
 - Direct-message realtime phone checks are the next gate. Hosted deployment, standalone Preview testing, final review, CI and merge follow.
 
 Detailed contract and repeatable checks: [Task 10 checkpoint](docs/task-10-messages.md).
@@ -366,6 +367,7 @@ npm run lint
 npm run typecheck
 npm run check
 npm run test:offers-lifecycle
+npm run test:auth-runtime
 npm run test:messages-client
 npm run test:messages-ui
 npm run test:messages-realtime
@@ -373,6 +375,7 @@ npm run test:messages-realtime
 
 `npm run check` runs linting and TypeScript checking together.
 `npm run test:offers-lifecycle` runs nine deterministic checks for offer actions across navigation, offline recovery and account changes.
+`npm run test:auth-runtime` runs seven checks against the installed auth SDK for server rendering without browser storage, browser session persistence and native session persistence without `window`.
 `npm run test:messages-client` runs direct-message, request-contact and group-conversation contract tests for authorization, validation, retries, privacy, unread totals and exact cursor handling without needing a database.
 `npm run test:messages-ui` covers the real inbox/thread controllers, unread provider and tab, classmate/profile/request entry components and assignment-history client, including deferred group routes. Device keyboard/scroll rendering is verified separately on Android.
 `npm run test:messages-realtime` checks connection lifecycle, batching, fallback, token/account isolation and the private transport contract without a database. `npm run test:messages-local` runs direct API and real websocket security/delivery checks against local Supabase; `npm run test:messages-concurrency` covers direct-message races. Historical group live/SQL tests are retained but excluded while groups are disabled.
@@ -412,6 +415,7 @@ CI runs:
 npm ci
 npm run check
 npm run test:offers-lifecycle
+npm run test:auth-runtime
 npm run test:messages-client
 npm run test:messages-ui
 npm run test:messages-realtime

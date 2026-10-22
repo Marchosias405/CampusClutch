@@ -41,6 +41,9 @@ jobs:
       - name: Run quality checks
         run: npm run check
 
+      - name: Check server, browser and native auth initialization
+        run: npm run test:auth-runtime
+
       - name: Check offer action lifecycle
         run: npm run test:offers-lifecycle
 

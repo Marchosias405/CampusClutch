@@ -323,6 +323,16 @@ Validated locally on October 22, 2026:
 
 Phone results remain pending. Hosted environments and the standalone Preview APK are unchanged.
 
+### Web testing startup correction
+
+The first laptop-browser attempt crashed Expo with `ReferenceError: window is not defined`. Supabase's client was being constructed during Expo's Node static render with the browser AsyncStorage adapter, which tried to access `window.localStorage` before hydration.
+
+`src/lib/supabase.ts` now detects web rendering without `window`, omits browser storage and disables persistence/automatic refresh only in that environment. The installed SDK uses isolated memory storage for that render. Browser and native clients retain AsyncStorage, automatic refresh, PKCE, the process lock and existing session behavior; native runtimes without `window` are not mistaken for servers.
+
+Seven regression checks exercise the production configuration and installed auth SDK, including server initialization and INITIAL_SESSION, memory isolation, real web AsyncStorage persistence, and Android/iOS persistence without `window`. They run through `npm run test:auth-runtime` in CI. Lint/typecheck, web static export (35 routes), Android Hermes export, and loading/reloading the browser sign-in screen pass. The existing web shadow-style deprecation warning is non-fatal.
+
+After a crashed Expo process, restart `npx expo start --dev-client --localhost --clear`. Press `w` in that terminal to open `http://localhost:8081`, then sign into the second local test account. Keep the first account signed in on the phone; a second Metro server is unnecessary. These startup checks do not replace the pending two-account realtime phone checklist.
+
 ### Checkpoint 5 phone checklist
 
 Use the development client connected to current local source and local Supabase. Two simultaneously signed-in sessions (two devices, or a phone and a second supported client) are needed to observe delivery without manually changing accounts. Both accounts must use the same backend.
