@@ -60,12 +60,16 @@ OR (n.nspname='messaging_private' AND p.proname IN (
   'set_group_role','transfer_group_owner','rename_group','is_active_group_manager'));
 
 SELECT ok((SELECT relrowsecurity FROM pg_class WHERE oid='realtime.messages'::regclass),'Realtime message table retains RLS');
-SELECT ok(NOT has_table_privilege('authenticated','realtime.messages','INSERT')
-  AND NOT has_table_privilege('authenticated','realtime.messages','UPDATE')
-  AND NOT has_table_privilege('authenticated','realtime.messages','DELETE'),
-  'Authenticated clients have no direct write grants on broadcast storage');
-SELECT is((SELECT count(*) FROM pg_policy WHERE polrelid='realtime.messages'::regclass AND polcmd IN ('a','*')),0::bigint,
-  'No policy allows client broadcast or presence insertion');
+SELECT is((SELECT count(*) FROM pg_policies
+  WHERE schemaname='realtime' AND tablename='messages' AND permissive='RESTRICTIVE'
+    AND roles=ARRAY['anon','authenticated']::name[]
+    AND ((policyname='direct_messages_deny_client_insert' AND cmd='INSERT' AND qual IS NULL AND with_check='false')
+      OR (policyname='direct_messages_deny_client_update' AND cmd='UPDATE' AND qual='false' AND with_check='false')
+      OR (policyname='direct_messages_deny_client_delete' AND cmd='DELETE' AND qual='false' AND with_check IS NULL))),
+  3::bigint,'Restrictive policies deny every client write despite managed table grants');
+SELECT is((SELECT count(*) FROM pg_policy WHERE polrelid='realtime.messages'::regclass
+  AND polpermissive AND polcmd IN ('a','w','d','*')),0::bigint,
+  'No permissive policy allows client broadcast or presence writes');
 SELECT ok(NOT has_function_privilege('authenticated','messaging_private.broadcast_direct_invalidation()','EXECUTE'),
   'Clients cannot invoke the broadcast trigger helper');
 SELECT is((SELECT count(*) FROM pg_trigger WHERE tgname IN
@@ -117,5 +121,53 @@ RESET ROLE;
 SELECT is((SELECT count(*) FROM public.group_conversations WHERE conversation_id=pg_temp.fixture('group')),1::bigint,'Deferred group metadata is preserved');
 SELECT is((SELECT body FROM public.messages WHERE conversation_id=pg_temp.fixture('group')),'Preserved group history','Deferred group message content is preserved');
 SELECT is((SELECT count(*) FROM public.group_membership_periods WHERE conversation_id=pg_temp.fixture('group')),2::bigint,'Deferred membership history is preserved');
+
+-- Hosted Supabase owns this table and can retain client DML grants. Locally,
+-- restore those grants only inside this rollback transaction. A temporary
+-- permissive policy proves that the restrictive policies remain decisive.
+-- Hosted grant-option restrictions may make GRANT a no-op; the checks below
+-- accept table-level denial too, while always verifying the restrictive rules.
+GRANT SELECT, INSERT, UPDATE, DELETE ON realtime.messages TO anon, authenticated;
+CREATE POLICY test_realtime_client_write_allow ON realtime.messages
+FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
+INSERT INTO fixtures VALUES('broadcast',gen_random_uuid());
+INSERT INTO realtime.messages(id,payload,event,topic,private,extension)
+VALUES(pg_temp.fixture('broadcast'),'{}','original','messages:'||pg_temp.uid(2)::text,true,'broadcast');
+
+SET LOCAL ROLE authenticated;
+SELECT pg_temp.login(2);
+SELECT throws_ok($$INSERT INTO realtime.messages(payload,event,topic,private,extension)
+  VALUES('{}','forged','messages:'||pg_temp.uid(2)::text,true,'broadcast')$$,
+  '42501',NULL,'Authenticated broadcast insertion is denied with a permissive write policy present');
+SELECT CASE WHEN has_table_privilege(current_user,'realtime.messages','UPDATE') THEN
+  results_eq($$UPDATE realtime.messages SET event='tampered' WHERE id=pg_temp.fixture('broadcast') RETURNING id$$,
+    ARRAY[]::uuid[],'Authenticated update cannot affect a broadcast row')
+  ELSE throws_ok($$UPDATE realtime.messages SET event='tampered' WHERE id=pg_temp.fixture('broadcast')$$,
+    '42501',NULL,'Authenticated update is denied by managed table privileges') END;
+SELECT CASE WHEN has_table_privilege(current_user,'realtime.messages','DELETE') THEN
+  results_eq($$DELETE FROM realtime.messages WHERE id=pg_temp.fixture('broadcast') RETURNING id$$,
+    ARRAY[]::uuid[],'Authenticated delete cannot remove a broadcast row')
+  ELSE throws_ok($$DELETE FROM realtime.messages WHERE id=pg_temp.fixture('broadcast')$$,
+    '42501',NULL,'Authenticated delete is denied by managed table privileges') END;
+RESET ROLE;
+GRANT SELECT ON fixtures TO anon;
+SET LOCAL ROLE anon;
+SELECT set_config('request.jwt.claim.sub','',true);
+SELECT throws_ok($$INSERT INTO realtime.messages(payload,event,topic,private,extension)
+  VALUES('{}','forged','messages:'||pg_temp.uid(2)::text,true,'broadcast')$$,
+  '42501',NULL,'Anonymous broadcast insertion is denied with a permissive write policy present');
+SELECT CASE WHEN has_table_privilege(current_user,'realtime.messages','UPDATE') THEN
+  results_eq($$UPDATE realtime.messages SET event='tampered' WHERE id=pg_temp.fixture('broadcast') RETURNING id$$,
+    ARRAY[]::uuid[],'Anonymous update cannot affect a broadcast row')
+  ELSE throws_ok($$UPDATE realtime.messages SET event='tampered' WHERE id=pg_temp.fixture('broadcast')$$,
+    '42501',NULL,'Anonymous update is denied by managed table privileges') END;
+SELECT CASE WHEN has_table_privilege(current_user,'realtime.messages','DELETE') THEN
+  results_eq($$DELETE FROM realtime.messages WHERE id=pg_temp.fixture('broadcast') RETURNING id$$,
+    ARRAY[]::uuid[],'Anonymous delete cannot remove a broadcast row')
+  ELSE throws_ok($$DELETE FROM realtime.messages WHERE id=pg_temp.fixture('broadcast')$$,
+    '42501',NULL,'Anonymous delete is denied by managed table privileges') END;
+RESET ROLE;
+SELECT is((SELECT event FROM realtime.messages WHERE id=pg_temp.fixture('broadcast')),'original',
+  'Denied client writes preserve the original broadcast row');
 SELECT * FROM finish();
 ROLLBACK;
