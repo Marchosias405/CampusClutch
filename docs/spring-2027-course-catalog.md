@@ -60,7 +60,7 @@ The initial collection on this Windows/Node 22 laptop needed `NODE_EXTRA_CA_CERT
 
 ## Local checkpoint results — October 22, 2026
 
-**Ready for the six manual phone checks below.** Local Supabase has migration `20261022111506_sfu_catalog_metadata_and_search.sql` and 990 verified offerings covering 933 distinct course codes: 723 Burnaby, 115 Surrey, 92 Vancouver and 60 online. Existing six course records, eight memberships, all other application rows and existing auth accounts were preserved exactly. Repeating the import plan reports zero new rows and 990 existing matches.
+**All six local phone checks passed on October 22, 2026, including offline save/search recovery with the gateway stop/start method below.** Local Supabase has migration `20261022111506_sfu_catalog_metadata_and_search.sql` and 990 verified offerings covering 933 distinct course codes: 723 Burnaby, 115 Surrey, 92 Vancouver and 60 online. Existing six course records, eight memberships, all other application rows and existing auth accounts were preserved exactly. Repeating the import plan reports zero new rows and 990 existing matches.
 
 Source coverage is intentionally not marked complete:
 
@@ -102,6 +102,28 @@ npx expo start --dev-client --localhost
 5. Switch accounts. The other account must not inherit the first account's courses. Both may independently add the same offering.
 6. Disconnect database access or go offline while keeping the development bundle available. Failed search/join must provide retry; a failed join should keep the selection. Reconnect and retry once. Confirm one saved membership. Existing current courses and classmate direct messaging should still work.
 
-For USB-only testing, remove only the database forwarding with `adb reverse --remove tcp:54321`, and restore it with `adb reverse tcp:54321 tcp:54321`. Leave port 8081 forwarded so Metro stays reachable. The local reset-email inbox remains http://127.0.0.1:54324/.
+For check 6, stop only the local API gateway while leaving Docker, the database, USB and Metro running. Removing the USB listener alone did not reliably interrupt access in the first phone attempt: CMPT 363 was actually saved once, so that attempt does not count as an offline failure/retry pass. On October 22, the gateway stop/start method was verified separately: the API became unreachable while Postgres stayed healthy, then returned HTTP 200 after restart. The user subsequently confirmed check 6 passed, completing the local phone gate.
 
-Stop after these checks. Hosted deployment, a standalone Preview build and final PR review/merge follow after the local checkpoint passes. Task 11 remains next after this catalog work.
+In a second PowerShell window, first restore forwarding if it was removed:
+
+```powershell
+adb reverse tcp:54321 tcp:54321
+```
+
+Select a different Spring course that is not already added, then run:
+
+```powershell
+docker stop --timeout 5 supabase_kong_CampusClutch
+```
+
+Wait for the command to finish. Tap Add and confirm a failure message with the selection retained. Restore access with:
+
+```powershell
+docker start supabase_kong_CampusClutch
+```
+
+Allow a few seconds for the gateway to start, then retry Add. Confirm exactly one upcoming membership after reopening the app. Repeat the same stop/start sequence for a changed search query and its Retry course search button. Finish with the gateway running. This does not delete or reset database data; no app source change was needed for the successful-save report. For a different checkout, verify its gateway name with `docker ps --filter name=supabase_kong --format '{{.Names}}'` before stopping it.
+
+The local reset-email inbox remains http://127.0.0.1:54324/.
+
+The local phone gate is complete. Hosted deployment and a standalone Preview build are the next checkpoint; stop for standalone phone validation before final PR review/merge. Task 11 remains next after this catalog work.

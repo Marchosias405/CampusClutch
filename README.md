@@ -4,7 +4,7 @@ CampusClutch is an Expo React Native mobile app for university students to conne
 
 Authentication, user profiles, courses, course memberships, classmates, campus requests, offers, points and reliability ratings now use persistent Supabase data. Task 9 local and hosted validation passed, including offers, history, reopening, points transfers, changed-reward confirmation, the three-active-request cap, cancellation/archive and mutual ratings. All ten Task 9 migrations are deployed in hosted Development and Preview; 770 SQL assertions passed in each. The user confirmed all standalone and cancelled-assignment phone tests passed on September 26, including offline refresh/save and the fresh password-reset link. Ratings reveal only after both participants submit. Task 9 is complete and merged through [PR #27](https://github.com/Marchosias405/CampusClutch/pull/27) at `2b3c081`. Task 10 is complete and merged through [PR #29](https://github.com/Marchosias405/CampusClutch/pull/29) at `7722916`: all six local two-account realtime checks passed on October 22, 2026, and its six migrations are deployed to hosted Development and Preview. Each hosted environment passes 1,066 SQL assertions and 12 realtime smoke groups with existing data preserved and no new advisor warnings. The new standalone Preview APK completed and passes all 11 artifact checks. Group conversations are deferred, with implementation/data retained and app/server access disabled. The user confirmed all six standalone Preview phone tests passed on October 22, 2026. Final review and required GitHub CI passed before the October 22 merge.
 
-> **Current status:** Tasks 1–10 are complete and merged. Task 10 merged through [PR #29](https://github.com/Marchosias405/CampusClutch/pull/29) at `7722916`, with final checks and all six standalone phone tests passing on October 22, 2026. Before Task 11, the Spring 2027 SFU undergraduate catalog (3+ units) is ready for local phone testing: 990 verified offerings covering 933 course codes, server-side search/pagination and an Upcoming courses view. Local migration `20261022111506` and the catalog import are applied; existing data was preserved. SFU source gaps are documented for follow-up. See the [catalog checkpoint and phone checklist](docs/spring-2027-course-catalog.md). Hosted Development/Preview remain at the 24 Task 10 migrations through `20261022094831`; Preview build `5b43c4c3` does not include the new catalog work. Groups and creator-made quests remain deferred.
+> **Current status:** Tasks 1–10 are complete and merged. Task 10 merged through [PR #29](https://github.com/Marchosias405/CampusClutch/pull/29) at `7722916`, with final checks and all six standalone phone tests passing on October 22, 2026. Before Task 11, the Spring 2027 SFU undergraduate catalog (3+ units) has passed all six local phone checks: 990 verified offerings covering 933 course codes, server-side search/pagination and an Upcoming courses view. Local migration `20261022111506` and the catalog import are applied; existing data was preserved. SFU source gaps are documented for follow-up. See the [catalog checkpoint and phone checklist](docs/spring-2027-course-catalog.md). Hosted Development/Preview remain at the 24 Task 10 migrations through `20261022094831`; Preview build `5b43c4c3` does not include the new catalog work. Groups and creator-made quests remain deferred.
 
 ---
 
@@ -124,7 +124,7 @@ Task 7 — Complete and merged (PR #24, 13d2202)
 Task 8 — Complete and merged (PR #25, 19f3e61)
 Task 9 — Complete and merged (PR #27, 2b3c081)
 Task 10 — Complete and merged (PR #29, 7722916); groups deferred
-Spring 2027 catalog — Local checkpoint before Task 11; phone validation next
+Spring 2027 catalog — All six local phone checks passed; hosted rollout/Preview APK next
 ```
 
 Task 8 completion record:
@@ -1877,7 +1877,7 @@ Scope: published SFU undergraduate enrollment sections worth **3 or more units**
 - Units and campus/Online labels appear in search and My Courses.
 - The Upcoming view keeps Spring 2027 enrollments visible after joining and reloading; current-term classmate privacy remains unchanged.
 - Local import is complete: **990 offerings / 933 course codes**, with original data preserved. Source gaps remain documented; the import does not claim complete eventual Spring coverage.
-- Collector/import/client/UI checks, SQL migration replay, all 990 offerings through the real API, lint/typecheck and Android/web exports pass. The six local phone checks are the next gate before hosted rollout, a new standalone Preview build and final review/merge.
+- Collector/import/client/UI checks, SQL migration replay, all 990 offerings through the real API, lint/typecheck and Android/web exports pass. The user confirmed all six local phone checks passed on October 22, including offline save/search recovery with the revised API-gateway stop/start method. Hosted rollout and a new standalone Preview build are next, followed by standalone phone validation and final review/merge.
 
 Detailed scope, source coverage, workflow and phone checks: [Spring 2027 catalog checkpoint](docs/spring-2027-course-catalog.md).
 
@@ -2080,7 +2080,7 @@ CampusClutch still needs:
 
 # Next Action
 
-Validate the **Spring 2027 undergraduate catalog (3+ units)** in the local development app using the [six catalog phone checks](docs/spring-2027-course-catalog.md#manual-phone-checkpoint). This focused checkpoint comes before Task 11.
+All six local phone checks for the **Spring 2027 undergraduate catalog (3+ units)** passed on October 22, 2026. Proceed to the hosted rollout and standalone Preview checkpoint before Task 11.
 
 After the local checks pass, refresh/review the source coverage, deploy the catalog changes to Development and Preview, build a standalone Preview APK, and complete its phone gate and final PR review/merge. **Task 11 — Notifications** follows afterward. Group conversations and creator-made quests remain deferred.
 
