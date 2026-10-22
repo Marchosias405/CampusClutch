@@ -1,6 +1,6 @@
 # Spring 2027 SFU course catalog — local and hosted checkpoints
 
-This is a focused catalog checkpoint before Task 11. Tasks 1–10 remain complete; notifications, group messaging and creator-made quests remain deferred.
+This catalog checkpoint is complete and merged through [PR #31](https://github.com/Marchosias405/CampusClutch/pull/31) at `0fcbc8c` on October 22, 2026. Tasks 1–10 remain complete. Task 11 notifications is next; group messaging and creator-made quests remain deferred.
 
 ## Scope
 
@@ -126,7 +126,7 @@ Allow a few seconds for the gateway to start, then retry Add. Confirm exactly on
 
 The local reset-email inbox remains http://127.0.0.1:54324/.
 
-The six local, six standalone catalog and both later banner-removal phone checks are complete. Final PR review, required CI and merge remain before Task 11.
+The six local, six standalone catalog and both later banner-removal phone checks are complete. Final review and required GitHub CI passed; [PR #31](https://github.com/Marchosias405/CampusClutch/pull/31) merged at `0fcbc8c`. Task 11 is next.
 
 ## Hosted Development and Preview checkpoint — October 22, 2026
 
@@ -154,7 +154,7 @@ Both hosted environments have 25 migrations through `20261022111506` and 990 ver
 5. Switch to another hosted Preview account. Courses must stay isolated; both accounts may independently add the same offering. Confirm existing current-course/classmate direct-message entry still works.
 6. Select a course not already added, then turn off **both Wi-Fi and mobile data**. Add must show a failure while retaining selection. Reconnect and retry; confirm one saved entry after reopening. Repeat the offline/reconnect sequence with a changed search and **Retry course search**. Finish online.
 
-The six-check standalone catalog phone gate and both later banner-removal visual checks are complete. Finish final review, required CI and merge before starting **Task 11 — Notifications**. Groups and creator-made quests remain deferred.
+The six-check standalone catalog phone gate and both later banner-removal visual checks are complete. Final review and required CI passed before the [PR #31](https://github.com/Marchosias405/CampusClutch/pull/31) merge. **Task 11 — Notifications** is next. Groups and creator-made quests remain deferred.
 
 ## Banner-removal Preview checkpoint
 
@@ -167,6 +167,12 @@ APK size: 154,209,090 bytes. SHA-256: `bc773fac94f4e75edb0cf185bdadf436e31b21cca
 Retain these steps for regression testing: install this Preview APK over the existing app, close Metro/laptop terminals and disconnect USB. Open **Courses**, then check **Current Term**, **Upcoming** and **Previous Terms**: the Find Classmates / Courses banner should be gone. Open an existing current course’s **Classmates** button and confirm it still opens the classmates page. Upcoming courses should continue to hide classmates until their term is marked current.
 
 The six passed catalog phone checks remain recorded against build `2fd64d08`; the two visual cleanup checks passed against `b39cde7e`. All manual gates for this catalog checkpoint are complete.
+
+## Final review and merge — October 22, 2026
+
+Independent backend/importer and UI/client/source reviews found no actionable issues. Final local validation passed: lint/typecheck, 326 JavaScript checks (including 76 catalog checks), 98 SQL assertions and 12 Auth/PostgREST checks. The local-only importer transaction check skipped by ordinary CI passed separately. Temporary fixtures were cleaned up and existing application-data fingerprints remained unchanged.
+
+Required GitHub CI passed on Node 22 for PR head `acea051ff29b58a4daac4648b52041e34f2170f3`. [PR #31](https://github.com/Marchosias405/CampusClutch/pull/31) merged at `0fcbc8c5f81bf034dd2c70153794be6b324a17c3` after confirming the PR head, required checks and conflict-free merge state. This closure changes documentation only; the phone-tested app code remains source `70875ef`, delivered in Preview `b39cde7e`.
 
 ## Spring 2027 launch requirement
 
