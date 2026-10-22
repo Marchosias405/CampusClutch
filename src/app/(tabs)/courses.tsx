@@ -4,11 +4,11 @@ import { useRouter } from "expo-router";
 import React, {
   useCallback,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -18,16 +18,19 @@ import {
 } from "react-native";
 
 import ScreenHeader from "../../components/ScreenHeader";
+import { useAuth } from "@/context/AuthContext";
 
 import {
   getMyCourses,
+  courseDetailsLabel,
   isCurrentCourse,
   isPreviousCourse,
+  isUpcomingCourse,
   leaveCourse,
 } from "@/lib/courses";
 import type { MyCourse } from "@/types";
 
-type CourseFilter = "current" | "previous";
+type CourseFilter = "current" | "upcoming" | "previous";
 
 const COLORS = {
   primary: "#9B1C31",
@@ -51,13 +54,29 @@ const filters: {
     label: "Current Term",
   },
   {
+    id: "upcoming",
+    label: "Upcoming",
+  },
+  {
     id: "previous",
     label: "Previous Terms",
   },
 ];
 
-export default function CoursesIndexScreen() {
+export default function CoursesRoute() {
+  const { user } = useAuth();
+  return user ? <CoursesIndexScreen key={user.id} userId={user.id} /> : null;
+}
+
+function CoursesIndexScreen({ userId }: { userId: string }) {
   const router = useRouter();
+  const active = useRef(false);
+  const scrollView = useRef<ScrollView>(null);
+  const loadEpoch = useRef(0);
+  const leaveEpoch = useRef(0);
+  const leaveBusy = useRef(false);
+  const [pendingRemoval, setPendingRemoval] = useState<MyCourse | null>(null);
+  const [removeError, setRemoveError] = useState<string | null>(null);
 
   const [selectedFilter, setSelectedFilter] =
     useState<CourseFilter>("current");
@@ -73,26 +92,38 @@ export default function CoursesIndexScreen() {
     useState<string | null>(null);
 
   const loadCourses = useCallback(async () => {
+    const ticket = ++loadEpoch.current;
     setIsLoading(true);
     setErrorMessage(null);
 
     try {
-      const result = await getMyCourses();
+      const result = await getMyCourses(userId);
+      if (!active.current || ticket !== loadEpoch.current) return;
       setCourses(result);
-    } catch (error) {
-      console.error("Failed to load courses:", error);
+    } catch {
+      if (!active.current || ticket !== loadEpoch.current) return;
 
       setErrorMessage(
         "We couldn't load your courses. Please try again."
       );
     } finally {
-      setIsLoading(false);
+      if (active.current && ticket === loadEpoch.current) setIsLoading(false);
     }
-  }, []);
+  }, [userId]);
 
   useFocusEffect(
     useCallback(() => {
+      active.current = true;
+      leaveBusy.current = false;
+      setLeavingCourseId(null);
+      setPendingRemoval(null);
+      setRemoveError(null);
       void loadCourses();
+      return () => {
+        active.current = false;
+        loadEpoch.current += 1;
+        leaveEpoch.current += 1;
+      };
     }, [loadCourses])
   );
 
@@ -106,13 +137,15 @@ export default function CoursesIndexScreen() {
     [courses]
   );
 
+  const upcomingCourses = useMemo(() => courses.filter(isUpcomingCourse), [courses]);
+
   const query = search.trim().toLowerCase();
 
   const filteredCourses = useMemo(() => {
     const source =
       selectedFilter === "current"
         ? currentCourses
-        : previousCourses;
+        : selectedFilter === "upcoming" ? upcomingCourses : previousCourses;
 
     if (!query) {
       return source;
@@ -129,6 +162,7 @@ export default function CoursesIndexScreen() {
   }, [
     currentCourses,
     previousCourses,
+    upcomingCourses,
     query,
     selectedFilter,
   ]);
@@ -137,6 +171,7 @@ export default function CoursesIndexScreen() {
     currentCourses[0]?.term.displayName ?? "Current Courses";
 
   const handleOpenClassmates = (course: MyCourse) => {
+    if (!active.current || !isCurrentCourse(course)) return;
     router.push({
       pathname: "/courses/classmates",
       params: {
@@ -148,48 +183,41 @@ export default function CoursesIndexScreen() {
   const performLeaveCourse = async (
     course: MyCourse
   ) => {
+    if (!active.current || leaveBusy.current) return;
+    leaveBusy.current = true;
+    const ticket = ++leaveEpoch.current;
     setLeavingCourseId(course.id);
+    setRemoveError(null);
 
     try {
-      await leaveCourse(course.id);
+      await leaveCourse(course.id, userId);
+      if (!active.current || ticket !== leaveEpoch.current) return;
+      setPendingRemoval(null);
       await loadCourses();
-    } catch (error) {
-      console.error("Failed to remove course:", error);
-
-      Alert.alert(
-        "Unable to remove course",
-        "We couldn't remove this course. Please try again."
-      );
+    } catch {
+      if (!active.current || ticket !== leaveEpoch.current) return;
+      setRemoveError("We couldn't confirm this course was removed. Please try again.");
     } finally {
-      setLeavingCourseId(null);
+      if (active.current && ticket === leaveEpoch.current) {
+        leaveBusy.current = false;
+        setLeavingCourseId(null);
+      }
     }
   };
 
   const handleRemoveCourse = (course: MyCourse) => {
-    Alert.alert(
-      "Remove course",
-      `Remove ${course.code} from your CampusClutch courses?`,
-      [
-        {
-          text: "Cancel",
-          style: "cancel",
-        },
-        {
-          text: "Remove",
-          style: "destructive",
-          onPress: () => {
-            void performLeaveCourse(course);
-          },
-        },
-      ]
-    );
+    if (!active.current || leaveBusy.current) return;
+    setPendingRemoval(course);
+    setRemoveError(null);
+    scrollView.current?.scrollTo({ y: 0, animated: true });
   };
 
   const emptyMessage = query
     ? `No courses match "${search.trim()}".`
     : selectedFilter === "current"
       ? "You haven't added any current courses yet."
-      : "You don't have any previous courses yet.";
+      : selectedFilter === "upcoming" ? "You haven't added any upcoming courses yet."
+        : "You don't have any previous courses yet.";
 
   return (
     <View style={styles.safeArea}>
@@ -227,6 +255,7 @@ export default function CoursesIndexScreen() {
         </ScreenHeader>
 
         <ScrollView
+          ref={scrollView}
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
@@ -299,6 +328,19 @@ export default function CoursesIndexScreen() {
             })}
           </ScrollView>
 
+          {pendingRemoval && <View style={styles.removalBox}>
+            <Text style={styles.courseTitle}>Remove {pendingRemoval.code} ({pendingRemoval.term.displayName}) from your CampusClutch courses?</Text>
+            {removeError && <Text style={styles.removalError}>{removeError}</Text>}
+            <View style={styles.removalActions}>
+              <Pressable disabled={leavingCourseId !== null} onPress={() => setPendingRemoval(null)} style={styles.confirmRemove}>
+                <Text style={styles.classmatesText}>Keep course</Text>
+              </Pressable>
+              <Pressable disabled={leavingCourseId !== null} onPress={() => void performLeaveCourse(pendingRemoval)} style={styles.confirmRemove}>
+                {leavingCourseId ? <ActivityIndicator color={COLORS.primary} /> : <Text style={styles.classmatesText}>Remove course</Text>}
+              </Pressable>
+            </View>
+          </View>}
+
           {isLoading ? (
             <View style={styles.stateContainer}>
               <ActivityIndicator
@@ -337,21 +379,25 @@ export default function CoursesIndexScreen() {
                 <Text style={styles.sectionTitle}>
                   {selectedFilter === "current"
                     ? currentTermLabel
-                    : "Previous Courses"}
+                    : selectedFilter === "upcoming" ? "Upcoming Courses" : "Previous Courses"}
                 </Text>
 
                 <Text style={styles.currentText}>
                   {selectedFilter === "current"
                     ? "Current"
-                    : "Past"}
+                    : selectedFilter === "upcoming" ? "Upcoming" : "Past"}
                 </Text>
               </View>
+
+              {selectedFilter === "upcoming" && <Text style={styles.upcomingNote}>
+                Your courses are saved for the upcoming term. Classmates become available when the term starts.
+              </Text>}
 
               {filteredCourses.length === 0 ? (
                 <Text style={styles.emptyText}>
                   {emptyMessage}
                 </Text>
-              ) : selectedFilter === "current" ? (
+              ) : selectedFilter !== "previous" ? (
                 <View style={styles.courseList}>
                   {filteredCourses.map((course) => (
                     <View
@@ -369,10 +415,12 @@ export default function CoursesIndexScreen() {
                         >
                           {course.title}
                         </Text>
+                        <Text style={styles.courseTitle}>{course.term.displayName}</Text>
+                        {!!courseDetailsLabel(course) && <Text style={styles.courseTitle}>{courseDetailsLabel(course)}</Text>}
                       </View>
 
                       <View style={styles.courseActions}>
-                        <Pressable
+                        {isCurrentCourse(course) && <Pressable
                           style={styles.classmatesButton}
                           onPress={() =>
                             handleOpenClassmates(course)
@@ -387,11 +435,12 @@ export default function CoursesIndexScreen() {
                             size={17}
                             color={COLORS.primary}
                           />
-                        </Pressable>
+                        </Pressable>}
 
                         <Pressable
                           style={styles.removeButton}
                           hitSlop={6}
+                          accessibilityLabel={`Remove ${course.code}`}
                           disabled={
                             leavingCourseId === course.id
                           }
@@ -515,6 +564,11 @@ export default function CoursesIndexScreen() {
 }
 
 const styles = StyleSheet.create({
+  removalBox: { borderRadius: 14, padding: 14, backgroundColor: COLORS.softPink, marginBottom: 16 },
+  removalActions: { flexDirection: "row", gap: 16, marginTop: 10 },
+  confirmRemove: { paddingVertical: 12, paddingHorizontal: 10 },
+  removalError: { color: COLORS.primary, marginTop: 8 },
+  upcomingNote: { fontSize: 13, lineHeight: 19, color: COLORS.mutedText, marginBottom: 14 },
   safeArea: {
     flex: 1,
     backgroundColor: COLORS.background,
@@ -668,6 +722,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 14,
+    paddingVertical: 12,
     shadowColor: "#000",
     shadowOffset: {
       width: 0,
