@@ -41,5 +41,17 @@ jobs:
       - name: Run quality checks
         run: npm run check
 
+      - name: Check server, browser and native auth initialization
+        run: npm run test:auth-runtime
+
       - name: Check offer action lifecycle
         run: npm run test:offers-lifecycle
+
+      - name: Check direct and group messaging client contracts
+        run: npm run test:messages-client
+
+      - name: Check messaging state and navigation boundaries
+        run: npm run test:messages-ui
+
+      - name: Check realtime lifecycle and session isolation
+        run: npm run test:messages-realtime

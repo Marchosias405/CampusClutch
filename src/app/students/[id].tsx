@@ -1,8 +1,9 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useCallback, useEffect, useState } from "react";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  AppState,
   Image,
   Linking,
   Pressable,
@@ -17,6 +18,8 @@ import RatingSummary from "../../components/RatingSummary";
 import { mockStudents } from "../../constants/mockData";
 
 import { useProfile } from "@/context/ProfileContext";
+import { useAuth } from "@/context/AuthContext";
+import { startDirectConversation } from "@/lib/messages";
 import { getProfileAvatarSignedUrl } from "@/lib/avatars";
 import {
   getCampuses,
@@ -40,7 +43,7 @@ const COLORS = {
 };
 
 const UUID_PATTERN =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 type RealStudentProfile = {
   profile: Profile;
@@ -78,11 +81,24 @@ function getInitials(name: string) {
 }
 
 export default function StudentProfileScreen() {
-  const router = useRouter();
   const { id } = useLocalSearchParams<{ id?: string }>();
-  const { profile: currentProfile } = useProfile();
-
+  const { user } = useAuth();
   const routeId = typeof id === "string" ? id : "";
+  return <StudentProfileContent key={`${user?.id}:${routeId}`} routeId={routeId} viewerId={user?.id} />;
+}
+
+function StudentProfileContent({ routeId, viewerId }: { routeId: string; viewerId?: string }) {
+  const router = useRouter();
+  const { profile: currentProfile } = useProfile();
+  const viewerProfile = currentProfile?.id === viewerId ? currentProfile : null;
+  const viewerProfileId = viewerProfile?.id;
+  const focused = useRef(false);
+  const foreground = useRef(AppState.currentState === 'active');
+  const focusEpoch = useRef(0);
+  const generation = useRef(0);
+  const opening = useRef<object | null>(null);
+  const [openingMessage, setOpeningMessage] = useState(false);
+  const [messageError, setMessageError] = useState("");
 
   const legacyStudent = mockStudents.find(
     (item) => item.id === routeId
@@ -95,13 +111,16 @@ export default function StudentProfileScreen() {
     useState<RealStudentProfile | null>(null);
 
   const [isLoadingRealStudent, setIsLoadingRealStudent] =
-    useState(false);
+    useState(Boolean(viewerId && isUuidRoute && !isLegacyStudent));
 
   const [realStudentError, setRealStudentError] =
     useState<string | null>(null);
 
   const loadRealStudent = useCallback(async () => {
+    if (!focused.current || !foreground.current) return;
+    const ticket = ++generation.current;
     if (
+      !viewerId ||
       !routeId ||
       isLegacyStudent ||
       !isUuidRoute
@@ -119,7 +138,7 @@ export default function StudentProfileScreen() {
       const targetProfile = await getProfileById(routeId);
 
       if (!targetProfile) {
-        setRealStudent(null);
+        if (focused.current && ticket === generation.current) setRealStudent(null);
         return;
       }
 
@@ -138,8 +157,8 @@ export default function StudentProfileScreen() {
       ] = await Promise.all([
         getCampuses(),
         getProfileInterests(targetProfile.id),
-        currentProfile
-          ? getProfileInterests(currentProfile.id)
+        viewerProfileId
+          ? getProfileInterests(viewerProfileId)
           : Promise.resolve([]),
         getProfileSocialLinks(targetProfile.id),
         avatarPromise,
@@ -160,6 +179,7 @@ export default function StudentProfileScreen() {
         )
         .map((interest) => interest.displayName);
 
+      if (!focused.current || ticket !== generation.current) return;
       setRealStudent({
         profile: targetProfile,
         campusName: campus?.displayName ?? null,
@@ -171,35 +191,58 @@ export default function StudentProfileScreen() {
           socialLinks.instagram?.value ?? null,
       });
     } catch {
-      setRealStudent(null);
-      setRealStudentError(
-        "Unable to load this student profile."
-      );
+      if (focused.current && ticket === generation.current) {
+        setRealStudent(null);
+        setRealStudentError("Unable to load this student profile.");
+      }
     } finally {
-      setIsLoadingRealStudent(false);
+      if (focused.current && ticket === generation.current) setIsLoadingRealStudent(false);
     }
   }, [
     routeId,
     isLegacyStudent,
     isUuidRoute,
-    currentProfile,
+    viewerId,
+    viewerProfileId,
   ]);
 
-  useEffect(() => {
+  useFocusEffect(useCallback(() => {
+    focused.current = true;
+    ++focusEpoch.current;
+    setMessageError("");
     void loadRealStudent();
+    return () => { focused.current = false; ++focusEpoch.current; ++generation.current; };
+  }, [loadRealStudent]));
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', state => {
+      foreground.current = state === 'active';
+      if (!foreground.current) { ++focusEpoch.current; ++generation.current; }
+      else if (focused.current) void loadRealStudent();
+    });
+    return () => subscription.remove();
   }, [loadRealStudent]);
 
-  const handleLegacyMessage = () => {
-    if (!legacyStudent) {
-      return;
+  const handleMessage = async () => {
+    const target = realStudent?.profile;
+    if (!viewerId || !viewerProfile?.onboardingCompletedAt || !target?.onboardingCompletedAt
+      || target.id === viewerId || target.id.toLowerCase() !== routeId.toLowerCase()
+      || legacyStudent || !focused.current || !foreground.current || opening.current || isLoadingRealStudent) return;
+    const operation = {};
+    const epoch = focusEpoch.current;
+    opening.current = operation; setOpeningMessage(true); setMessageError("");
+    try {
+      const conversationId = await startDirectConversation(viewerId, target.id);
+      if (focused.current && foreground.current && focusEpoch.current === epoch) {
+        router.push({ pathname: "/messages/[id]", params: { id: conversationId } });
+      }
+    } catch {
+      if (focused.current && foreground.current && focusEpoch.current === epoch) {
+        setMessageError("Unable to open this chat. Check your connection and try again.");
+      }
+    } finally {
+      if (opening.current === operation) { opening.current = null; setOpeningMessage(false); }
     }
-
-    router.push({
-      pathname: "/messages/[id]",
-      params: {
-        id: legacyStudent.id,
-      },
-    } as any);
   };
 
   const renderHeader = () => (
@@ -315,6 +358,9 @@ export default function StudentProfileScreen() {
   }
 
   const isMock = Boolean(legacyStudent);
+  const isSelf = !!viewerId && routeId.toLowerCase() === viewerId.toLowerCase();
+  const canMessage = !isMock && !isSelf && !!viewerProfile?.onboardingCompletedAt
+    && !!realStudent?.profile.onboardingCompletedAt;
 
   const name = legacyStudent
     ? legacyStudent.name
@@ -428,13 +474,14 @@ export default function StudentProfileScreen() {
             </View>
           ) : null}
 
-          <Pressable
+          {!isSelf && <Pressable
+            accessibilityRole="button"
             style={[
               styles.messageButton,
-              !isMock && styles.messageButtonDisabled,
+              (!canMessage || openingMessage) && styles.messageButtonDisabled,
             ]}
-            onPress={handleLegacyMessage}
-            disabled={!isMock}
+            onPress={() => { void handleMessage(); }}
+            disabled={!canMessage || openingMessage}
           >
             <Ionicons
               name="chatbubble-ellipses"
@@ -443,11 +490,11 @@ export default function StudentProfileScreen() {
             />
 
             <Text style={styles.messageButtonText}>
-              {isMock
-                ? "Message"
-                : "Messaging coming later"}
+              {isMock ? "Demo profile · no messaging" : openingMessage ? "Opening chat…"
+                : canMessage ? messageError ? "Retry Message" : "Message" : "Messaging unavailable"}
             </Text>
-          </Pressable>
+          </Pressable>}
+          {!!messageError && <Text accessibilityRole="alert" style={styles.messageError}>{messageError}</Text>}
         </View>
 
         {!isMock && realStudent && <RatingSummary key={realStudent.profile.id} profileId={realStudent.profile.id} />}
@@ -784,7 +831,9 @@ const styles = StyleSheet.create({
 
   messageButton: {
     width: "100%",
-    height: 48,
+    minHeight: 48,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
     marginTop: 22,
     borderRadius: 12,
     backgroundColor: COLORS.primary,
@@ -799,10 +848,14 @@ const styles = StyleSheet.create({
   },
 
   messageButtonText: {
+    flexShrink: 1,
+    textAlign: "center",
     fontSize: 16,
     fontWeight: "900",
     color: "#FFFFFF",
   },
+
+  messageError: { marginTop: 12, color: COLORS.primary, fontSize: 14, lineHeight: 21, textAlign: "center" },
 
   sectionCard: {
     marginTop: 18,

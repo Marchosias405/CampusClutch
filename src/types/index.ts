@@ -88,3 +88,27 @@ export type {
   CourseMembershipStatus,
   MyCourse
 } from "./course";
+
+export type {
+  ConversationCursor,
+  ConversationMessage,
+  ConversationPage,
+  ConversationStatus,
+  ConversationSummary,
+  DirectConversationSummary,
+  GroupConversationSummary,
+  GroupInvitationCursor,
+  GroupInvitationPage,
+  GroupInvitationStatus,
+  GroupInvitationSummary,
+  GroupManagementRevision,
+  GroupManagementMemberSummary,
+  GroupManagementSnapshot,
+  GroupMemberRole,
+  GroupMembershipStatus,
+  GroupMemberSummary,
+  GroupPendingInvitation,
+  MessagePage,
+  MessageSequence,
+  SendMessageInput,
+} from "./messaging";

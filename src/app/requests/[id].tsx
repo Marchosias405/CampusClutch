@@ -18,6 +18,7 @@ import RequestOffers from "../../components/RequestOffers";
 import ReopenRequest from "../../components/ReopenRequest";
 import RequestCompletion from "../../components/RequestCompletion";
 import RequestRating from "../../components/RequestRating";
+import RequestConversation from "../../components/RequestConversation";
 import { useRequests } from "../../context/RequestsContext";
 
 const COLORS = {
@@ -382,6 +383,7 @@ export default function RequestDetailsScreen() {
           <ReopenRequest key={`reopen:${user?.id}:${request.id}:${request.offerRound ?? 1}`} request={request} disabled={loading || !!ownerAction} onChanged={refresh} />
           {(request.status === 'accepted' || request.status === 'completed') && <RequestCompletion key={`completion:${user?.id}:${request.id}:${request.offerRound ?? 1}`} request={request} disabled={loading || !!ownerAction} onChanged={refresh} />}
           <RequestRating key={`rating:${user?.id}:${request.id}`} requestId={request.id} requestRevision={`${request.offerRound ?? 1}:${request.status}`} disabled={loading || !!ownerAction} onChanged={async () => { setRatingsRevision(value => value + 1); }} />
+          <RequestConversation requestId={request.id} requestRevision={`${request.offerRound ?? 1}:${request.status}`} disabled={loading || !!ownerAction} />
           <RequestOffers key={`offers:${user?.id}:${requestId}:${request.offerRound ?? 1}`} request={request} requestId={requestId} ratingsRevision={ratingsRevision} onChanged={refresh} />
         </View>
       </ScrollView>

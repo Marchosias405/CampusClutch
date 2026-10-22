@@ -6,6 +6,7 @@ import { useRequests } from '../context/RequestsContext';
 import { decideOffer, loadOfferPage, offerError, renewOffer, submitOffer, type OfferAction, type RequestOffer } from '../lib/offers';
 import type { CampusRequest } from '../types';
 import RatingSummary from './RatingSummary';
+import RequestContact from './RequestContact';
 
 type Props = { request?: CampusRequest; requestId?: string; ratingsRevision?: number; onChanged?: () => Promise<void> };
 type OfferTerms = { round: number; points: number };
@@ -140,9 +141,9 @@ export default function RequestOffers({ request, requestId, ratingsRevision = 0,
     {!!notice && <Text accessibilityRole="alert" style={styles.text}>{notice}</Text>}
     {!!error && <Text accessibilityRole="alert" style={styles.error}>{error}</Text>}
     {saving && <Text accessibilityRole="alert" style={styles.text}>Saving…</Text>}
-    {!owner && request?.ownerId && visible.length > 0 && <View style={styles.card}>
-      <Text style={styles.title}>Request poster</Text>
-      <RatingSummary key={`poster-rating:${request.ownerId}:${ratingsRevision}`} profileId={request.ownerId} requestId={request.id} />
+    {!owner && request?.ownerId && <View style={styles.card}>
+      <RequestContact requestId={request.id} profileId={request.ownerId} role="poster" revision={`${request.offerRound}:${request.status}`} />
+      {visible.length > 0 && <RatingSummary key={`poster-rating:${request.ownerId}:${ratingsRevision}`} profileId={request.ownerId} requestId={request.id} />}
     </View>}
     {!loading && !error && !visible.length && <Text style={styles.text}>{owner ? 'No offers yet.' : requestId ? 'You have not offered help for this request.' : 'Your offers will appear here, including accepted and closed requests.'}</Text>}
     {requestId && request && !owner && visible.length === 0 && <View style={styles.card}>
@@ -168,6 +169,7 @@ export default function RequestOffers({ request, requestId, ratingsRevision = 0,
         {!open && <Text style={styles.text}>Request {offer.request_status === 'open' ? 'expired' : offer.request_status}.</Text>}
         {owner && <Text style={styles.text}>{[offer.helper_major, offer.helper_year ? `Year ${offer.helper_year}` : null, offer.helper_campus].filter(Boolean).join(' • ')}</Text>}
         {owner && <RatingSummary key={`helper-rating:${offer.offering_user_id}:${ratingsRevision}`} profileId={offer.offering_user_id} requestId={offer.request_id} />}
+        {owner && <RequestContact requestId={offer.request_id} profileId={offer.offering_user_id} role="helper" compact revision={`${offer.request_offer_round}:${offer.request_status}`} />}
         {!!offer.message && <Text style={styles.text}>{offer.message}</Text>}
         <Text style={styles.text}>First offered {new Date(offer.created_at).toLocaleString()}</Text>
         {owner && offer.status === 'pending' && open && currentRound && <>

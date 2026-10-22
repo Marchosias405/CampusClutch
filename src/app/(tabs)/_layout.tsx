@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
 import React from "react";
+import { useUnreadMessages } from "../../context/UnreadMessagesContext";
 
 const COLORS = {
   primary: "#9B1C31",
@@ -10,6 +11,7 @@ const COLORS = {
 };
 
 export default function TabLayout() {
+  const { unreadCount } = useUnreadMessages();
   return (
     <Tabs
       initialRouteName="index"
@@ -62,6 +64,8 @@ export default function TabLayout() {
         name="messages"
         options={{
           title: "Messages",
+          tabBarBadge: unreadCount > 0 ? unreadCount > 99 ? '99+' : unreadCount : undefined,
+          tabBarAccessibilityLabel: unreadCount > 0 ? `Messages, ${unreadCount} unread messages` : 'Messages',
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="chatbubble" size={size ?? 22} color={color} />
           ),
