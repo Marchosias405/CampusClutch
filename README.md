@@ -2,9 +2,9 @@
 
 CampusClutch is an Expo React Native mobile app for university students to connect through courses, classmates, student profiles, campus help requests, direct messages, notifications, and user profiles. Group conversations are deferred to a later release.
 
-Authentication, user profiles, courses, course memberships, classmates, campus requests, offers, points and reliability ratings now use persistent Supabase data. Task 9 local and hosted validation passed, including offers, history, reopening, points transfers, changed-reward confirmation, the three-active-request cap, cancellation/archive and mutual ratings. All ten Task 9 migrations are deployed in hosted Development and Preview; 770 SQL assertions passed in each. The user confirmed all standalone and cancelled-assignment phone tests passed on September 26, including offline refresh/save and the fresh password-reset link. Ratings reveal only after both participants submit. Task 9 is complete and merged through [PR #27](https://github.com/Marchosias405/CampusClutch/pull/27) at `2b3c081`. Task 10 remains open and is ready for standalone phone testing: all six local two-account realtime checks passed on October 22, 2026, and its six migrations are deployed to hosted Development and Preview. Each hosted environment passes 1,066 SQL assertions and 12 realtime smoke groups with existing data preserved and no new advisor warnings. The new standalone Preview APK completed and passes all 11 artifact checks. Group conversations are deferred, with implementation/data retained and app/server access disabled. Standalone phone validation, final review, CI and merge remain pending.
+Authentication, user profiles, courses, course memberships, classmates, campus requests, offers, points and reliability ratings now use persistent Supabase data. Task 9 local and hosted validation passed, including offers, history, reopening, points transfers, changed-reward confirmation, the three-active-request cap, cancellation/archive and mutual ratings. All ten Task 9 migrations are deployed in hosted Development and Preview; 770 SQL assertions passed in each. The user confirmed all standalone and cancelled-assignment phone tests passed on September 26, including offline refresh/save and the fresh password-reset link. Ratings reveal only after both participants submit. Task 9 is complete and merged through [PR #27](https://github.com/Marchosias405/CampusClutch/pull/27) at `2b3c081`. Task 10 implementation and phone validation have passed; final review, CI and merge are tracked in [PR #29](https://github.com/Marchosias405/CampusClutch/pull/29): all six local two-account realtime checks passed on October 22, 2026, and its six migrations are deployed to hosted Development and Preview. Each hosted environment passes 1,066 SQL assertions and 12 realtime smoke groups with existing data preserved and no new advisor warnings. The new standalone Preview APK completed and passes all 11 artifact checks. Group conversations are deferred, with implementation/data retained and app/server access disabled. The user confirmed all six standalone Preview phone tests passed on October 22, 2026. Final review, CI and merge remain.
 
-> **Current status:** Tasks 1–9 are complete and merged. Task 9 merged through [PR #27](https://github.com/Marchosias405/CampusClutch/pull/27) at `2b3c081`, followed by documentation closure in [PR #28](https://github.com/Marchosias405/CampusClutch/pull/28) at `0ae8af1`. Task 10 continues on `codex/persist-messages`. Checkpoint 2 phone tests 1–8 and all six local checkpoint 5 realtime checks pass. Both hosted environments have all 24 migrations through `20261022094831` and each passes 1,066 SQL assertions and 12 realtime smoke groups, with exact fixture cleanup, unchanged existing data and no new advisor warnings. The CLI link is restored to Development. [Preview build `5b43c4c3`](https://expo.dev/accounts/marchosias405/projects/CampusClutch/builds/5b43c4c3-86cf-4d48-bdd6-ef0ab52873b7) completed from app source `01a1c17`, includes the final Task 9 navigation correction and passes all 11 APK checks. It is ready for the [standalone phone checklist](docs/task-10-messages.md#standalone-preview-phone-checklist); manual results remain pending. Groups and creator-made quests remain deferred.
+> **Current status:** Tasks 1–9 are complete and merged. Task 9 merged through [PR #27](https://github.com/Marchosias405/CampusClutch/pull/27) at `2b3c081`, followed by documentation closure in [PR #28](https://github.com/Marchosias405/CampusClutch/pull/28) at `0ae8af1`. Task 10 continues on `codex/persist-messages`. Checkpoint 2 phone tests 1–8 and all six local checkpoint 5 realtime checks pass. Both hosted environments have all 24 migrations through `20261022094831` and each passes 1,066 SQL assertions and 12 realtime smoke groups, with exact fixture cleanup, unchanged existing data and no new advisor warnings. The CLI link is restored to Development. [Preview build `5b43c4c3`](https://expo.dev/accounts/marchosias405/projects/CampusClutch/builds/5b43c4c3-86cf-4d48-bdd6-ef0ab52873b7) completed from app source `01a1c17`, includes the final Task 9 navigation correction and passes all 11 APK checks. The user confirmed all six [standalone phone checks](docs/task-10-messages.md#standalone-preview-phone-checklist) passed on October 22, 2026. Final review and merge are tracked in [PR #29](https://github.com/Marchosias405/CampusClutch/pull/29). Groups and creator-made quests remain deferred.
 
 ---
 
@@ -123,7 +123,7 @@ Task 6 — Complete and merged (PR #22, 870b6a7)
 Task 7 — Complete and merged (PR #24, 13d2202)
 Task 8 — Complete and merged (PR #25, 19f3e61)
 Task 9 — Complete and merged (PR #27, 2b3c081)
-Task 10 — In progress: hosted migrations, SQL, realtime smoke and APK inspection passed; ready for standalone phone testing; groups deferred
+Task 10 — All implementation and phone checks passed; final CI/review/merge in PR #29; groups deferred
 ```
 
 Task 8 completion record:
@@ -202,7 +202,7 @@ Task 10 checkpoint 6 release preparation:
 - All six Task 10 migrations through `20261022094831` are deployed in Development and Preview (24 total). The final migration adds three restrictive policies enforcing receive-only clients on managed Realtime; the local group-deferral/realtime suite now has 72 assertions, bringing the active SQL suite to 1,066.
 - Both hosted environments pass 12 real realtime smoke groups, including private topic authorization, the production app transport, content-free events, unread/history refetch, duplicate-safe sends, denied client broadcast/presence writes and reconnect. Exact disposable fixtures were removed; public-table, Auth-user and Storage-object fingerprints stayed unchanged.
 - Each hosted environment passes all 1,066 SQL assertions and retains only eight baseline advisor warnings, with no new findings. All 21 baseline relation fingerprints (20 public tables plus `storage.objects`) stayed unchanged, and the eight new messaging tables are empty after validation. Each successful smoke preserved all 30 relation fingerprints, including `auth.users`. First-use Realtime partition initialization needed a rerun in both environments; all smoke groups then passed without an application fix. The CLI link is restored to Development.
-- [Standalone Preview build `5b43c4c3`](https://expo.dev/accounts/marchosias405/projects/CampusClutch/builds/5b43c4c3-86cf-4d48-bdd6-ef0ab52873b7) completed from app source `01a1c17` and passes all 11 artifact checks: non-debuggable release, embedded Hermes bundle, only hosted Preview, no development launcher/local backend, and current Task 9/10 calls. The APK is 154,201,698 bytes; SHA-256 `96b4eb4d6190a69a0dcde1170dad9f1959b75c36577d78d4c895003984fe408c`. It is ready for the [standalone phone checklist](docs/task-10-messages.md#standalone-preview-phone-checklist). Stop at that manual gate; Task 10 is not complete or merged.
+- [Standalone Preview build `5b43c4c3`](https://expo.dev/accounts/marchosias405/projects/CampusClutch/builds/5b43c4c3-86cf-4d48-bdd6-ef0ab52873b7) completed from app source `01a1c17` and passes all 11 artifact checks: non-debuggable release, embedded Hermes bundle, only hosted Preview, no development launcher/local backend, and current Task 9/10 calls. The APK is 154,201,698 bytes; SHA-256 `96b4eb4d6190a69a0dcde1170dad9f1959b75c36577d78d4c895003984fe408c`. All six [standalone phone checks](docs/task-10-messages.md#standalone-preview-phone-checklist) passed on October 22, 2026. Final review, CI and merge are tracked in [PR #29](https://github.com/Marchosias405/CampusClutch/pull/29).
 
 ---
 
@@ -213,7 +213,7 @@ CampusClutch has persistent authentication, profiles, courses, memberships, requ
 This means:
 
 - Requests persist in the selected backend environment; local, hosted Development, and hosted Preview accounts/data are separate.
-- Current source enables persistent direct messaging and realtime refresh, with retained drafts and duplicate-safe retries. Local phone checks, both hosted realtime smoke runs and the new standalone APK inspection pass. Groups are deferred and disabled. The new APK is ready for its manual phone gate; the previously phone-tested APK remains on earlier source.
+- Current source enables persistent direct messaging and realtime refresh, with retained drafts and duplicate-safe retries. Local phone checks, both hosted realtime smoke runs and the new standalone APK inspection pass. Groups are deferred and disabled. The new APK passed all six standalone phone checks on October 22, 2026.
 - Task 9 local, hosted Development/Preview and standalone phone validation passed, including real points, reward-change confirmation, active limits, completed/cancelled mutual ratings and offline recovery. Fresh-link password reset also passed.
 - Every existing and new account in each configured backend receives 100 welcome points once. Accepting reserves the poster's available points; reopening releases them; only poster-confirmed completion transfers them to the helper. Old acceptances without a reservation must be reopened and accepted again with fresh helper consent.
 - Mutual ratings cover completed paid work and cancelled accepted assignments in the current source. Only the poster and accepted helper for that assignment can each submit one immutable 1–5-star rating; scores and profile averages reveal the pair only after both rate, with no automatic publication deadline. When the accepted helper cancels, points release without payment and the request reopens for fresh offers unless its deadline has passed. Creator-made quests for earning extra points remain later work. No quest or arbitrary client points-grant action is implemented.
@@ -221,7 +221,7 @@ This means:
 - Classmates load from real course membership with backend visibility rules.
 - Legacy classmate profile IDs such as `aisha-r`, `jordan-t`, and `mei-l` remain explicitly supported by the student-profile screen.
 - Real Supabase UUID student profiles can load persisted backend profile data.
-- Real UUID profiles can start direct chats in current source. Sample profiles cannot create real chats. Direct messaging/realtime is deployed to both hosted environments; standalone Preview phone validation remains pending. Groups are deferred and disabled.
+- Real UUID profiles can start direct chats in current source. Sample profiles cannot create real chats. Direct messaging/realtime is deployed to both hosted environments; all six standalone Preview phone checks passed. Groups are deferred and disabled.
 - Signed-in user identity loads from hosted Supabase.
 - Profile onboarding and profile editing persist.
 - Profile discoverability is persisted and enforced by RLS.
@@ -649,7 +649,7 @@ Courses
 
 Current messaging integration:
 
-- Real profiles open persistent direct conversations in Task 10's current source; local phone testing and both hosted realtime smoke runs pass. The standalone Preview phone gate remains pending. Groups are deferred.
+- Real profiles open persistent direct conversations in Task 10's current source; local phone testing and both hosted realtime smoke runs pass. All six standalone Preview phone checks passed. Groups are deferred.
 - Legacy mock profiles remain display-only compatibility paths and do not supply the current classmates list or real chats.
 
 ---
@@ -715,7 +715,7 @@ Behavior:
 - Message opens the authorized persistent direct conversation for the signed-in user and target profile.
 - Self profiles omit the action. Loading, unavailable profiles, account changes and background navigation cannot open a stale chat.
 
-Task 10's current source enables direct messaging and its local phone validation passes. All six realtime checks passed on October 22. Both hosted environments now contain the Task 10 migrations and pass realtime smoke checks; standalone Preview validation remains pending. Groups are deferred.
+Task 10's current source enables direct messaging and its local phone validation passes. All six realtime checks passed on October 22. Both hosted environments now contain the Task 10 migrations and pass realtime smoke checks; all six standalone Preview phone checks passed. Groups are deferred.
 
 Manual Android validation completed:
 
@@ -1174,7 +1174,7 @@ Task 10 checkpoint 2 replaces the sample conversation flow in current source:
 - Read state advances for observed incoming messages while the thread is focused and the app is active.
 - Keyboard avoidance, safe insets, multiline input and stable older-history loading are retained for Android validation.
 
-All amended local tests 1–8 pass, including the badge and request/classmate contact fixes, durable retry, account isolation, history pagination, long-message layout and the newest-message scroll correction. Checkpoint 5 adds automatic direct-message updates with reconnect catch-up and fallback refresh. All six local realtime checks passed on October 22, and both hosted realtime smoke runs now pass. The new standalone Preview APK is built, inspected and ready for its manual phone gate. Groups are deferred. See [the completed local phone checklist](docs/task-10-messages.md#checkpoint-2-phone-checklist) and [standalone Preview checklist](docs/task-10-messages.md#standalone-preview-phone-checklist).
+All amended local tests 1–8 pass, including the badge and request/classmate contact fixes, durable retry, account isolation, history pagination, long-message layout and the newest-message scroll correction. Checkpoint 5 adds automatic direct-message updates with reconnect catch-up and fallback refresh. All six local realtime checks passed on October 22, and both hosted realtime smoke runs now pass. The new standalone Preview APK is built, inspected and passed all six phone checks on October 22. Groups are deferred. See [the completed local phone checklist](docs/task-10-messages.md#checkpoint-2-phone-checklist) and [standalone Preview checklist](docs/task-10-messages.md#standalone-preview-phone-checklist).
 
 ---
 
@@ -1370,7 +1370,7 @@ Task 6 Android testing includes:
 
 ## Current Android Testing Setup
 
-The latest phone-tested [Task 9 Preview APK, build `016bd2fd`](https://expo.dev/accounts/marchosias405/projects/CampusClutch/builds/016bd2fd-943b-4d6f-a69a-cde8eb90f935), contains its JavaScript bundle and uses hosted Preview. It launches without Metro, USB, or open laptop terminals. It still needs internet access for backend operations. Local accounts/requests are separate from hosted Preview accounts/requests. New [Task 10 Preview build `5b43c4c3`](https://expo.dev/accounts/marchosias405/projects/CampusClutch/builds/5b43c4c3-86cf-4d48-bdd6-ef0ab52873b7) includes the final offer-action navigation correction and direct realtime messaging; it is built and inspected, with [standalone phone testing](docs/task-10-messages.md#standalone-preview-phone-checklist) pending.
+The latest phone-tested [Task 9 Preview APK, build `016bd2fd`](https://expo.dev/accounts/marchosias405/projects/CampusClutch/builds/016bd2fd-943b-4d6f-a69a-cde8eb90f935), contains its JavaScript bundle and uses hosted Preview. It launches without Metro, USB, or open laptop terminals. It still needs internet access for backend operations. Local accounts/requests are separate from hosted Preview accounts/requests. New [Task 10 Preview build `5b43c4c3`](https://expo.dev/accounts/marchosias405/projects/CampusClutch/builds/5b43c4c3-86cf-4d48-bdd6-ef0ab52873b7) includes the final offer-action navigation correction and direct realtime messaging; it is built, inspected and passed all six [standalone phone checks](docs/task-10-messages.md#standalone-preview-phone-checklist) on October 22.
 
 The development-client APK displays a development-server launcher and requires Metro. With the existing local backend configuration, connect the phone by USB and use:
 
@@ -1809,7 +1809,7 @@ Completion condition:
 
 # Task 10 — Persist Conversations and Messages
 
-**Status: In progress — local phone gates, both hosted deployments/SQL/realtime validations and APK inspection passed; ready for standalone phone testing.** Branch `codex/persist-messages` began from `main` at `0ae8af1`, after Task 9 and its documentation merged. By October 9, the user confirmed all amended direct-message tests 1–8 pass; all six local realtime checks passed October 22, 2026. Checkpoints 3–4 implemented groups locally; on October 22 the user deferred that feature. Group source and data remain, but group UI and server access are disabled. The current release focuses on persistent direct messages with private realtime refresh.
+**Status: All implementation and phone checks passed — final review, CI and merge are tracked in [PR #29](https://github.com/Marchosias405/CampusClutch/pull/29).** Branch `codex/persist-messages` began from `main` at `0ae8af1`, after Task 9 and its documentation merged. By October 9, the user confirmed all amended direct-message tests 1–8 pass; all six local realtime checks passed October 22, 2026. Checkpoints 3–4 implemented groups locally; on October 22 the user deferred that feature. Group source and data remain, but group UI and server access are disabled. The current release focuses on persistent direct messages with private realtime refresh.
 
 Checkpoint 1 completed:
 
@@ -1842,7 +1842,7 @@ Checkpoint 3 backend/API implemented:
 - Local validation passes 1,182 SQL assertions, 42 live API checks, 18 concurrency cases, 38 client contract groups and the unchanged 104 UI groups.
 - The migration replays from a clean shadow database, database lint is clean, temporary fixtures are removed and independent review found no blocker.
 
-Group implementation is retained but disabled for this release. All six Task 10 migrations are deployed to hosted Development/Preview; SQL, realtime smoke, preservation and advisor checks pass in both. Build `5b43c4c3` from source `01a1c17` completed and passes APK inspection; older phone-tested `016bd2fd` predates Task 10. Standalone phone testing, final review, CI and merge remain open. Full contract and release evidence: [Task 10 checkpoint](docs/task-10-messages.md).
+Group implementation is retained but disabled for this release. All six Task 10 migrations are deployed to hosted Development/Preview; SQL, realtime smoke, preservation and advisor checks pass in both. Build `5b43c4c3` from source `01a1c17` completed and passes APK inspection; older phone-tested `016bd2fd` predates Task 10. Standalone phone testing passed on October 22; final review, CI and merge remain open in [PR #29](https://github.com/Marchosias405/CampusClutch/pull/29). Full contract and release evidence: [Task 10 checkpoint](docs/task-10-messages.md).
 
 Requirements:
 
@@ -2013,7 +2013,7 @@ Possible work:
 - GitHub Actions CI: Active
 - Protected `main`: Active
 - EAS project: Linked
-- Android preview APK: Task 9 built/tested; Task 10 build `5b43c4c3` built/inspected and ready for its pending phone gate
+- Android preview APK: Task 9 built/tested; Task 10 build `5b43c4c3` built, inspected and all six phone checks passed
 - Android development client: Built and tested
 - Backend decision: Supabase
 - Backend architecture: Approved and documented
@@ -2030,7 +2030,7 @@ Possible work:
 - Courses/Classmates persistence: Task 7 complete, PR #24 (`13d2202`)
 - Requests persistence: Task 8 complete, PR #25 (`19f3e61`)
 - Offers, points and mutual reliability ratings: Task 9 complete, PR #27 (`2b3c081`)
-- Messaging persistence: Task 10 local phone gates and both hosted realtime smoke runs passed; groups deferred; standalone Preview phone validation pending
+- Messaging persistence: Task 10 local phone gates and both hosted realtime smoke runs passed; groups deferred; all six standalone Preview phone checks passed
 - Production Android build: Not started
 - Production iOS build: Not started
 - Google Play submission: Not started
@@ -2045,7 +2045,7 @@ No secrets, private keys, database passwords, store credentials, or real environ
 CampusClutch still needs:
 
 - Creator-managed quests and controlled points rewards
-- Standalone Preview phone validation
+- Task 10 final review, CI and merge
 - Group conversations deferred to a later release
 - Real notifications
 - Broader component/end-to-end tests and backend test execution in CI
@@ -2064,9 +2064,6 @@ CampusClutch still needs:
 
 # Next Action
 
-Start the **Task 10 standalone Preview phone checklist** on `codex/persist-messages`. All six local realtime checks, both hosted validations and all 11 APK inspection checks pass. Group conversations are deferred and disabled; their historical phone checklist is not a release gate. Task 9 remains complete and merged; Task 10 remains open at the manual phone-test gate.
+Finish **Task 10 final review, required GitHub CI and merge** through [PR #29](https://github.com/Marchosias405/CampusClutch/pull/29). The user confirmed all six standalone Preview phone checks passed on October 22, 2026, following the completed local and hosted checks. No additional APK or phone gate is needed for documentation-only closure.
 
-1. Install [Preview build `5b43c4c3`](https://expo.dev/accounts/marchosias405/projects/CampusClutch/builds/5b43c4c3-86cf-4d48-bdd6-ef0ab52873b7) and run the [standalone phone checklist](docs/task-10-messages.md#standalone-preview-phone-checklist) with two hosted Preview accounts, without a Metro connection or USB on the Android APK. Record the user's results.
-2. After the manual gate, complete final review, CI, merge and documentation closure before beginning Task 11 notifications.
-
-Creator-made quests and group conversations remain later work. Preview `016bd2fd` is still the last phone-tested standalone APK; new build `5b43c4c3` is not phone-validated yet. Automated checks and build completion do not replace that manual gate.
+After Task 10 merges, the next planned stage is **Task 11 — Notifications**. Group conversations and creator-made quests remain deferred. Preview `5b43c4c3`, app source `01a1c17`, is the latest phone-tested standalone APK.

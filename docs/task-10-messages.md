@@ -1,6 +1,6 @@
 # Task 10 — Conversations and Messages
 
-**Current status (October 22, 2026):** Task 10 is ready for standalone phone testing and remains open on `codex/persist-messages`. Checkpoint 2 phone tests 1–8 and all six local checkpoint 5 realtime checks passed. All six Task 10 migrations through `20261022094831` are deployed to hosted Development and Preview (24 migrations total). Each environment passes all 1,066 SQL assertions and 12 hosted realtime smoke groups, with exact fixture cleanup, unchanged existing data and no new advisor warnings. The CLI link is restored to Development. Standalone [Preview build `5b43c4c3`](https://expo.dev/accounts/marchosias405/projects/CampusClutch/builds/5b43c4c3-86cf-4d48-bdd6-ef0ab52873b7) completed from app source `01a1c17` and its downloaded APK passes all 11 artifact checks. The phone checklist below remains pending. Groups are deferred: their implementation/data are retained, but navigation and server access are disabled. Group phone testing is not a release gate. Task 10 is not complete or merged.
+**Current status (October 22, 2026):** Task 10 implementation and validation have passed on `codex/persist-messages`; final review, CI and merge are tracked in [PR #29](https://github.com/Marchosias405/CampusClutch/pull/29). Checkpoint 2 phone tests 1–8 and all six local checkpoint 5 realtime checks passed. All six Task 10 migrations through `20261022094831` are deployed to hosted Development and Preview (24 migrations total). Each environment passes all 1,066 SQL assertions and 12 hosted realtime smoke groups, with exact fixture cleanup, unchanged existing data and no new advisor warnings. The CLI link is restored to Development. Standalone [Preview build `5b43c4c3`](https://expo.dev/accounts/marchosias405/projects/CampusClutch/builds/5b43c4c3-86cf-4d48-bdd6-ef0ab52873b7) completed from app source `01a1c17` and its downloaded APK passes all 11 artifact checks. The user confirmed all six standalone phone checks below passed on October 22, 2026. Groups are deferred: their implementation/data are retained, but navigation and server access are disabled. Group phone testing is not a release gate. The merge record is tracked in [PR #29](https://github.com/Marchosias405/CampusClutch/pull/29).
 
 ## Checkpoint 1: direct-messaging foundation
 
@@ -400,7 +400,7 @@ The build includes the final Task 9 navigation correction and current Task 10 di
 
 ### Standalone Preview phone checklist
 
-**Ready to test; manual results pending.** Hosted Preview validation, build completion and APK inspection have passed. Install [Preview build `5b43c4c3`](https://expo.dev/accounts/marchosias405/projects/CampusClutch/builds/5b43c4c3-86cf-4d48-bdd6-ef0ab52873b7). Use two simultaneously signed-in **hosted Preview accounts**, A and B, on two devices or a laptop browser connected to the same Preview backend. Local accounts/data are separate. The Android APK must run from its launcher with USB disconnected and without a Metro connection. Use a third Preview account C for the isolation check.
+**Passed — October 22, 2026: the user confirmed all six standalone Preview phone tests passed.** Retain these steps for regression testing. Hosted Preview validation, build completion and APK inspection have passed. Install [Preview build `5b43c4c3`](https://expo.dev/accounts/marchosias405/projects/CampusClutch/builds/5b43c4c3-86cf-4d48-bdd6-ef0ab52873b7). Use two simultaneously signed-in **hosted Preview accounts**, A and B, on two devices or a laptop browser connected to the same Preview backend. Local accounts/data are separate. The Android APK must run from its launcher with USB disconnected and without a Metro connection. Use a third Preview account C for the isolation check.
 
 For a laptop second account, run the following from a **Node 24** terminal with system CA support, then open `http://localhost:8082` and sign in with B's hosted Preview credentials:
 
@@ -419,12 +419,12 @@ The EAS Preview environment takes precedence over `.env.local` for this child pr
 5. **Offline, reconnect and background:** Turn off the receiving phone's Wi-Fi/mobile data, send from the other account, then reconnect. Missed history should appear without duplicates or draft loss. Try an offline send, restore the network and check saved history before retrying; retry must preserve one message. Separately background B, send from A and reopen B. Allow up to 30 seconds for fallback refresh while the socket reconnects.
 6. **Account isolation:** Sign B out and sign in as C. Send another A-to-B message from A. B's conversation, draft and unread badge must not appear for C. Sign back into B and confirm its own history and missed messages return.
 
-Stop at this manual phone gate. A successful build or automated hosted smoke does not close it; record the user's results before final review, CI and merge.
+The user's confirmation closes this manual gate for Preview build `5b43c4c3`, app source `01a1c17`. Final local lint/typecheck, seven auth runtime checks, nine offer lifecycle checks, 40 messaging client checks, 177 messaging UI/controller checks and 17 realtime checks also passed on October 22. The final review covers message persistence, permissions, account isolation, durable retries, realtime and deferred group access; no merge-blocking finding was identified. Required GitHub CI and merge are tracked in [PR #29](https://github.com/Marchosias405/CampusClutch/pull/29).
 
 ## Remaining integration and release work
 
-1. Complete the standalone Preview phone checklist above and record the user's results.
-2. After that gate, complete final review, CI, merge and documentation closure before beginning Task 11 notifications.
+1. Complete required GitHub CI and merge [PR #29](https://github.com/Marchosias405/CampusClutch/pull/29); all local, hosted and standalone phone gates have passed.
+2. Record the merge and begin Task 11 notifications only after Task 10 closure.
 
 Group conversations and creator-made quests are deferred product work. Their retained code does not mean they are released or phone-validated.
 
