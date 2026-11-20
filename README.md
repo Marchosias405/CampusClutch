@@ -15,7 +15,7 @@ git clone -c http.sslBackend=schannel --depth 1 --single-branch --branch codex/f
 **🔄 Already cloned?** Open either terminal **inside the cloned folder** and paste both lines to update and launch. To just reopen the app, paste the last line.
 
 ```bat
-git pull --ff-only
+git -c http.sslBackend=schannel pull --ff-only
 .\Run-on-Windows.cmd
 ```
 

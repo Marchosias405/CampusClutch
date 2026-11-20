@@ -84,6 +84,17 @@ function Find-RunningDevice($name) {
     }
 }
 
+function Open-Preview($target) {
+    Write-Host 'Installing CampusClutch...'
+    & $adb -s $target install -r $apk
+    if ($LASTEXITCODE -ne 0) { throw 'APK installation failed. See the Android error above.' }
+    & $adb -s $target shell input keyevent KEYCODE_WAKEUP
+    & $adb -s $target shell wm dismiss-keyguard
+    & $adb -s $target shell am start -W -n "$package/.MainActivity"
+    if ($LASTEXITCODE -ne 0) { throw 'Android could not open CampusClutch.' }
+    Write-Host 'CampusClutch is ready to test.'
+}
+
 try {
     if (-not (Test-Path -LiteralPath $apk)) { throw 'CampusClutch-Preview.apk is missing. Run git pull in the cloned folder.' }
     $roots = @($env:ANDROID_HOME, $env:ANDROID_SDK_ROOT, (Join-Path $env:LOCALAPPDATA 'Android\Sdk'), (Join-Path $cache 'sdk'))
@@ -92,6 +103,18 @@ try {
     $env:ANDROID_HOME = $env:ANDROID_SDK_ROOT = $sdk
     $adb = Join-Path $sdk 'platform-tools\adb.exe'
     $emulator = Join-Path $sdk 'emulator\emulator.exe'
+    if (-not (Test-Path -LiteralPath $emulator)) {
+        # A tester may already have an emulator running with only adb on PATH.
+        $available = if (Test-Path -LiteralPath $adb) { $adb } else { (Get-Command adb.exe -ErrorAction SilentlyContinue).Source }
+        if ($available) {
+            $active = @(& $available devices | ForEach-Object { if ($_ -match '^(emulator-\d+)\s+device\s*$') { $Matches[1] } })
+            if ($active.Count -eq 1 -and ((& $available -s $active[0] shell getprop sys.boot_completed) -join '').Trim() -eq '1') {
+                $adb = $available
+                Open-Preview $active[0]
+                return
+            }
+        }
+    }
     $names = @(Get-DeviceNames)
     if (-not $names.Count -or -not (Test-Path -LiteralPath $adb)) {
         if ($env:PROCESSOR_ARCHITECTURE -ne 'AMD64' -and $env:PROCESSOR_ARCHITEW6432 -ne 'AMD64') {
@@ -149,12 +172,7 @@ try {
         }
         Start-Sleep -Seconds 2
     } while ($true)
-    Write-Host 'Installing CampusClutch...'
-    & $adb -s $serial install -r $apk
-    if ($LASTEXITCODE -ne 0) { throw 'APK installation failed. See the Android error above.' }
-    & $adb -s $serial shell am start -W -n "$package/.MainActivity"
-    if ($LASTEXITCODE -ne 0) { throw 'Android could not open CampusClutch.' }
-    Write-Host 'CampusClutch is ready to test.'
+    Open-Preview $serial
 } catch {
     [Console]::Error.WriteLine($_.Exception.Message)
     exit 1
