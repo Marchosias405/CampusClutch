@@ -1,0 +1,114 @@
+export type Student = {
+  id: string;
+  name: string;
+  major: string;
+  year: string;
+  campus: string;
+  avatar: string;
+  sharedInterests: string[];
+  matchLabel?: string;
+  sharedCourseNote?: string;
+  activityNote?: string;
+  isRecentlyActive?: boolean;
+};
+
+export type RequestCategory =
+  | "ALL"
+  | "DELIVERY"
+  | "EVENT HELP"
+  | "PICKUP"
+  | "STUDY HELP";
+
+export type RequestItemSize = "Small" | "Medium" | "Large";
+
+export type RequestStatus =
+  | "open"
+  | "offered"
+  | "accepted"
+  | "cancelled"
+  | "expired"
+  | "completed";
+
+export type CampusRequest = {
+  id: string;
+  ownerId?: string;
+  offerRound?: number;
+  ownerArchivedAt?: string | null;
+  campusId?: string;
+  deadlineAt?: string;
+  category: Exclude<RequestCategory, "ALL">;
+  secondaryCategory?: string;
+
+  title: string;
+  description: string;
+
+  location: string;
+  timeLabel: string;
+  points: number;
+
+  campus?: string;
+  roomLocation?: string;
+
+  pickupLocation?: string;
+  dropoffLocation?: string;
+
+  eventName?: string;
+  eventTask?: string;
+
+  courseOrSubject?: string;
+  studyTopic?: string;
+
+  itemSize?: RequestItemSize;
+  status?: RequestStatus;
+  createdAt?: string;
+
+  isUrgent?: boolean;
+};
+
+export type {
+  Campus,
+  Interest,
+  Profile,
+  ProfileSocialLink,
+  ProfileSocialLinks,
+  ProfileSocialLinksInput,
+  ProfileUpdateInput,
+  SocialPlatform
+} from "./profile";
+
+export type {
+  AcademicTerm,
+  AcademicTermSeason,
+  AcademicTermStatus,
+  CourseCatalogItem,
+  CourseCatalogStatus,
+  CourseClassmate,
+  CourseJoinResult,
+  CourseLeaveResult,
+  CourseMembershipStatus,
+  MyCourse
+} from "./course";
+
+export type {
+  ConversationCursor,
+  ConversationMessage,
+  ConversationPage,
+  ConversationStatus,
+  ConversationSummary,
+  DirectConversationSummary,
+  GroupConversationSummary,
+  GroupInvitationCursor,
+  GroupInvitationPage,
+  GroupInvitationStatus,
+  GroupInvitationSummary,
+  GroupManagementRevision,
+  GroupManagementMemberSummary,
+  GroupManagementSnapshot,
+  GroupMemberRole,
+  GroupMembershipStatus,
+  GroupMemberSummary,
+  GroupPendingInvitation,
+  MessagePage,
+  MessageSequence,
+  SendMessageInput,
+} from "./messaging";

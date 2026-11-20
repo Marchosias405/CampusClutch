@@ -1,0 +1,341 @@
+import { LegalDocumentsProvider } from "@/context/LegalDocumentsProvider";
+import { LoadingState } from "@/components/LoadingState";
+import { DefaultTheme, ThemeProvider } from "@react-navigation/native";
+import { Stack } from "expo-router";
+import { StatusBar } from "expo-status-bar";
+import { useState } from "react";
+import {
+  ActivityIndicator,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
+import "react-native-reanimated";
+import { SafeAreaProvider } from "react-native-safe-area-context";
+
+import { AuthProvider, useAuth } from "@/context/AuthContext";
+import { ProfileProvider, useProfile } from "@/context/ProfileContext";
+import { RequestsProvider } from "@/context/RequestsContext";
+import { NotificationsProvider } from "@/context/NotificationsContext";
+import { UnreadMessagesProvider } from "@/context/UnreadMessagesContext";
+import { useAndroidPush } from "@/lib/useAndroidPush";
+import { GROUP_MESSAGING_ENABLED } from "@/lib/messagingFeatures";
+import { AccountDeletionProvider } from "@/context/AccountDeletionProvider";
+import AccountStandingGate from "@/components/AccountStandingGate";
+
+export default function RootLayout() {
+  return (
+    <SafeAreaProvider>
+      <ThemeProvider value={DefaultTheme}>
+        <LegalDocumentsProvider>
+        <AuthProvider>
+          <AccountDeletionProvider><AccountStandingGate>
+          <ProfileProvider>
+            <RequestsProvider>
+              <UnreadMessagesProvider><NotificationsProvider><RootNavigator /></NotificationsProvider></UnreadMessagesProvider>
+            </RequestsProvider>
+          </ProfileProvider>
+          </AccountStandingGate></AccountDeletionProvider>
+        </AuthProvider>
+        </LegalDocumentsProvider>
+      </ThemeProvider>
+    </SafeAreaProvider>
+  );
+}
+
+function RootNavigator() {
+  const {
+    session,
+    isRestoringSession,
+    restorationError,
+    retrySessionRestore,
+    isPasswordRecovery,
+    signOut,
+  } = useAuth();
+
+  const {
+    profile,
+    isLoadingProfile,
+    profileError,
+    isProfileComplete,
+    refreshProfile,
+  } = useProfile();
+
+  useAndroidPush(!isRestoringSession && !isPasswordRecovery && isProfileComplete && session?.user.id === profile?.id ? profile?.id : undefined);
+
+  const [isSigningOut, setIsSigningOut] = useState(false);
+  const [signOutError, setSignOutError] = useState<string | null>(null);
+
+  const shouldLoadProfile =
+    Boolean(session) && !isPasswordRecovery;
+
+  const handleMissingProfileSignOut = async () => {
+    setIsSigningOut(true);
+    setSignOutError(null);
+
+    try {
+      const error = await signOut();
+      if (error) throw error;
+    } catch {
+      setSignOutError(
+        "Unable to sign out. Please try again."
+      );
+    } finally {
+      setIsSigningOut(false);
+    }
+  };
+
+  if (
+    isRestoringSession ||
+    (shouldLoadProfile && isLoadingProfile)
+  ) {
+    return (
+      <View style={styles.loadingScreen}>
+        <StatusBar style="dark" />
+
+        <LoadingState
+          title={isRestoringSession ? "Opening CampusClutch" : "Loading your profile"}
+          detail={isRestoringSession ? "Restoring your session" : undefined}
+        />
+      </View>
+    );
+  }
+
+  if (restorationError || (shouldLoadProfile && profileError)) {
+    return (
+      <View style={styles.loadingScreen}>
+        <StatusBar style="dark" />
+
+        <Text style={styles.stateTitle}>
+          {restorationError ? "Unable to restore your session" : "Unable to load your profile"}
+        </Text>
+
+        <Text style={styles.stateMessage}>
+          Check your connection and try again.
+        </Text>
+
+        <Pressable
+          style={styles.retryButton}
+          onPress={() => {
+            if (restorationError) void retrySessionRestore();
+            else void refreshProfile();
+          }}
+        >
+          <Text style={styles.retryButtonText}>
+            Retry
+          </Text>
+        </Pressable>
+      </View>
+    );
+  }
+
+  if (
+    shouldLoadProfile &&
+    !isLoadingProfile &&
+    !profile
+  ) {
+    return (
+      <View style={styles.loadingScreen}>
+        <StatusBar style="dark" />
+
+        <Text style={styles.stateTitle}>
+          Profile unavailable
+        </Text>
+
+        <Text style={styles.stateMessage}>
+          Your account is signed in, but its CampusClutch profile could not be
+          found.
+        </Text>
+
+        <Pressable
+          style={styles.retryButton}
+          onPress={() => {
+            void refreshProfile();
+          }}
+          disabled={isSigningOut}
+        >
+          <Text style={styles.retryButtonText}>
+            Retry
+          </Text>
+        </Pressable>
+
+        <Pressable
+          style={[
+            styles.signOutButton,
+            isSigningOut && styles.buttonDisabled,
+          ]}
+          onPress={() => {
+            void handleMissingProfileSignOut();
+          }}
+          disabled={isSigningOut}
+        >
+          {isSigningOut ? (
+            <ActivityIndicator color="#9B1C31" />
+          ) : (
+            <Text style={styles.signOutButtonText}>
+              Sign Out
+            </Text>
+          )}
+        </Pressable>
+
+        {signOutError ? (
+          <Text style={styles.signOutError}>
+            {signOutError}
+          </Text>
+        ) : null}
+      </View>
+    );
+  }
+
+  return (
+    <>
+      <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Protected
+          guard={
+            Boolean(session) &&
+            !isPasswordRecovery &&
+            isProfileComplete
+          }
+        >
+          <Stack.Screen name="(tabs)" />
+          <Stack.Screen name="courses/add" />
+          <Stack.Screen name="courses/classmates" />
+          <Stack.Screen name="courses/reviews" />
+          <Stack.Screen name="requests/create" />
+          <Stack.Screen name="requests/[id]" />
+          <Stack.Screen name="requests/offers" />
+          <Stack.Screen name="students/[id]" />
+          <Stack.Screen name="safety/report" />
+          <Stack.Screen name="moderation/index" />
+          <Stack.Screen name="moderation/[id]" />
+          <Stack.Screen name="moderation/appeals" />
+          <Stack.Screen name="moderation/direct" />
+          <Stack.Screen name="notifications" />
+          <Stack.Screen name="notification-preferences" />
+          <Stack.Screen name="messages/[id]" />
+          <Stack.Protected guard={GROUP_MESSAGING_ENABLED}>
+            <Stack.Screen name="messages/groups/create" />
+            <Stack.Screen name="messages/groups/invitations" />
+            <Stack.Screen name="messages/groups/history" />
+            <Stack.Screen name="messages/groups/[id]" />
+            <Stack.Screen name="messages/groups/invite/[id]" />
+          </Stack.Protected>
+          <Stack.Screen name="profile/settings" />
+          <Stack.Screen name="profile/blocked" />
+          <Stack.Screen name="profile/appeals" />
+        </Stack.Protected>
+
+        <Stack.Protected
+          guard={
+            Boolean(session) &&
+            !isPasswordRecovery &&
+            Boolean(profile) &&
+            !isProfileComplete
+          }
+        >
+          <Stack.Screen name="profile/onboarding" />
+        </Stack.Protected>
+
+        <Stack.Protected guard={!session}>
+          <Stack.Screen name="(auth)/sign-in" />
+          <Stack.Screen name="(auth)/sign-up" />
+          <Stack.Screen name="(auth)/forgot-password" />
+          <Stack.Screen name="auth/callback" />
+        </Stack.Protected>
+
+        <Stack.Screen name="auth/reset-password" />
+      </Stack>
+
+      <StatusBar
+        style={
+          session && isProfileComplete
+            ? "light"
+            : "dark"
+        }
+      />
+    </>
+  );
+}
+
+const styles = StyleSheet.create({
+  loadingScreen: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 14,
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: 24,
+  },
+
+  loadingText: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#8C8585",
+    textAlign: "center",
+  },
+
+  stateTitle: {
+    fontSize: 22,
+    fontWeight: "900",
+    color: "#2B2525",
+    textAlign: "center",
+  },
+
+  stateMessage: {
+    maxWidth: 320,
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: "600",
+    color: "#8C8585",
+    textAlign: "center",
+  },
+
+  retryButton: {
+    minWidth: 120,
+    minHeight: 46,
+    marginTop: 4,
+    paddingHorizontal: 18,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#9B1C31",
+  },
+
+  retryButtonText: {
+    fontSize: 15,
+    fontWeight: "900",
+    color: "#FFFFFF",
+  },
+
+  signOutButton: {
+    minWidth: 120,
+    minHeight: 46,
+    paddingHorizontal: 18,
+    borderWidth: 1,
+    borderColor: "#9B1C31",
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#FFFFFF",
+  },
+
+  signOutButtonText: {
+    fontSize: 15,
+    fontWeight: "900",
+    color: "#9B1C31",
+  },
+
+  buttonDisabled: {
+    opacity: 0.6,
+  },
+
+  signOutError: {
+    maxWidth: 320,
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: "700",
+    color: "#9B1C31",
+    textAlign: "center",
+  },
+});
