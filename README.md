@@ -1,15 +1,22 @@
-# 🎓 Try CampusClutch
+# 🎓 Test CampusClutch
 
-Explore courses, meet classmates and trade help with other students. This Android Preview includes the November 18 update with the new Privacy Policy and Terms pages.
+**🚀 First run on Windows** — Open PowerShell or Command Prompt in the folder where you want the clone. Paste both lines together.
 
-- 📥 **Clone the testing branch** with Git.
+```bat
+git clone -c http.sslBackend=schannel --depth 1 --single-branch --branch codex/friend-preview https://github.com/Marchosias405/CampusClutch.git CampusClutch-test
+.\CampusClutch-test\Run-on-Windows.cmd
+```
 
-  ```sh
-  git clone --depth 1 --single-branch --branch codex/friend-preview https://github.com/Marchosias405/CampusClutch.git CampusClutch-test
-  ```
+- 💻 Use an Intel or AMD 64-bit Windows PC with [Git for Windows](https://git-scm.com/downloads/win) installed and [hardware virtualization enabled](https://developer.android.com/studio/run/emulator-acceleration).
+- 📱 Leave the terminal open. The launcher starts a virtual phone, installs the app and opens CampusClutch. On first setup, allow several GB for Android downloads and review the license prompts. If asked, choose your virtual phone by number.
+- 👋 Sign in with your Preview tester account. Ask Kazi for one if you need it.
+- 💬 Send Kazi the screen name, what you tapped, what you expected and what happened. A screenshot helps!
 
-- 📱 **Start a virtual phone.** In [Android Studio](https://developer.android.com/studio), open **Device Manager**. First time? Choose **Create Virtual Device**, pick a Pixel and an **Android 15 (API 35) Google Play** image for your computer. Press ▶ and wait for the Android home screen. [Virtual device guide](https://developer.android.com/studio/run/managing-avds)
-- 🚀 **Open the app.** From the cloned folder on Windows, double-click **Run-on-Windows.cmd** with one emulator running. On any platform, you can also drag **CampusClutch-Preview.apk** onto the virtual phone, then open **CampusClutch** from its apps list. [Drag-to-install guide](https://developer.android.com/studio/run/emulator-install-add-files)
-- 👋 **Try a student account.** Connect the emulator to the internet and sign in with your own Preview account. If you need a login, ask Kazi for a separate tester account. Explore course reviews, post a test request or exchange a message with another tester.
-- 💬 **Send Kazi feedback.** Include the screen, what you tapped, what you expected and what happened. A screenshot helps.
-- 🔄 **Get an update.** Run `git pull` inside the cloned folder and repeat the install step. Installing over the previous Preview keeps your sign-in.
+**🔄 Already cloned?** Open either terminal **inside the cloned folder** and paste both lines to update and launch. To just reopen the app, paste the last line.
+
+```bat
+git pull --ff-only
+.\Run-on-Windows.cmd
+```
+
+**🍎 Mac or Linux** — Start a virtual phone in Android Studio, drag `CampusClutch-Preview.apk` onto it and open CampusClutch from the apps list. [Android emulator guide](https://developer.android.com/studio/run/emulator-install-add-files)
