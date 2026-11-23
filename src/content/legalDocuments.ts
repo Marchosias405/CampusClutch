@@ -1,5 +1,5 @@
 export type LegalDocumentId = 'privacy' | 'terms';
-export type LegalSection = { title: string; paragraphs: readonly string[] };
+export type LegalSection = { title: string; paragraphs: readonly string[]; showPrivacyContact?: boolean };
 export type LegalDocument = {
   title: string;
   introduction: string;
@@ -7,9 +7,14 @@ export type LegalDocument = {
 };
 
 // Review versions, not effective dates or records of acceptance.
-export const LEGAL_DRAFT_VERSION = '2026-11-18';
-export const LEGAL_DRAFT_DATE = 'November 18, 2026';
-export const LEGAL_DRAFT_NOTICE = 'For testing. Operator, contact and final retention details are still being confirmed before launch.';
+export const LEGAL_DRAFT_VERSION = '2026-11-23';
+export const LEGAL_DRAFT_DATE = 'November 23, 2026';
+export const LEGAL_DRAFT_NOTICE = 'For testing. Operator and final retention details are still being confirmed before launch.';
+
+const mailbox = process.env.EXPO_PUBLIC_PRIVACY_EMAIL?.trim();
+// Accept a single public recipient. A missing or malformed build setting leaves the contact unpublished.
+const mailboxPattern = /^[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*@(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/i;
+export const privacyEmail = mailbox && mailboxPattern.test(mailbox) ? mailbox : undefined;
 
 export const legalDocuments: Record<LegalDocumentId, LegalDocument> = {
   privacy: {
@@ -18,8 +23,12 @@ export const legalDocuments: Record<LegalDocumentId, LegalDocument> = {
     sections: [
       { title: 'About CampusClutch', paragraphs: [
         'CampusClutch helps students find classmates, read course reviews, arrange campus help and message each other.',
-        'The public operator name and privacy/support contact are being confirmed. An SFU email requirement does not mean SFU operates or endorses this app.',
+        'The public operator name is being confirmed. An SFU email requirement does not mean SFU operates or endorses this app.',
       ] },
+      { title: 'Request your information', showPrivacyContact: true, paragraphs: privacyEmail ? [
+        'Email us to ask for a copy of your information, request a correction or raise a privacy concern. You can write to us even after deleting your account.',
+        'Tell us which records you’re asking about. We may need to verify your identity before sharing them.',
+      ] : ['The privacy email address will appear here once confirmed.'] },
       { title: 'Information we use', paragraphs: [
         'Your email and sign-in information let you create and access an account. Your profile can include a name, photo, major, year of study, interests and optional social links.',
         'We store the courses you add, reviews and optional grades, requests and locations you enter, offers, messages and read status, points, work history and notifications. Reports, decisions and appeals include evidence needed for review.',
@@ -38,20 +47,25 @@ export const legalDocuments: Record<LegalDocumentId, LegalDocument> = {
       { title: 'Your choices', paragraphs: [
         'You can edit your profile, choose social-link visibility, turn off student discovery, manage push alerts, block or report students, and edit or delete your own course reviews.',
         'Turning off push alerts keeps the bell inbox available. Photo access is used when you choose a profile picture.',
-        'A public contact for privacy questions and access or correction requests will be listed before launch. Identity checks may be needed to protect your information and other people’s information.',
       ] },
       { title: 'Deleting your account', paragraphs: [
         'Open Profile, then Delete account. Finish or cancel accepted work first. Deletion removes your profile details, photo, course memberships and source reviews, cancels open requests and withdraws pending offers.',
-        'Past messages remain in the other person’s closed conversation as Deleted student. Personal details written in those messages may remain. Limited shared job history and private safety evidence may also remain.',
+        'The other person can still read your past messages under Deleted student. This includes any personal details you wrote in the chat.',
+        'At launch, ordinary direct messages expire 30 days after both account deletions finish. We keep conversations still needed for a report, a job or a retention hold.',
+        'At launch, shared job history expires one year after the last participant finishes deleting their account, the last job activity, or the final dispute decision, whichever comes last. We keep records still needed for points, reports or holds.',
+        'You can still delete your account when a record is on hold. Only assigned admins can view a private copy of the affected evidence while the hold is active. After the last hold ends, we erase the copy once related appeals, access requests and retention periods are complete. We keep the hold history.',
         'We keep a protected representation of your verified email to prevent repeat welcome bonuses. We save your remaining points so they can be restored when you return with that same verified email. You do not receive another 100-point welcome grant.',
-        'Returning creates a new profile. Deleted profile data and old private chats are not restored to the new account. If deletion is interrupted, the app lets you check its status.',
+        'Returning creates a new profile. Deleted profile data and old private chats are not restored to the new account. At launch, your saved receipt lets you check deletion status while cleanup is pending and for 90 days after it finishes.',
       ] },
       { title: 'How long information stays', paragraphs: [
         'Account information supports your use of the app. The deletion rules above describe what is removed and what remains.',
-        'Automatic expiry for retained safety evidence and shared history is not yet in place. Retention periods and provider backup/log rules are being finalized before launch. This draft does not promise a fixed deletion deadline.',
+        'Requests leave the campus feed at their deadline. At launch, if your post expires without an offer, you have at least 90 days to archive it before cleanup. Reopened requests and posts needed for shared work, points, reports or holds follow separate rules.',
+        'At launch, message, request and offer alerts leave your bell inbox 90 days after you first read them. Unread alerts expire 180 days after they arrive. A hold or pending delivery can keep an alert longer. Only the bell entry expires.',
+        'At launch, closed reports, appeals and their evidence expire one year after the final decision or the last time the evidence was used in a decision, whichever is later. We keep what we still need for open appeals, access requests, holds, active warnings and suspensions.',
+        'At launch, we keep routine records of completed background jobs for 30 days to investigate failures. We are still confirming how long our providers keep their own logs and backups.',
       ] },
       { title: 'Testing and updates', paragraphs: [
-        'Preview testing accepts other verified emails. Launch is planned for SFU students with an SFU email requirement. Email verification alone does not prove current enrolment.',
+        'At launch, we check signup eligibility by sending a verification link to your @sfu.ca email address. Preview testing accepts other verified email addresses.',
         'The final policy will identify the operator, contact details and effective date. Material changes will be explained. This page is a Preview draft.',
       ] },
     ],
@@ -62,7 +76,7 @@ export const legalDocuments: Record<LegalDocumentId, LegalDocument> = {
     sections: [
       { title: 'Using your account', paragraphs: [
         'Keep control of your account and provide accurate information. Do not impersonate students, misuse someone else’s information, or create accounts to evade restrictions or collect repeat welcome points.',
-        'Launch is planned for SFU students. Preview testing accepts other verified emails. Email verification does not prove current enrolment or university endorsement. Final eligibility and operator details will be confirmed before launch.',
+        'At launch, you can join at any age with a verified @sfu.ca email address. Preview testing accepts other verified email addresses.',
       ] },
       { title: 'Requests and points', paragraphs: [
         'Describe the help, location, timing and offered points clearly. Offer only work you can carry out safely and honestly. Follow the acceptance, completion and cancellation steps. Do not mark unfinished work complete to transfer points.',
@@ -85,10 +99,10 @@ export const legalDocuments: Record<LegalDocumentId, LegalDocument> = {
         'Removing content does not erase every copy. Captured evidence can remain for moderation and appeals. The Privacy Policy explains retained information.',
       ] },
       { title: 'Closing your account', paragraphs: [
-        'Open Profile, then Delete account after resolving accepted work. Past messages remain for the other participant as Deleted student. A recreated account does not inherit the old private history.',
+        'Open Profile, then Delete account after resolving accepted work. If the other person keeps their account, they can still read your past messages under Deleted student. A recreated account starts with an empty inbox.',
       ] },
       { title: 'Operator and support', paragraphs: [
-        'The public operator name and support contact are being confirmed. These are Preview drafts, not final launch terms. The final version will identify the operator, contact details, eligibility rules and effective date.',
+        'These terms are a Preview draft. The published terms will name the operator, give a support contact and include an effective date.',
       ] },
     ],
   },

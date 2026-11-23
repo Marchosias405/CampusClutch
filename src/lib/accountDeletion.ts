@@ -83,7 +83,7 @@ export async function confirmAccountDeletion(userId: string, email: string, pass
 export async function finishAccountDeletion(receipt: DeletionReceipt): Promise<'complete' | 'pending' | 'unconfirmed'> {
   const value = await postDeletionJson('/functions/v1/account-deletion', {},
     { id: receipt.id, secret: receipt.secret }, 30000,
-    'Cleanup is still pending. Check your connection and retry.');
+    'Unable to check deletion status. Check your connection and retry.');
   if (!['complete', 'pending', 'unconfirmed'].includes(value.status)) throw new Error('Unable to check deletion. Please retry.');
   return value.status;
 }

@@ -24,7 +24,7 @@ export function AccountDeletionProvider({ children }: { children: React.ReactNod
   const [confirmation, setConfirmation] = useState('');
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
-  const [unconfirmed, setUnconfirmed] = useState(false);
+  const [recovery, setRecovery] = useState<'unavailable' | 'retry' | null>(null);
   const running = useRef(false);
   const confirmationInput = useRef<TextInput>(null);
   const insets = useSafeAreaInsets();
@@ -41,10 +41,19 @@ export function AccountDeletionProvider({ children }: { children: React.ReactNod
       // student can use the app. Keep the receipt if local cleanup fails.
       await clearDeletedAccountDrafts(value.userId);
       if (user?.id === value.userId) { const failed = await signOut(); if (failed) throw failed; }
-      await clearDeletionReceipt(); setReceipt(null); setDone(true); setOpen(true); setUnconfirmed(false);
+      await clearDeletionReceipt(); setReceipt(null); setDone(true); setOpen(true); setRecovery(null);
     } else if (status === 'unconfirmed') {
-      setUnconfirmed(true); setError('Deletion was not confirmed. Enter your password below to retry.');
+      setRecovery('unavailable'); setConfirmation('');
     } else { setError('Cleanup is in progress. You can close the app and check again later.'); }
+  }
+  async function forgetUnavailableReceipt() {
+    if (running.current || recovery !== 'unavailable') return;
+    running.current = true; setBusy(true); setError('');
+    try {
+      await clearDeletionReceipt();
+      setReceipt(null); setRecovery(null); setConfirmation(''); setOpen(false);
+    } catch { setError('Unable to remove the saved receipt. Please try again.'); }
+    finally { running.current = false; setBusy(false); }
   }
   async function run(confirm: boolean) {
     if (running.current) return;
@@ -52,10 +61,11 @@ export function AccountDeletionProvider({ children }: { children: React.ReactNod
     running.current = true; setBusy(true); setError('');
     try {
       let value = receipt;
+      if (!confirm) setRecovery(null);
       if (confirm) {
         if (!user?.email || confirmation !== 'DELETE' || !password) throw new Error('Enter your password and type DELETE.');
         value = await confirmAccountDeletion(user.id, user.email, password, receipt,
-          saved => { setReceipt(saved); setUnconfirmed(false); }, () => { setReceipt(null); setUnconfirmed(false); });
+          saved => { setReceipt(saved); setRecovery(null); }, () => { setReceipt(null); setRecovery(null); });
       }
       if (value) await finish(value);
     } catch (e) { setError(e instanceof Error ? e.message : 'Unable to finish deletion. Please retry.'); }
@@ -65,7 +75,7 @@ export function AccountDeletionProvider({ children }: { children: React.ReactNod
   return <Context.Provider value={() => { Keyboard.dismiss(); setOpen(true); setDone(false); setError(''); setConfirmation(''); setPassword(''); }}>
     {showing ? <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <ScrollView style={{ flex: 1 }} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" contentContainerStyle={[styles.content, { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 24 }, !loaded && { flexGrow: 1, justifyContent: 'center' }]}>
-        {loaded && <Text accessibilityRole="header" style={styles.heading}>{done ? 'Account deleted' : receipt ? 'Finishing account deletion' : 'Delete your account?'}</Text>}
+        {loaded && <Text accessibilityRole="header" style={styles.heading}>{done ? 'Account deleted' : recovery === 'unavailable' ? 'Deletion status unavailable' : receipt ? 'Finishing account deletion' : 'Delete your account?'}</Text>}
         {!loaded ? error ? <>
           <Text accessibilityRole="header" style={styles.heading}>Unable to open CampusClutch</Text>
           <Text accessibilityLiveRegion="polite" style={styles.error}>{error}</Text>
@@ -80,8 +90,11 @@ export function AccountDeletionProvider({ children }: { children: React.ReactNod
             <View style={styles.notice}><Text style={styles.value}>Your remaining points are saved. Verify the same email when you return to restore them. You won’t get another 100 welcome points.</Text></View>
             <Text style={styles.body}>Finish or cancel any accepted jobs first. Admins must arrange a handover.</Text>
           </>}
-          {receipt && <Text style={styles.body}>Your confirmation is saved. Cleanup continues on our server once accepted. Retry here to check its status.</Text>}
-          {(!receipt || unconfirmed) && <>
+          {receipt && (recovery === 'unavailable' ? <>
+            <Text style={styles.body}>This receipt may have expired, or your original request may not have reached us. Receipts expire 90 days after cleanup finishes.</Text>
+            <Text style={styles.body}>You can check again or remove the receipt from this device. Any accepted deletion will continue.</Text>
+          </> : <Text style={styles.body}>Your receipt is saved on this device. You can check it while cleanup is pending and for 90 days after it finishes.</Text>)}
+          {(!receipt || recovery === 'retry') && <>
             <Text style={styles.subheading}>Confirm it’s you</Text>
             <Text style={styles.body}>{user?.email ?? 'Sign in to the account that started this deletion.'}</Text>
             <TextInput accessibilityLabel="Account password" placeholder="Password" placeholderTextColor="#635C5C" secureTextEntry
@@ -96,8 +109,12 @@ export function AccountDeletionProvider({ children }: { children: React.ReactNod
               onPress={() => { void run(true); }} />
           </>}
           {receipt && <ModerationButton title="Check deletion status" disabled={busy} onPress={() => { void run(false); }} />}
+          {receipt && recovery === 'unavailable' && <>
+            {user?.id === receipt.userId && <ModerationButton title="Retry confirmation" disabled={busy} onPress={() => { setError(''); setRecovery('retry'); }} />}
+            <ModerationButton title="Remove saved receipt" disabled={busy} onPress={() => { void forgetUnavailableReceipt(); }} />
+          </>}
           {!receipt && <ModerationButton title="Keep my account" disabled={busy} onPress={() => { Keyboard.dismiss(); setPassword(''); setConfirmation(''); setOpen(false); setError(''); }} />}
-          {busy && <LoadingNotice label="Deleting account" />}
+          {busy && <LoadingNotice label={receipt ? 'Checking deletion status' : 'Deleting account'} />}
         </>}
         {loaded && !!error && <Text accessibilityLiveRegion="polite" style={styles.error}>{error}</Text>}
       </ScrollView>

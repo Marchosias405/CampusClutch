@@ -1,10 +1,10 @@
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
-import React, { useRef } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useRef, useState } from 'react';
+import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useMotionAllowed } from '@/lib/motionPreference';
-import { LEGAL_DRAFT_DATE, LEGAL_DRAFT_NOTICE, legalDocuments, type LegalDocumentId } from '@/content/legalDocuments';
+import { LEGAL_DRAFT_DATE, LEGAL_DRAFT_NOTICE, legalDocuments, privacyEmail, type LegalDocumentId } from '@/content/legalDocuments';
 import ScreenHeader from './ScreenHeader';
 import ProfileActionRow from './ProfileActionRow';
 
@@ -18,6 +18,17 @@ export default function LegalDocumentScreen({ documentId, onClose, onDocument }:
   const insets = useSafeAreaInsets();
   const motionAllowed = useMotionAllowed();
   const scroll = useRef<ScrollView>(null);
+  const [mailError, setMailError] = useState(false);
+  async function openEmail() {
+    if (!privacyEmail) return;
+    setMailError(false);
+    try {
+      const [recipient, domain] = privacyEmail.split('@');
+      await Linking.openURL(`mailto:${encodeURIComponent(recipient)}@${domain}?subject=CampusClutch%20privacy%20request`);
+    } catch {
+      setMailError(true);
+    }
+  }
   return <View style={styles.screen} accessibilityViewIsModal>
     <StatusBar style="light" />
     <ScreenHeader>
@@ -38,6 +49,13 @@ export default function LegalDocumentScreen({ documentId, onClose, onDocument }:
       {document.sections.map(section => <View key={section.title} style={styles.section}>
         <Text accessibilityRole="header" style={styles.sectionTitle}>{section.title}</Text>
         {section.paragraphs.map(paragraph => <Text selectable key={paragraph} style={styles.body}>{paragraph}</Text>)}
+        {section.showPrivacyContact && privacyEmail && <>
+          <Text selectable style={styles.body}>{privacyEmail}</Text>
+          <ProfileActionRow label="Email the privacy team" icon="mail-outline" onPress={openEmail} />
+          {mailError && <Text accessibilityLiveRegion="polite" style={styles.body}>
+            Couldn’t open your email app. Copy the address above into a new email.
+          </Text>}
+        </>}
       </View>)}
       <View style={styles.footer}>
         <ProfileActionRow label={`Read ${legalDocuments[other].title}`} icon={other === 'privacy' ? 'lock-closed-outline' : 'document-text-outline'}

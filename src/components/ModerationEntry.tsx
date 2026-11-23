@@ -19,6 +19,8 @@ export default function ModerationEntry({ userId }: { userId: string }) {
     </View>
     <ProfileActionRow label="Review reports" icon="file-tray-full-outline" tone="staff"
       onPress={() => router.push('/moderation' as Href)} />
+    {access.role === 'admin' && <ProfileActionRow label="Retention holds" icon="lock-closed-outline" tone="staff"
+      onPress={() => router.push('/moderation/holds' as Href)} />}
   </View>;
 }
 

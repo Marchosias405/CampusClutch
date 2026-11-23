@@ -211,6 +211,7 @@ function RootNavigator() {
           <Stack.Screen name="moderation/[id]" />
           <Stack.Screen name="moderation/appeals" />
           <Stack.Screen name="moderation/direct" />
+          <Stack.Screen name="moderation/holds" />
           <Stack.Screen name="notifications" />
           <Stack.Screen name="notification-preferences" />
           <Stack.Screen name="messages/[id]" />

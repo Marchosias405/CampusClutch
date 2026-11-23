@@ -1,3 +1,4 @@
+import { router, type Href } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Text, TextInput, View } from 'react-native';
 import { decisionValidation, moderationAccessLost } from '../lib/moderation';
@@ -43,6 +44,8 @@ export default function ModerationActions({ userId, reportId, expectedVersion, d
     && (value !== 'remove_review' || (context.current_review && !context.review_removed)));
   return <View style={styles.card}>
     <Text style={styles.heading}>Admin actions</Text>
+    {context.is_admin && <ModerationButton title="Retention holds for this case" disabled={frozen}
+      onPress={() => router.push(('/moderation/holds?reportId=' + encodeURIComponent(reportId)) as Href)} />}
     {context.current_review && !context.review_removed && <Text style={styles.body}>Hide an unreliable review to remove it from the course page and statistics. Report evidence is kept.</Text>}
     <Text style={styles.body}>{context.warning_count} formal warnings in total</Text>
     <Text style={styles.body}>{context.warning_count % 3}/3 warnings this cycle</Text>

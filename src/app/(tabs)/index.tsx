@@ -84,9 +84,8 @@ export default function HomeDashboardScreen() {
         const courses = await getMyCourses(userId);
 
         if (isCurrentRead()) setCourseState({ userId, courses: courses.filter(isCurrentCourse), loading: false, error: null });
-      } catch (error) {
+      } catch {
         if (isCurrentRead()) {
-          console.error("Failed to load home courses:", error);
           setCourseState(previous => ({ ...previous, loading: false, error: "Unable to refresh your courses. Check your connection and try again." }));
         }
       } finally {

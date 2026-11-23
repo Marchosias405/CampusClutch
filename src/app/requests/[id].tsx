@@ -106,12 +106,17 @@ function RequestDetails({ userId, requestId }: { userId?: string; requestId?: st
       { text: 'Cancel request', style: 'destructive', onPress: () => { void performOwnerAction('cancel', epoch); } },
     ]);
   };
+  const firstPostExpired = request?.status === 'expired' && (request.offerRound ?? 1) === 1;
   const handleArchive = () => {
     const epoch = focusEpoch.current;
     const restoring = Boolean(request?.ownerArchivedAt);
-    Alert.alert(restoring ? 'Restore request?' : 'Archive request?', restoring
-      ? 'This puts the request back in your main list. Its status and points history stay the same.'
-      : 'This removes it from your main list. You can find and restore it under My requests → Archived. Its history is kept.', [
+    let message = 'You can find this post under My requests → Archived.';
+    if (restoring) {
+      message = firstPostExpired
+        ? 'This returns the post to My requests. If it received no offers, its 90-day window starts again.'
+        : 'This returns the request to your main list. Its status and points history stay the same.';
+    }
+    Alert.alert(restoring ? 'Restore request?' : 'Archive request?', message, [
       { text: 'Keep as is', style: 'cancel' },
       { text: restoring ? 'Restore' : 'Archive', onPress: () => { void performOwnerAction(restoring ? 'restore' : 'archive', epoch); } },
     ]);
@@ -168,6 +173,13 @@ function RequestDetails({ userId, requestId }: { userId?: string; requestId?: st
     });
   };
 
+
+  let archiveHint = 'Archive this closed request to move it out of your main list.';
+  if (request.ownerArchivedAt) {
+    archiveHint = 'Archived. You can restore this request to your main list without reopening it.';
+  } else if (firstPostExpired) {
+    archiveHint = 'If this post received no offers, archive it to keep it beyond 90 days.';
+  }
 
   const hasAdditionalDetails = Boolean(
     request.campus ||
@@ -376,7 +388,7 @@ function RequestDetails({ userId, requestId }: { userId?: string; requestId?: st
             </Pressable>
           </View>}
           {request.ownerId === userId && ['expired', 'cancelled', 'completed'].includes(request.status ?? '') && <View style={styles.ownerActions}>
-            <Text style={styles.acceptedNotice}>{request.ownerArchivedAt ? 'Archived. You can restore this request to your main list without reopening it.' : 'This request is closed. Archive it to remove it from your main list and keep its history.'}</Text>
+            <Text style={styles.acceptedNotice}>{archiveHint}</Text>
             <Pressable accessibilityRole="button" style={[styles.backButton, styles.cancelButton, (loading || !!ownerAction) && styles.offerButtonDisabled]} disabled={loading || !!ownerAction} onPress={handleArchive}>
               <Text style={styles.backButtonText}>{ownerAction === 'archive' ? 'Archiving…' : ownerAction === 'restore' ? 'Restoring…' : request.ownerArchivedAt ? 'Restore Request' : 'Archive Request'}</Text>
             </Pressable>

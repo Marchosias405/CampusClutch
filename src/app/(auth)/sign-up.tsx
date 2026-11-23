@@ -16,6 +16,9 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useAuth } from "@/context/AuthContext";
+import { env } from "@/lib/env";
+
+const requiresSfuEmail = env.appEnvironment === 'production';
 
 const COLORS = {
   primary: "#9B1C31",
@@ -67,6 +70,11 @@ export default function SignUpScreen() {
 
     if (!normalizedEmail || !password || !confirmPassword) {
       setErrorMessage("Complete all required fields.");
+      return;
+    }
+
+    if (requiresSfuEmail && !/^[^\s@]+@sfu\.ca$/.test(normalizedEmail)) {
+      setErrorMessage("Use your SFU email address ending in @sfu.ca.");
       return;
     }
 
@@ -297,15 +305,17 @@ export default function SignUpScreen() {
         <Text style={styles.brandName}>CampusClutch</Text>
         <Text style={styles.title}>Create your account</Text>
         <Text style={styles.subtitle}>
-          Join your campus community and connect with other students.
+          {requiresSfuEmail
+            ? "Use your @sfu.ca email so you can open the verification link."
+            : "Use an email address you can open to verify your account."}
         </Text>
 
-        <Text style={styles.label}>Email address</Text>
+        <Text style={styles.label}>{requiresSfuEmail ? "SFU email address" : "Email address"}</Text>
         <TextInput
           style={styles.input}
           value={email}
           onChangeText={setEmail}
-          placeholder="student@example.com"
+          placeholder={requiresSfuEmail ? "computingID@sfu.ca" : "student@example.com"}
           placeholderTextColor={COLORS.mutedText}
           autoCapitalize="none"
           autoCorrect={false}
