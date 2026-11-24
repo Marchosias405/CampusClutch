@@ -41,6 +41,9 @@ jobs:
       - name: Run quality checks
         run: npm run check
 
+      - name: Test Preview deployment safeguards
+        run: node --test scripts/release/preview.test.cjs
+
       - name: Check server, browser and native auth initialization
         run: npm run test:auth-runtime
 

@@ -1,0 +1,113 @@
+name: Deploy Preview
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  gate:
+    if: >-
+      github.repository == 'Marchosias405/CampusClutch' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: ubuntu-latest
+    outputs:
+      eligible: ${{ steps.check.outputs.eligible }}
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          persist-credentials: false
+      - id: check
+        name: Verify the tested main commit and required jobs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CI_ID: ${{ github.event.workflow_run.id }}
+        run: |
+          main=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq .object.sha)
+          gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/actions/runs/$CI_ID/jobs?filter=all&per_page=100" --jq 'map(.jobs)' > "$RUNNER_TEMP/jobs.json"
+          result=$(node scripts/release/preview.cjs gate "$GITHUB_EVENT_PATH" "$GITHUB_REPOSITORY" "$main" "$RUNNER_TEMP/jobs.json")
+          echo "$result" >> "$GITHUB_OUTPUT"
+          if [[ "$result" != eligible=true ]]; then echo "Skipped Preview. The commit was superseded or required CI jobs did not pass." >> "$GITHUB_STEP_SUMMARY"; fi
+
+  deploy:
+    needs: gate
+    if: needs.gate.outputs.eligible == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    environment: preview
+    concurrency:
+      group: campusclutch-deploy-preview
+      cancel-in-progress: false
+    env:
+      TESTED_SHA: ${{ github.event.workflow_run.head_sha }}
+      PREVIEW_REF: udbijakeasbvoycjyghe
+      SUPABASE_TELEMETRY_DISABLED: '1'
+      EXPO_NO_TELEMETRY: '1'
+      DO_NOT_TRACK: '1'
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@395ad3262231945c25e8478fd5baf05154b1d79f # v6.1.0
+        with:
+          node-version: '22'
+      - name: Prepare reviewed migrations from the tested revision
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$TESTED_SHA"
+          test "$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq .object.sha)" = "$TESTED_SHA"
+          node scripts/release/preview.cjs prepare "$RUNNER_TEMP/preview-db"
+          npm ci
+          npm install --global eas-cli@23.2.0
+      - name: Verify Expo Preview and its public Auth key
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          : "${EXPO_TOKEN:?Set the preview environment EXPO_TOKEN}"
+          eas env:exec preview 'node scripts/release/preview.cjs target' --non-interactive
+      - name: Check the linked Preview migration plan
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: |
+          : "${SUPABASE_ACCESS_TOKEN:?Set the preview environment SUPABASE_ACCESS_TOKEN}"
+          cli=./node_modules/.bin/supabase
+          "$cli" link --project-ref "$PREVIEW_REF" --workdir "$RUNNER_TEMP/preview-db"
+          test "$(cat "$RUNNER_TEMP/preview-db/supabase/.temp/project-ref")" = "$PREVIEW_REF"
+          "$cli" db push --linked --dry-run --workdir "$RUNNER_TEMP/preview-db"
+      - name: Build or reuse the signed Preview APK for this commit
+        id: apk
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: node scripts/release/preview-apk.cjs
+      - name: Confirm main still points at this release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: test "$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq .object.sha)" = "$TESTED_SHA"
+      - name: Deploy Preview migrations and Edge Functions
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: |
+          cli=./node_modules/.bin/supabase
+          test "$(cat "$RUNNER_TEMP/preview-db/supabase/.temp/project-ref")" = "$PREVIEW_REF"
+          "$cli" db push --linked --yes --workdir "$RUNNER_TEMP/preview-db"
+          "$cli" functions deploy account-deletion android-push email-verified --use-api --project-ref "$PREVIEW_REF"
+      - name: Verify Preview and publish the install link
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          APK_PAGE: ${{ steps.apk.outputs.url }}
+        run: |
+          eas env:exec preview 'node scripts/release/preview.cjs smoke' --non-interactive
+          printf 'Preview ready for commit `%s`. [Install the Android APK](%s)\n' "$TESTED_SHA" "$APK_PAGE" >> "$GITHUB_STEP_SUMMARY"
