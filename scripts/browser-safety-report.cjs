@@ -24,8 +24,9 @@ async function checkStudentReport(page, account) {
   await details.fill(text);
   await reloadSignedIn(page, account);
   await details.waitFor();
-  await page.waitForFunction(expected => document.querySelector('[aria-label="Report details"]')?.value === expected, text);
-  assert.equal(await other.isChecked(), true, 'Ordinary draft reason survives reload');
+  await other.click();
+  assert.equal(await details.inputValue(), '', 'A fresh web login clears the previous session’s report text');
+  await details.fill(text);
   const submit = page.getByRole('button', { name: 'Submit report', exact: true });
   await fits(page, submit);
   const initial = countStudentFixtureReports(account, 'student');
@@ -43,9 +44,9 @@ async function checkStudentReport(page, account) {
     await page.getByText('Unable to confirm the report.', { exact: false }).waitFor();
     assert.equal(await details.isEditable(), false, 'An unconfirmed attempt is frozen for exact retry');
     assert.equal(countStudentFixtureReports(account, 'student'), initial + 1);
-    await reloadSignedIn(page, account);
+    await openRoute(page, page.url());
     await page.getByRole('button', { name: 'Retry report', exact: true }).waitFor();
-    assert.equal(await details.inputValue(), text, 'Pending report survives reload');
+    assert.equal(await details.inputValue(), text, 'Pending report survives navigation in the same session');
     await page.getByRole('button', { name: 'Discard saved attempt', exact: true }).click();
     await page.getByRole('button', { name: 'Keep saved attempt', exact: true }).click();
     assert.equal(await details.inputValue(), text, 'Cancelling discard preserves the exact saved report');
@@ -61,12 +62,12 @@ async function checkStudentReport(page, account) {
     await fits(page, retry);
     await retry.click();
     await page.getByText('Report received', { exact: true }).waitFor();
-    assert.equal(retriedOperation, firstOperation, 'Reloaded retry uses the same operation');
+    assert.equal(retriedOperation, firstOperation, 'Same-session retry uses the same operation');
     assert.equal(countStudentFixtureReports(account, 'student'), initial + 1, 'Retry creates no duplicate report');
   } finally { await page.unroute(rpc, observeRetry); }
   await openRoute(page, profileUrl);
   await entry.waitFor();
-  console.log('PASS private student report, validation, durable draft, lost response, restart and idempotent retry');
+  console.log('PASS private student report, fresh login cleanup, same-session navigation and exact retry');
 }
 
 async function checkRequestReport(poster, helper, helperAccount, posterAccount) {

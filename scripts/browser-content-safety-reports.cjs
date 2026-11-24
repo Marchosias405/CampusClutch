@@ -54,7 +54,7 @@ async function retryReport(page, account, type, saved) {
     const control = page.getByRole('button', { name: 'Retry report', exact: true });
     await control.waitFor(); await fits(control); await control.click();
     await page.getByText('Report received', { exact: true }).waitFor();
-    assert.deepEqual(retry, saved.original, 'Reloaded retry preserves the complete canonical report payload');
+    assert.deepEqual(retry, saved.original, 'Same-session retry preserves the complete canonical report payload');
     assert.equal(countStudentFixtureReports(account, type), saved.before + 1, 'Exact retry never duplicates a report');
   } finally { await page.unroute(saved.rpc, observe); }
 }
@@ -73,11 +73,11 @@ async function checkContentSafetyReports({ poster, helper, origin, accounts, con
   assert.equal(await a.getByText(body, { exact: true }).filter({ visible: true }).count(), 0, 'The report context does not copy the private message');
   assert.equal(await a.getByText(helper.name, { exact: true }).filter({ visible: true }).count(), 0, 'Report context exposes no author identity');
   await a.getByRole('radio', { name: 'Harassment', exact: true }).click();
-  const details = 'Browser message concern with one durable operation across account switches.';
+  const details = 'Browser message concern with a pending same-session retry.';
   await a.getByRole('textbox', { name: 'Report details', exact: true }).fill(details);
   const messageReportUrl = a.url();
   const savedMessage = await loseReportResponse(a, accounts[0], 'message');
-  await reloadSignedIn(a, accounts[0]);
+  await openRoute(a, messageReportUrl);
   await a.getByRole('button', { name: 'Retry report', exact: true }).waitFor();
   assert.equal(await a.getByRole('textbox', { name: 'Report details', exact: true }).inputValue(), details);
   await switchAccount(a, origin, accounts[1], helper.name);
@@ -87,9 +87,10 @@ async function checkContentSafetyReports({ poster, helper, origin, accounts, con
   assert.equal(await a.getByRole('button', { name: 'Retry report', exact: true }).count(), 0);
   await switchAccount(a, origin, accounts[0], poster.name);
   await openRoute(a, messageReportUrl);
-  await a.getByRole('button', { name: 'Retry report', exact: true }).waitFor();
-  assert.equal(await a.getByRole('textbox', { name: 'Report details', exact: true }).inputValue(), details);
-  await retryReport(a, accounts[0], 'message', savedMessage);
+  await a.getByRole('radio', { name: 'Other', exact: true }).click();
+  assert.equal(await a.getByRole('textbox', { name: 'Report details', exact: true }).inputValue(), '', 'Signing back in starts a fresh report');
+  assert.equal(await a.getByRole('button', { name: 'Retry report', exact: true }).count(), 0);
+  assert.equal(countStudentFixtureReports(accounts[0], 'message'), savedMessage.before + 1, 'Switching accounts never resubmits the report');
   await openRoute(a, conversationUrl); await a.getByText(body, { exact: true }).waitFor();
   console.log('PASS narrow message reporting, safe context, own rejection, lost response, reload and old/new account isolation');
 
@@ -124,7 +125,8 @@ async function checkContentSafetyReports({ poster, helper, origin, accounts, con
   await a.getByRole('button', { name: /^Delete your .* review$/ }).click();
   await a.getByRole('button', { name: 'Delete review', exact: true }).click();
   await a.getByText('Your review was removed.', { exact: false }).waitFor();
-  await reloadSignedIn(b, accounts[1]); await b.getByRole('button', { name: 'Retry report', exact: true }).waitFor();
+  await openRoute(b, reviewReportUrl);
+  await b.getByRole('button', { name: 'Retry report', exact: true }).waitFor();
   assert.equal(await b.getByRole('textbox', { name: 'Report details', exact: true }).inputValue(), reviewDetails);
   await retryReport(b, accounts[1], 'course_review', savedReview);
   await openRoute(b, reviewReportUrl);
