@@ -1,6 +1,6 @@
 import type {
   ConversationCursor, ConversationMessage, ConversationPage, ConversationSummary,
-  MessagePage, MessageSequence, SendMessageInput,
+  MessagePage, MessageReadReceipt, MessageSequence, SendMessageInput,
 } from '../types/messaging';
 import { supabase } from './supabase';
 
@@ -143,7 +143,17 @@ function summary(value: unknown, userId: string): ConversationSummary {
   if (row.type === 'direct') {
     const otherId = uuid(row.other_profile_id, 'profile');
     if (otherId === userId.toLowerCase()) throw new Error();
-    return { ...base, type: 'direct', other_profile_id: otherId, other_display_name: nullableText(row.other_display_name) };
+    for (const field of ['interaction_blocked', 'blocked_by_me', 'other_profile_deleted']) {
+      if (row[field] !== undefined && typeof row[field] !== 'boolean') throw new Error();
+    }
+    if (row.blocked_by_me === true && row.interaction_blocked !== true) throw new Error();
+    return {
+      ...base, type: 'direct', other_profile_id: otherId,
+      other_display_name: nullableText(row.other_display_name),
+      ...(row.other_profile_deleted !== undefined ? { other_profile_deleted: row.other_profile_deleted as boolean } : {}),
+      ...(row.interaction_blocked !== undefined ? { interaction_blocked: row.interaction_blocked as boolean } : {}),
+      ...(row.blocked_by_me !== undefined ? { blocked_by_me: row.blocked_by_me as boolean } : {}),
+    };
   }
   if (row.other_profile_id != null || row.other_display_name != null
     || !Number.isSafeInteger(row.active_member_count) || (row.active_member_count as number) < 0
@@ -327,4 +337,24 @@ export async function markConversationRead(userId: string, conversationId: strin
     p_conversation_id: uuid(conversationId, 'conversation'), p_through_sequence: sequence(throughSequence),
   });
   return parse(() => sequence(data, true));
+}
+
+/** Query only the signed-in sender's messages, in bounded batches. */
+export async function loadMessageReadReceipts(userId: string, conversationId: string, messageIds: string[]): Promise<MessageReadReceipt[]> {
+  const id = uuid(conversationId, 'conversation');
+  if (!Array.isArray(messageIds) || messageIds.length < 1 || messageIds.length > 50) invalid('Choose 1 to 50 messages.');
+  const ids = messageIds.map(value => uuid(value, 'message'));
+  if (new Set(ids).size !== ids.length) invalid('Choose distinct messages.');
+  const data = await call(userId, 'get_message_read_receipts', { p_conversation_id: id, p_message_ids: ids });
+  return parse(() => {
+    const receipts = rows(data, ids.length).map(value => {
+      const row = record(value), messageId = uuid(row.message_id, 'message');
+      if (!ids.includes(messageId) || typeof row.is_read !== 'boolean') throw new Error();
+      const readAt = row.read_at === null ? null : timestamp(row.read_at);
+      if (!row.is_read && readAt !== null) throw new Error();
+      return { message_id: messageId, is_read: row.is_read, read_at: readAt };
+    });
+    if (receipts.length !== ids.length || new Set(receipts.map(row => row.message_id)).size !== ids.length) throw new Error();
+    return receipts;
+  });
 }

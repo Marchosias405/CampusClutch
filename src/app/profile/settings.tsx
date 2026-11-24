@@ -1,13 +1,13 @@
+import { MotionPressable as Pressable } from '@/components/motion';
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
-  Pressable,
   ScrollView,
   StyleSheet,
   Switch,
@@ -23,20 +23,19 @@ import {
   replaceProfileAvatar,
 } from "@/lib/avatars";
 import {
-  getCampuses,
-  getInterests,
-  getProfileInterests,
   getProfileSocialLinks,
   replaceProfileInterests,
   replaceProfileSocialLinks,
 } from "@/lib/profiles";
-import type { Campus, Interest } from "@/types";
+import InterestPicker from "@/components/InterestPicker";
+import { useInterestSelection } from "@/hooks/useInterestSelection";
+import { useAuth } from "@/context/AuthContext";
 
 const COLORS = {
   primary: "#9B1C31",
   background: "#FFFFFF",
   textDark: "#2B2525",
-  mutedText: "#8C8585",
+  mutedText: "#635C5C",
   border: "#E8DDDF",
   inputBackground: "#FBF8F8",
   errorBackground: "#FDECEE",
@@ -66,8 +65,16 @@ function getErrorMessage(error: unknown) {
 }
 
 export default function ProfileSettingsScreen() {
+  const { user } = useAuth();
+  const { profile } = useProfile();
+  if (!user || profile?.id !== user.id) return <View style={{ flex: 1, justifyContent: 'center' }}><ActivityIndicator color="#9B1C31" /></View>;
+  return <ProfileForm key={user.id} />;
+}
+
+function ProfileForm() {
   const router = useRouter();
   const { profile, saveProfile } = useProfile();
+  const profileId = profile?.id;
   const [avatarSignedUrl, setAvatarSignedUrl] = useState<string | null>(null);
   const [selectedAvatar, setSelectedAvatar] =
     useState<ImagePicker.ImagePickerAsset | null>(null);
@@ -83,21 +90,12 @@ export default function ProfileSettingsScreen() {
   const [yearOfStudy, setYearOfStudy] = useState<number | null>(
     profile?.yearOfStudy ?? null
   );
-  const [campusId, setCampusId] = useState<string | null>(
-    profile?.campusId ?? null
-  );
   const [isDiscoverable, setIsDiscoverable] = useState(
     profile?.isDiscoverable ?? false
   );
 
-  const [campuses, setCampuses] = useState<Campus[]>([]);
-  const [isLoadingCampuses, setIsLoadingCampuses] = useState(true);
-  const [campusError, setCampusError] = useState<string | null>(null);
-
-  const [interests, setInterests] = useState<Interest[]>([]);
-  const [selectedInterestIds, setSelectedInterestIds] = useState<string[]>([]);
-  const [isLoadingInterests, setIsLoadingInterests] = useState(true);
-  const [interestError, setInterestError] = useState<string | null>(null);
+  const { interests, selectedInterestIds, setSelectedInterestIds,
+    isLoadingInterests, interestError, loadInterests } = useInterestSelection(profileId);
 
   const [linkedinValue, setLinkedinValue] = useState("");
   const [linkedinVisible, setLinkedinVisible] = useState(false);
@@ -106,55 +104,13 @@ export default function ProfileSettingsScreen() {
   const [isLoadingSocialLinks, setIsLoadingSocialLinks] = useState(true);
   const [socialLinksError, setSocialLinksError] = useState<string | null>(null);
 
+  const saving = useRef(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  const loadCampuses = async () => {
-    setIsLoadingCampuses(true);
-    setCampusError(null);
-
-    try {
-      const nextCampuses = await getCampuses();
-      setCampuses(nextCampuses);
-    } catch {
-      setCampusError("Unable to load campuses.");
-    } finally {
-      setIsLoadingCampuses(false);
-    }
-  };
-
-  const loadInterests = useCallback(async () => {
-    if (!profile) {
-      setInterests([]);
-      setSelectedInterestIds([]);
-      setInterestError("Profile unavailable.");
-      setIsLoadingInterests(false);
-      return;
-    }
-
-    setIsLoadingInterests(true);
-    setInterestError(null);
-
-    try {
-      const [nextInterests, currentInterests] = await Promise.all([
-        getInterests(),
-        getProfileInterests(profile.id),
-      ]);
-
-      setInterests(nextInterests);
-      setSelectedInterestIds(
-        currentInterests.map((interest) => interest.id)
-      );
-    } catch {
-      setInterestError("Unable to load interests.");
-    } finally {
-      setIsLoadingInterests(false);
-    }
-  }, [profile]);
-
   const loadSocialLinks = useCallback(async () => {
-    if (!profile) {
+    if (!profileId) {
       setLinkedinValue("");
       setLinkedinVisible(false);
       setInstagramValue("");
@@ -168,7 +124,7 @@ export default function ProfileSettingsScreen() {
     setSocialLinksError(null);
 
     try {
-      const socialLinks = await getProfileSocialLinks(profile.id);
+      const socialLinks = await getProfileSocialLinks(profileId);
 
       setLinkedinValue(socialLinks.linkedin?.value ?? "");
       setLinkedinVisible(socialLinks.linkedin?.isVisible ?? false);
@@ -180,7 +136,7 @@ export default function ProfileSettingsScreen() {
     } finally {
       setIsLoadingSocialLinks(false);
     }
-  }, [profile]);
+  }, [profileId]);
 
   useEffect(() => {
     let isActive = true;
@@ -225,14 +181,6 @@ export default function ProfileSettingsScreen() {
       isActive = false;
     };
   }, [profile?.avatarPath]);
-
-  useEffect(() => {
-    void loadCampuses();
-  }, []);
-
-  useEffect(() => {
-    void loadInterests();
-  }, [loadInterests]);
 
   useEffect(() => {
     void loadSocialLinks();
@@ -298,6 +246,7 @@ export default function ProfileSettingsScreen() {
 
 
   const handleSave = async () => {
+    if (saving.current) return;
     const normalizedName = displayName.trim();
     const normalizedMajor = major.trim();
     const normalizedLinkedin = linkedinValue.trim();
@@ -367,6 +316,7 @@ export default function ProfileSettingsScreen() {
       return;
     }
 
+    saving.current = true;
     setIsSubmitting(true);
     setErrorMessage(null);
     setSuccessMessage(null);
@@ -401,7 +351,6 @@ export default function ProfileSettingsScreen() {
         displayName: normalizedName,
         major: normalizedMajor || null,
         yearOfStudy,
-        campusId,
         isDiscoverable,
       });
 
@@ -415,6 +364,7 @@ export default function ProfileSettingsScreen() {
     } catch (error) {
       setErrorMessage(getErrorMessage(error));
     } finally {
+      saving.current = false;
       setIsSubmitting(false);
     }
   };
@@ -426,7 +376,9 @@ export default function ProfileSettingsScreen() {
     >
       <ScreenHeader>
         <Pressable
+          accessibilityRole="button"
           style={styles.backRow}
+          accessibilityLabel="Back from Edit Profile"
           hitSlop={10}
           onPress={() => router.back()}
         >
@@ -466,7 +418,10 @@ export default function ProfileSettingsScreen() {
           </View>
 
           <Pressable
+            accessibilityRole="button"
             style={styles.avatarButton}
+            accessibilityLabel="Choose profile photo"
+            accessibilityState={{ disabled: isSubmitting }}
             onPress={() => {
               void handleChooseAvatar();
             }}
@@ -495,9 +450,12 @@ export default function ProfileSettingsScreen() {
           ) : null}
         </View>
 
+        <Text style={[styles.label, { fontSize: 22, marginBottom: 8 }]}>The basics</Text>
+        <Text style={[styles.helperText, { marginBottom: 18 }]}>Only your display name is required. Add what you’d like other students to know.</Text>
         <Text style={styles.label}>Display name *</Text>
 
         <TextInput
+          accessibilityLabel="Display name"
           style={styles.input}
           value={displayName}
           onChangeText={setDisplayName}
@@ -509,9 +467,10 @@ export default function ProfileSettingsScreen() {
           editable={!isSubmitting}
         />
 
-        <Text style={[styles.label, styles.spacedLabel]}>Major</Text>
+        <Text style={[styles.label, styles.spacedLabel]}>Major (optional)</Text>
 
         <TextInput
+          accessibilityLabel="Major (optional)"
           style={styles.input}
           value={major}
           onChangeText={setMajor}
@@ -523,7 +482,7 @@ export default function ProfileSettingsScreen() {
         />
 
         <Text style={[styles.label, styles.spacedLabel]}>
-          Year of study
+          Year of study (optional)
         </Text>
 
         <View style={styles.optionsWrap}>
@@ -533,6 +492,9 @@ export default function ProfileSettingsScreen() {
             return (
               <Pressable
                 key={year}
+                accessibilityRole="button"
+                accessibilityLabel={`Year ${year}`}
+                accessibilityState={{ selected: isSelected, disabled: isSubmitting }}
                 style={[
                   styles.optionButton,
                   isSelected && styles.optionButtonSelected,
@@ -557,82 +519,10 @@ export default function ProfileSettingsScreen() {
           })}
         </View>
 
-        <Text style={[styles.label, styles.spacedLabel]}>Campus</Text>
-
-        {isLoadingCampuses ? (
-          <View style={styles.inlineLoading}>
-            <ActivityIndicator color={COLORS.primary} />
-            <Text style={styles.inlineLoadingText}>
-              Loading campuses...
-            </Text>
-          </View>
-        ) : campusError ? (
-          <View>
-            <View style={styles.errorBox}>
-              <Ionicons
-                name="alert-circle-outline"
-                size={18}
-                color={COLORS.errorText}
-              />
-              <Text style={styles.errorText}>{campusError}</Text>
-            </View>
-
-            <Pressable
-              style={styles.retryButton}
-              onPress={() => {
-                void loadCampuses();
-              }}
-            >
-              <Text style={styles.retryText}>Retry</Text>
-            </Pressable>
-          </View>
-        ) : (
-          <View style={styles.campusList}>
-            {campuses.map((campus) => {
-              const isSelected = campusId === campus.id;
-
-              return (
-                <Pressable
-                  key={campus.id}
-                  style={[
-                    styles.campusButton,
-                    isSelected && styles.campusButtonSelected,
-                  ]}
-                  onPress={() =>
-                    setCampusId((current) =>
-                      current === campus.id ? null : campus.id
-                    )
-                  }
-                  disabled={isSubmitting}
-                >
-                  <Ionicons
-                    name="location-outline"
-                    size={18}
-                    color={
-                      isSelected
-                        ? COLORS.primary
-                        : COLORS.mutedText
-                    }
-                  />
-
-                  <Text
-                    style={[
-                      styles.campusText,
-                      isSelected && styles.campusTextSelected,
-                    ]}
-                  >
-                    {campus.displayName}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-        )}
-
         <Text style={[styles.label, styles.spacedLabel]}>Interests</Text>
 
         <Text style={styles.helperText}>
-          Choose the things you are interested in.
+          Find your people through shared hobbies and everyday favorites.
         </Text>
 
         {isLoadingInterests ? (
@@ -650,10 +540,11 @@ export default function ProfileSettingsScreen() {
                 size={18}
                 color={COLORS.errorText}
               />
-              <Text style={styles.errorText}>{interestError}</Text>
+              <Text accessibilityLiveRegion="polite" style={styles.errorText}>{interestError}</Text>
             </View>
 
             <Pressable
+              accessibilityRole="button"
               style={styles.retryButton}
               onPress={() => {
                 void loadInterests();
@@ -663,40 +554,8 @@ export default function ProfileSettingsScreen() {
             </Pressable>
           </View>
         ) : (
-          <View style={styles.interestsWrap}>
-            {interests.map((interest) => {
-              const isSelected = selectedInterestIds.includes(interest.id);
-
-              return (
-                <Pressable
-                  key={interest.id}
-                  style={[
-                    styles.interestButton,
-                    isSelected && styles.interestButtonSelected,
-                  ]}
-                  onPress={() => toggleInterest(interest.id)}
-                  disabled={isSubmitting}
-                >
-                  {isSelected ? (
-                    <Ionicons
-                      name="checkmark"
-                      size={15}
-                      color={COLORS.primary}
-                    />
-                  ) : null}
-
-                  <Text
-                    style={[
-                      styles.interestText,
-                      isSelected && styles.interestTextSelected,
-                    ]}
-                  >
-                    {interest.displayName}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
+          <InterestPicker interests={interests} selectedIds={selectedInterestIds}
+            onToggle={toggleInterest} disabled={isSubmitting} />
         )}
 
         <Text style={[styles.label, styles.spacedLabel]}>
@@ -722,12 +581,13 @@ export default function ProfileSettingsScreen() {
                 size={18}
                 color={COLORS.errorText}
               />
-              <Text style={styles.errorText}>
+              <Text accessibilityLiveRegion="polite" style={styles.errorText}>
                 {socialLinksError}
               </Text>
             </View>
 
             <Pressable
+              accessibilityRole="button"
               style={styles.retryButton}
               onPress={() => {
                 void loadSocialLinks();
@@ -741,6 +601,7 @@ export default function ProfileSettingsScreen() {
             <Text style={styles.socialLabel}>LinkedIn URL</Text>
 
             <TextInput
+              accessibilityLabel="LinkedIn URL"
               style={styles.input}
               value={linkedinValue}
               onChangeText={(value) => {
@@ -751,7 +612,7 @@ export default function ProfileSettingsScreen() {
                   setLinkedinVisible(false);
                 }
               }}
-              placeholder="https://www.linkedin.com/in/username"
+              placeholder="LinkedIn profile URL"
               placeholderTextColor={COLORS.mutedText}
               autoCapitalize="none"
               autoCorrect={false}
@@ -771,6 +632,8 @@ export default function ProfileSettingsScreen() {
               </View>
 
               <Switch
+                accessibilityLabel="Show my LinkedIn"
+                style={styles.switchControl}
                 value={
                   Boolean(linkedinValue.trim()) && linkedinVisible
                 }
@@ -795,6 +658,7 @@ export default function ProfileSettingsScreen() {
             </Text>
 
             <TextInput
+              accessibilityLabel="Instagram username"
               style={styles.input}
               value={instagramValue}
               onChangeText={(value) => {
@@ -824,6 +688,8 @@ export default function ProfileSettingsScreen() {
               </View>
 
               <Switch
+                accessibilityLabel="Show my Instagram"
+                style={styles.switchControl}
                 value={
                   Boolean(instagramValue.trim()) && instagramVisible
                 }
@@ -858,6 +724,8 @@ export default function ProfileSettingsScreen() {
           </View>
 
           <Switch
+            accessibilityLabel="Show me to other students"
+            style={styles.switchControl}
             value={isDiscoverable}
             onValueChange={setIsDiscoverable}
             disabled={isSubmitting}
@@ -878,7 +746,7 @@ export default function ProfileSettingsScreen() {
               size={18}
               color={COLORS.errorText}
             />
-            <Text style={styles.errorText}>{errorMessage}</Text>
+            <Text accessibilityLiveRegion="polite" style={styles.errorText}>{errorMessage}</Text>
           </View>
         ) : null}
 
@@ -889,13 +757,16 @@ export default function ProfileSettingsScreen() {
               size={18}
               color={COLORS.primary}
             />
-            <Text style={styles.successText}>
+            <Text accessibilityLiveRegion="polite" style={styles.successText}>
               {successMessage}
             </Text>
           </View>
         ) : null}
 
         <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Save Changes"
+          accessibilityState={{ disabled: isSubmitting, busy: isSubmitting }}
           style={[
             styles.primaryButton,
             isSubmitting && styles.primaryButtonDisabled,
@@ -925,12 +796,16 @@ const styles = StyleSheet.create({
   },
 
   backRow: {
+    minHeight: 48,
+    flex: 1,
+    minWidth: 0,
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
   },
 
   headerTitle: {
+    flexShrink: 1,
     fontSize: 19,
     fontWeight: "900",
     color: "#FFFFFF",
@@ -966,7 +841,7 @@ const styles = StyleSheet.create({
 
   avatarButton: {
     marginTop: 14,
-    minHeight: 42,
+    minHeight: 48,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
@@ -979,6 +854,8 @@ const styles = StyleSheet.create({
   },
 
   avatarButtonText: {
+    flexShrink: 1,
+    textAlign: "center",
     fontSize: 14,
     fontWeight: "800",
     color: COLORS.primary,
@@ -1018,7 +895,8 @@ const styles = StyleSheet.create({
   },
 
   input: {
-    height: 54,
+    minHeight: 54,
+    paddingVertical: 14,
     borderWidth: 1,
     borderColor: COLORS.border,
     borderRadius: 12,
@@ -1035,8 +913,9 @@ const styles = StyleSheet.create({
   },
 
   optionButton: {
-    width: 46,
-    height: 42,
+    minWidth: 48,
+    minHeight: 48,
+    padding: 10,
     borderWidth: 1,
     borderColor: COLORS.border,
     borderRadius: 10,
@@ -1060,71 +939,15 @@ const styles = StyleSheet.create({
     color: COLORS.primary,
   },
 
-  campusList: {
-    gap: 10,
-  },
 
-  campusButton: {
-    minHeight: 52,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    backgroundColor: COLORS.inputBackground,
-  },
 
-  campusButtonSelected: {
-    borderColor: COLORS.primary,
-    backgroundColor: COLORS.selectedBackground,
-  },
 
-  campusText: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: COLORS.textDark,
-  },
 
-  campusTextSelected: {
-    color: COLORS.primary,
-  },
 
-  interestsWrap: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 9,
-  },
 
-  interestButton: {
-    minHeight: 40,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 5,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 20,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    backgroundColor: COLORS.inputBackground,
-  },
 
-  interestButtonSelected: {
-    borderColor: COLORS.primary,
-    backgroundColor: COLORS.selectedBackground,
-  },
 
-  interestText: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: COLORS.textDark,
-  },
 
-  interestTextSelected: {
-    color: COLORS.primary,
-  },
 
   socialLabel: {
     marginTop: 4,
@@ -1142,13 +965,16 @@ const styles = StyleSheet.create({
     minHeight: 62,
     marginTop: 8,
     flexDirection: "row",
+    flexWrap: "wrap",
     alignItems: "center",
     gap: 14,
     paddingHorizontal: 4,
   },
 
   socialVisibilityText: {
-    flex: 1,
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: 180,
   },
 
   socialVisibilityTitle: {
@@ -1172,12 +998,17 @@ const styles = StyleSheet.create({
   },
 
   inlineLoadingText: {
+    flexShrink: 1,
     fontSize: 14,
     fontWeight: "600",
     color: COLORS.mutedText,
   },
 
   retryButton: {
+    minHeight: 48,
+    minWidth: 48,
+    paddingVertical: 12,
+    justifyContent: "center",
     alignSelf: "flex-start",
     marginTop: 10,
   },
@@ -1191,6 +1022,7 @@ const styles = StyleSheet.create({
   discoverabilityRow: {
     marginTop: 24,
     flexDirection: "row",
+    flexWrap: "wrap",
     alignItems: "center",
     gap: 16,
     borderWidth: 1,
@@ -1201,7 +1033,9 @@ const styles = StyleSheet.create({
   },
 
   discoverabilityText: {
-    flex: 1,
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: 180,
   },
 
   discoverabilityTitle: {
@@ -1253,7 +1087,10 @@ const styles = StyleSheet.create({
     color: COLORS.primary,
   },
 
+  switchControl: { minHeight: 48, minWidth: 48 },
+
   primaryButton: {
+    paddingVertical: 14,
     minHeight: 54,
     marginTop: 24,
     borderRadius: 12,

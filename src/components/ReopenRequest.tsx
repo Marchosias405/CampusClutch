@@ -100,7 +100,7 @@ export default function ReopenRequest({ request, disabled = false, onChanged }: 
 
   return <View style={styles.section}>
     <Text style={styles.heading}>Need to choose again?</Text>
-    <Text style={styles.text}>Reopening ends any current acceptance and closes the current offers. Every helper, including someone previously declined, must offer again.</Text>
+    <Text style={styles.text}>Reopening ends the current assignment and closes all offers. Helpers must offer again.</Text>
     <Text style={styles.label}>New deadline (end of day)</Text>
     {Platform.OS === 'web' ? (
       <TextInput accessibilityLabel="New deadline in YYYY-MM-DD format" style={styles.dateInput} value={dateText} editable={!pending} onChangeText={value => { setDateText(value); setError(''); }} placeholder="YYYY-MM-DD" maxLength={10} />

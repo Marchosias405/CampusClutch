@@ -127,17 +127,36 @@ SELECT is((SELECT count(*) FROM public.group_membership_periods WHERE conversati
 -- permissive policy proves that the restrictive policies remain decisive.
 -- Hosted grant-option restrictions may make GRANT a no-op; the checks below
 -- accept table-level denial too, while always verifying the restrictive rules.
+-- Managed partition maintenance can lag the current date. These security-only
+-- fixtures use an existing partition rather than depending on today's cron run.
+CREATE FUNCTION pg_temp.broadcast_fixture_time() RETURNS timestamp
+LANGUAGE plpgsql STABLE AS $$
+DECLARE fixture_time timestamp;
+BEGIN
+ IF (SELECT relkind FROM pg_class WHERE oid='realtime.messages'::regclass) <> 'p' THEN
+   RETURN localtimestamp;
+ END IF;
+ SELECT max(substring(pg_get_expr(child.relpartbound,child.oid)
+   FROM 'FROM \(''([^'']+)''\)')::timestamp)
+ INTO fixture_time
+ FROM pg_inherits inheritance JOIN pg_class child ON child.oid=inheritance.inhrelid
+ WHERE inheritance.inhparent='realtime.messages'::regclass;
+ IF fixture_time IS NULL THEN
+   RAISE EXCEPTION 'Realtime security test requires an existing finite timestamp partition';
+ END IF;
+ RETURN fixture_time;
+END $$;
 GRANT SELECT, INSERT, UPDATE, DELETE ON realtime.messages TO anon, authenticated;
 CREATE POLICY test_realtime_client_write_allow ON realtime.messages
 FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
 INSERT INTO fixtures VALUES('broadcast',gen_random_uuid());
-INSERT INTO realtime.messages(id,payload,event,topic,private,extension)
-VALUES(pg_temp.fixture('broadcast'),'{}','original','messages:'||pg_temp.uid(2)::text,true,'broadcast');
+INSERT INTO realtime.messages(id,payload,event,topic,private,extension,inserted_at)
+VALUES(pg_temp.fixture('broadcast'),'{}','original','messages:'||pg_temp.uid(2)::text,true,'broadcast',pg_temp.broadcast_fixture_time());
 
 SET LOCAL ROLE authenticated;
 SELECT pg_temp.login(2);
-SELECT throws_ok($$INSERT INTO realtime.messages(payload,event,topic,private,extension)
-  VALUES('{}','forged','messages:'||pg_temp.uid(2)::text,true,'broadcast')$$,
+SELECT throws_ok($$INSERT INTO realtime.messages(payload,event,topic,private,extension,inserted_at)
+  VALUES('{}','forged','messages:'||pg_temp.uid(2)::text,true,'broadcast',pg_temp.broadcast_fixture_time())$$,
   '42501',NULL,'Authenticated broadcast insertion is denied with a permissive write policy present');
 SELECT CASE WHEN has_table_privilege(current_user,'realtime.messages','UPDATE') THEN
   results_eq($$UPDATE realtime.messages SET event='tampered' WHERE id=pg_temp.fixture('broadcast') RETURNING id$$,
@@ -153,8 +172,8 @@ RESET ROLE;
 GRANT SELECT ON fixtures TO anon;
 SET LOCAL ROLE anon;
 SELECT set_config('request.jwt.claim.sub','',true);
-SELECT throws_ok($$INSERT INTO realtime.messages(payload,event,topic,private,extension)
-  VALUES('{}','forged','messages:'||pg_temp.uid(2)::text,true,'broadcast')$$,
+SELECT throws_ok($$INSERT INTO realtime.messages(payload,event,topic,private,extension,inserted_at)
+  VALUES('{}','forged','messages:'||pg_temp.uid(2)::text,true,'broadcast',pg_temp.broadcast_fixture_time())$$,
   '42501',NULL,'Anonymous broadcast insertion is denied with a permissive write policy present');
 SELECT CASE WHEN has_table_privilege(current_user,'realtime.messages','UPDATE') THEN
   results_eq($$UPDATE realtime.messages SET event='tampered' WHERE id=pg_temp.fixture('broadcast') RETURNING id$$,

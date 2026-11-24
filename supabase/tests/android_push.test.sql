@@ -1,0 +1,77 @@
+begin;
+create extension if not exists pgtap with schema extensions;
+set search_path=public,extensions;
+select no_plan();
+create function pg_temp.uid(i int) returns uuid language sql immutable as $$
+ select ('ad110000-0000-4000-8000-'||lpad(i::text,12,'0'))::uuid $$;
+create function pg_temp.login(i int) returns void language plpgsql as $$
+begin
+ perform set_config('request.jwt.claim.sub',pg_temp.uid(i)::text,true);
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',pg_temp.uid(i),'session_id',pg_temp.uid(i+10))::text,true);
+end $$;
+insert into auth.users(id,email,email_confirmed_at) select pg_temp.uid(i),'android-push-'||i||'@test.local',now() from generate_series(1,2)i;
+update public.profiles set display_name='Push Tester',onboarding_completed_at=now() where id in(pg_temp.uid(1),pg_temp.uid(2));
+insert into auth.sessions(id,user_id,created_at) select pg_temp.uid(i+10),pg_temp.uid(i),now()+make_interval(secs=>i) from generate_series(1,2)i;
+create function pg_temp.notice(i int,kind text) returns void language sql as $$
+ insert into public.notifications(id,recipient_id,event_type,title,body,navigation_key,source_event_key)
+ values(pg_temp.uid(i),pg_temp.uid(1),kind,'Test','Test',case when kind='message_received' then 'conversation' else 'request_details' end,'push-test-'||i)
+$$;
+set local role authenticated;
+select pg_temp.login(1);
+select is(public.get_my_push_settings(), '{"push_enabled":false,"messages":true,"offers":true,"request_updates":true,"registered":false}'::jsonb,'Opt-in defaults');
+select throws_ok($$select * from notifications_private.android_push_devices$$,'42501',null,'Client cannot read tokens');
+select throws_ok($$select * from public.claim_android_push_jobs()$$,'42501',null,'Clients cannot claim deliveries');
+select throws_ok($$select public.set_my_push_preference('bogus',true)$$,'22023',null,'Invalid setting rejected');
+select is(public.refresh_my_android_push_device('ExpoPushToken[abc]')->>'registered','false','Refresh cannot opt a device in');
+select is(public.set_my_android_push_device('ExpoPushToken[abc]')->>'registered','true','Register this session');
+select is(public.set_my_android_push_device('ExpoPushToken[abc]')->>'registered','true','Idempotent register');
+reset role;
+select pg_temp.notice(31,'message_received');
+select is((select count(*) from notifications_private.push_jobs where session_id=pg_temp.uid(11)),0::bigint,'Default master off');
+set local role authenticated;
+select pg_temp.login(1);
+select is(public.set_my_push_preference('push_enabled',true)->>'push_enabled','true','Master enabled');
+select is(public.set_my_push_preference('offers',false)->>'offers','false','Mute offers');
+reset role;
+select pg_temp.notice(32,'offer_created'); select pg_temp.notice(33,'request_completed'); select pg_temp.notice(34,'message_received');
+select is((select count(*) from notifications_private.push_jobs where session_id=pg_temp.uid(11)),2::bigint,'Only eligible categories queued');
+select is((select count(*) from public.notifications where recipient_id=pg_temp.uid(1)),4::bigint,'Inbox preserves every notification');
+set local role authenticated;
+select pg_temp.login(2);
+select is(public.get_my_push_settings()->>'push_enabled','false','Second account defaults isolated');
+select throws_ok($$select public.open_my_push_notification(pg_temp.uid(34))$$,'42501',null,'Foreign tap rejected');
+select pg_temp.login(1);
+select is(public.open_my_push_notification(pg_temp.uid(33))->>'event_type','request_completed','Tap reads authorized notice');
+reset role;
+create temp table lease as select * from public.claim_android_push_jobs() where notification_id in (pg_temp.uid(33),pg_temp.uid(34));
+select is((select count(*) from lease),1::bigint,'Read job suppressed at claim');
+select is((select category from lease),'messages','Worker receives correct channel category');
+select is((select count(*) from public.claim_android_push_jobs() where notification_id=pg_temp.uid(34)),0::bigint,'Lease prevents double claim');
+select public.finish_android_push_job(job_id,lease_id,'ticket','test-ticket',expo_token) from lease;
+select is((select ticket from notifications_private.push_jobs where notification_id=pg_temp.uid(34)),'test-ticket','Expo ticket stored for receipt');
+select public.finish_android_push_job(job_id,lease_id,'drop',null,expo_token) from lease;
+select is((select count(*) from notifications_private.push_jobs where notification_id=pg_temp.uid(34)),1::bigint,'Stale completion ignored');
+set local role authenticated;
+select pg_temp.login(1);
+select is(public.refresh_my_android_push_device('ExpoPushToken[new]')->>'registered','true','Registered device can rotate');
+reset role;
+update notifications_private.push_jobs set due_at=now() where notification_id=pg_temp.uid(34);
+select public.finish_android_push_job(job_id,lease_id,'invalid_device',null,expo_token) from public.claim_android_push_jobs() where notification_id=pg_temp.uid(34);
+select is((select expo_token from notifications_private.android_push_devices where session_id=pg_temp.uid(11)),'ExpoPushToken[new]','Old ticket cannot disable rotated token');
+set local role authenticated;
+select pg_temp.login(2);
+select is(public.set_my_android_push_device('ExpoPushToken[new]')->>'registered','true','New account can take over installation');
+select pg_temp.login(1);
+select is(public.get_my_push_settings()->>'registered','false','Old account detached');
+select throws_ok($$select public.set_my_android_push_device('ExpoPushToken[new]')$$,'42501',null,'Stale session cannot reclaim newer account token');
+select pg_temp.login(2);
+select is(public.set_my_android_push_device(null)->>'registered','false','Disconnect is explicit');
+select public.set_my_android_push_device('ExpoPushToken[new]');
+reset role;
+delete from auth.sessions where id=pg_temp.uid(12);
+select is((select count(*) from notifications_private.android_push_devices where session_id=pg_temp.uid(12)),0::bigint,'Revoked session loses device');
+set local role anon;
+select throws_ok($$select public.get_my_push_settings()$$,'42501',null,'Anonymous settings denied');
+reset role;
+select * from finish();
+rollback;

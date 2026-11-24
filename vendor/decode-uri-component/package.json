@@ -1,0 +1,9 @@
+{
+  "name": "decode-uri-component",
+  "version": "0.5.1",
+  "private": true,
+  "description": "CommonJS build of the upstream decoder for query-string 7 used by React Navigation and Expo Router. Only the module export differs from upstream.",
+  "homepage": "https://github.com/SamVerschueren/decode-uri-component/tree/v0.5.1",
+  "license": "MIT",
+  "main": "index.cjs"
+}

@@ -1,7 +1,8 @@
+import { LoadingSkeleton } from '@/components/LoadingState';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import { ActivityIndicator, AppState, FlatList, Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from 'react-native';
+import { AppState, FlatList, Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from 'react-native';
 import ScreenHeader from '../../components/ScreenHeader';
 import { useAuth } from '../../context/AuthContext';
 import { useUnreadMessages } from '../../context/UnreadMessagesContext';
@@ -11,7 +12,7 @@ import { conversationMatchesSearch, getConversationInboxPresentation } from '../
 import { loadConversationPage } from '../../lib/messages';
 import { GROUP_MESSAGING_ENABLED } from '../../lib/messagingFeatures';
 
-const COLORS = { primary: '#9B1C31', text: '#2B2525', muted: '#736B6B', border: '#ECE3E3', pink: '#FBECEC' };
+const COLORS = { primary: '#9B1C31', text: '#2B2525', muted: '#635C5C', border: '#ECE3E3', pink: '#FBECEC' };
 
 export default function MessagesInboxScreen() {
   const { user } = useAuth();
@@ -136,7 +137,7 @@ function AccountInbox({ userId }: { userId: string }) {
           <Pressable accessibilityRole="button" accessibilityLabel="Retry loading messages" disabled={state.loading}
             accessibilityState={{ disabled: state.loading, busy: state.loading }} style={styles.button} onPress={refreshInbox}><Text style={styles.filterText}>Retry</Text></Pressable>
         </View>}
-        {state.loading && !state.loaded && <ActivityIndicator color={COLORS.primary} accessibilityLabel="Loading conversations" style={styles.loading} />}
+        {state.loading && !state.loaded && state.items.length === 0 && !state.error && <LoadingSkeleton variant="inbox" label="Loading conversations" rows={4} style={styles.loading} />}
       </>}
       ListEmptyComponent={state.loaded && !state.error ? <View style={styles.notice}>
         <Text style={styles.muted}>{emptyText}</Text>
@@ -154,7 +155,7 @@ function AccountInbox({ userId }: { userId: string }) {
             : <Text style={styles.initials}>{initials}</Text>}</View>
           <View style={styles.body}>
             <View style={styles.topRow}>
-              <Text style={[styles.name, unread && styles.bold]} numberOfLines={1}>{name}</Text>
+              <Text style={[styles.name, unread && styles.bold]}>{name}</Text>
               <Text style={styles.time}>{new Date(item.last_activity_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</Text>
             </View>
             <Text style={group ? styles.groupMeta : styles.muted}>{presentation.subtitle}</Text>
@@ -172,23 +173,23 @@ function AccountInbox({ userId }: { userId: string }) {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: 'white' }, title: { color: 'white', fontWeight: '900', fontSize: 20 },
+  screen: { flex: 1, backgroundColor: 'white' }, title: { flex: 1, minWidth: 0, color: 'white', fontWeight: '900', fontSize: 20 },
   headerActions: { flexDirection: 'row', alignItems: 'center' },
-  headerButton: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
+  headerButton: { minWidth: 48, minHeight: 48, alignItems: 'center', justifyContent: 'center' },
   content: { padding: 20, paddingBottom: 36 }, search: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#F2F0F0', borderRadius: 13, paddingLeft: 14 },
-  searchInput: { flex: 1, minHeight: 48, color: COLORS.text, fontSize: 15 }, clear: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
+  searchInput: { flex: 1, minHeight: 48, color: COLORS.text, fontSize: 15 }, clear: { minWidth: 48, minHeight: 48, alignItems: 'center', justifyContent: 'center' },
   groupActions: { flexDirection: 'row', gap: 10, marginTop: 14 },
   groupAction: { flex: 1, minHeight: 48, flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: COLORS.border, borderRadius: 13, paddingHorizontal: 10 },
   groupActionText: { color: COLORS.primary, fontWeight: '800', fontSize: 13 },
   filters: { flexDirection: 'row', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginVertical: 18 },
-  filter: { minHeight: 44, paddingHorizontal: 18, borderRadius: 24, borderWidth: 1, borderColor: COLORS.primary, justifyContent: 'center' },
+  filter: { minHeight: 48, paddingHorizontal: 18, borderRadius: 24, borderWidth: 1, borderColor: COLORS.primary, justifyContent: 'center' },
   selected: { backgroundColor: COLORS.primary }, filterText: { color: COLORS.primary, fontWeight: '700', fontSize: 14 }, selectedText: { color: 'white' },
-  refresh: { minHeight: 44, paddingHorizontal: 10, justifyContent: 'center', marginLeft: 'auto' }, disabled: { opacity: 0.5 },
+  refresh: { minHeight: 48, paddingHorizontal: 10, justifyContent: 'center', marginLeft: 'auto' }, disabled: { opacity: 0.5 },
   notice: { gap: 12, marginBottom: 16 }, error: { color: COLORS.primary, lineHeight: 22 }, muted: { color: COLORS.muted, fontSize: 14, lineHeight: 21 },
-  button: { minHeight: 44, borderWidth: 1, borderColor: COLORS.primary, borderRadius: 12, padding: 12, alignItems: 'center', justifyContent: 'center' }, loading: { marginVertical: 20 },
+  button: { minHeight: 48, borderWidth: 1, borderColor: COLORS.primary, borderRadius: 12, padding: 12, alignItems: 'center', justifyContent: 'center' }, loading: { marginVertical: 20 },
   row: { flexDirection: 'row', gap: 12, alignItems: 'center', paddingVertical: 16, borderBottomWidth: 1, borderColor: COLORS.border },
   avatar: { width: 50, height: 50, borderRadius: 25, backgroundColor: COLORS.pink, alignItems: 'center', justifyContent: 'center' }, initials: { color: COLORS.primary, fontWeight: '800', fontSize: 17 },
-  body: { flex: 1 }, topRow: { flexDirection: 'row', gap: 8, marginBottom: 6, alignItems: 'center' }, name: { flex: 1, color: COLORS.text, fontSize: 16, fontWeight: '600' },
+  body: { flex: 1 }, topRow: { gap: 4, marginBottom: 6, alignItems: 'flex-start' }, name: { flex: 1, color: COLORS.text, fontSize: 16, fontWeight: '600' },
   bold: { fontWeight: '800' }, time: { color: COLORS.muted, fontSize: 12 }, groupMeta: { color: COLORS.primary, fontSize: 12, fontWeight: '700', marginBottom: 3 }, preview: { color: COLORS.muted, fontSize: 14, lineHeight: 20 },
   unread: { minWidth: 24, padding: 5, borderRadius: 15, backgroundColor: COLORS.primary, alignItems: 'center' }, unreadText: { color: 'white', fontSize: 11, fontWeight: '800' },
   footer: { gap: 12, marginTop: 20 },

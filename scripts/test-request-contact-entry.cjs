@@ -142,7 +142,8 @@ async function ready(app) { app.reads.at(-1).resolve(identity(app.reads.at(-1).a
   {
     const app = harness(); assert.deepEqual(app.reads[0].args, [A, REQUEST, B]);
     assert.equal(app.opens.length, 0); assert.equal(app.button('Message poster').props.disabled, true);
-    await ready(app); assert.ok(app.content().includes('Student b')); assert.ok(app.content().includes('Computing · Year 2 · Burnaby'));
+    await ready(app); assert.ok(app.content().includes('Student b')); assert.ok(app.content().includes('Computing')); assert.ok(app.content().includes('Year 2'));
+    assert.ok(!app.content().includes('Burnaby'), 'contact identity does not assign a personal campus');
     assert.equal(app.opens.length, 0, 'Loading identity must not create a chat');
     const handler = app.button('Message poster').props.onPress; handler(); handler(); await app.settle();
     assert.equal(app.opens.length, 1); assert.deepEqual(app.opens[0].args, [A, REQUEST, B]);

@@ -1,3 +1,4 @@
+import { LoadingSkeleton, LoadingNotice } from '@/components/LoadingState';
 import { FontAwesome5, Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import React, {
@@ -8,7 +9,6 @@ import React, {
   useState,
 } from "react";
 import {
-  ActivityIndicator,
   AppState,
   Image,
   Pressable,
@@ -34,9 +34,6 @@ import type {
   MyCourse,
 } from "@/types";
 
-type MatchFilter =
-  | "MOST_SHARED"
-  | "SAME_CAMPUS";
 
 type DisplayClassmate = CourseClassmate & {
   avatarSignedUrl: string | null;
@@ -47,7 +44,7 @@ const COLORS = {
   background: "#FFFFFF",
   cardWhite: "#FFFFFF",
   textDark: "#2B2525",
-  mutedText: "#8C8585",
+  mutedText: "#635C5C",
   border: "#EFE1E1",
   inactiveGray: "#A5AAB3",
   tagGray: "#F4F1F1",
@@ -55,19 +52,6 @@ const COLORS = {
   disabled: "#C8BFC1",
 };
 
-const filters: {
-  id: MatchFilter;
-  label: string;
-}[] = [
-  {
-    id: "MOST_SHARED",
-    label: "Most shared interests",
-  },
-  {
-    id: "SAME_CAMPUS",
-    label: "Same campus",
-  },
-];
 
 function formatYear(year: number | null) {
   if (!year) {
@@ -101,23 +85,10 @@ function getConnectionNote(
   const sharedCount =
     classmate.sharedInterestCount;
 
-  if (
-    sharedCount > 0 &&
-    classmate.sameCampus
-  ) {
-    return `${sharedCount} shared ${
-      sharedCount === 1 ? "interest" : "interests"
-    }, same campus`;
-  }
-
   if (sharedCount > 0) {
     return `${sharedCount} shared ${
       sharedCount === 1 ? "interest" : "interests"
     }`;
-  }
-
-  if (classmate.sameCampus) {
-    return "Same campus";
   }
 
   return "Enrolled in this course with you";
@@ -150,8 +121,6 @@ function ClassmateMatchesContent({ viewerId, routeCourseId }: { viewerId?: strin
   const [openingProfileId, setOpeningProfileId] = useState<string | null>(null);
   const [messageError, setMessageError] = useState<{ profileId: string; text: string } | null>(null);
 
-  const [selectedFilter, setSelectedFilter] =
-    useState<MatchFilter>("MOST_SHARED");
 
   const [course, setCourse] =
     useState<MyCourse | null>(null);
@@ -285,15 +254,7 @@ function ClassmateMatchesContent({ viewerId, routeCourseId }: { viewerId?: strin
   }, [loadClassmates]);
 
   const visibleClassmates = useMemo(() => {
-    const source =
-      selectedFilter === "SAME_CAMPUS"
-        ? classmates.filter(
-            (classmate) =>
-              classmate.sameCampus
-          )
-        : classmates;
-
-    return [...source].sort(
+    return [...classmates].sort(
       (a, b) =>
         b.sharedInterestCount -
           a.sharedInterestCount ||
@@ -301,7 +262,7 @@ function ClassmateMatchesContent({ viewerId, routeCourseId }: { viewerId?: strin
           b.displayName
         )
     );
-  }, [classmates, selectedFilter]);
+  }, [classmates]);
 
   const handleViewProfile = (
     profileId: string
@@ -338,10 +299,7 @@ function ClassmateMatchesContent({ viewerId, routeCourseId }: { viewerId?: strin
     }
   };
 
-  const emptyMessage =
-    selectedFilter === "SAME_CAMPUS"
-      ? "No discoverable classmates from your campus are enrolled in this course yet."
-      : "No discoverable classmates are enrolled in this course yet.";
+  const emptyMessage = "No discoverable classmates are enrolled in this course yet.";
 
   return (
     <View style={styles.safeArea}>
@@ -349,6 +307,8 @@ function ClassmateMatchesContent({ viewerId, routeCourseId }: { viewerId?: strin
         <ScreenHeader>
           <Pressable
             style={styles.backRow}
+            accessibilityRole="button"
+            accessibilityLabel="Back from classmates"
             hitSlop={10}
             onPress={() => router.back()}
           >
@@ -366,19 +326,12 @@ function ClassmateMatchesContent({ viewerId, routeCourseId }: { viewerId?: strin
           <View />
         </ScreenHeader>
 
-        {isLoading ? (
-          <View style={styles.stateContainer}>
-            <ActivityIndicator
-              size="large"
-              color={COLORS.primary}
-            />
-
-            <Text style={styles.stateText}>
-              Loading classmates...
-            </Text>
-          </View>
+        {isLoading && visibleClassmates.length === 0 && !errorMessage ? (
+          <ScrollView contentContainerStyle={styles.scrollContent}>
+            <LoadingSkeleton variant="people" label="Loading classmates…" />
+          </ScrollView>
         ) : errorMessage ? (
-          <View style={styles.stateContainer}>
+          <ScrollView contentContainerStyle={styles.stateContainer} accessibilityLiveRegion="polite">
             <Ionicons
               name="alert-circle-outline"
               size={56}
@@ -395,6 +348,8 @@ function ClassmateMatchesContent({ viewerId, routeCourseId }: { viewerId?: strin
 
             <Pressable
               style={styles.retryButton}
+              accessibilityRole="button"
+              accessibilityLabel="Retry loading classmates"
               onPress={() =>
                 void loadClassmates()
               }
@@ -405,7 +360,7 @@ function ClassmateMatchesContent({ viewerId, routeCourseId }: { viewerId?: strin
                 Try Again
               </Text>
             </Pressable>
-          </View>
+          </ScrollView>
         ) : (
           <ScrollView
             style={styles.scrollView}
@@ -425,46 +380,8 @@ function ClassmateMatchesContent({ viewerId, routeCourseId }: { viewerId?: strin
                 : "Find discoverable students enrolled with you."}
             </Text>
 
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={
-                false
-              }
-              contentContainerStyle={
-                styles.filtersRow
-              }
-            >
-              {filters.map((filter) => {
-                const isActive =
-                  selectedFilter === filter.id;
-
-                return (
-                  <Pressable
-                    key={filter.id}
-                    style={[
-                      styles.filterPill,
-                      isActive &&
-                        styles.activeFilterPill,
-                    ]}
-                    onPress={() =>
-                      setSelectedFilter(
-                        filter.id
-                      )
-                    }
-                  >
-                    <Text
-                      style={[
-                        styles.filterText,
-                        isActive &&
-                          styles.activeFilterText,
-                      ]}
-                    >
-                      {filter.label}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
+            <Text style={[styles.subtitle, { marginBottom: 16 }]}>Sorted by shared interests</Text>
+            {isLoading && <LoadingNotice label="Refreshing classmates…" />}
 
             {visibleClassmates.length === 0 ? (
               <View style={styles.emptyContainer}>
@@ -499,9 +416,6 @@ function ClassmateMatchesContent({ viewerId, routeCourseId }: { viewerId?: strin
                       item.major ??
                       "Major not added";
 
-                    const campus =
-                      item.campusDisplayName ??
-                      "Campus not added";
 
                     const connectionNote =
                       getConnectionNote(item);
@@ -559,7 +473,6 @@ function ClassmateMatchesContent({ viewerId, routeCourseId }: { viewerId?: strin
                               style={
                                 styles.studentName
                               }
-                              numberOfLines={1}
                             >
                               {
                                 item.displayName
@@ -570,31 +483,11 @@ function ClassmateMatchesContent({ viewerId, routeCourseId }: { viewerId?: strin
                               style={
                                 styles.studentMeta
                               }
-                              numberOfLines={1}
                             >
                               {major}, {year}
                             </Text>
 
-                            <View
-                              style={
-                                styles.campusRow
-                              }
-                            >
-                              <Ionicons
-                                name="location-sharp"
-                                size={13}
-                                color="#6F6A6A"
-                              />
 
-                              <Text
-                                style={
-                                  styles.campusText
-                                }
-                                numberOfLines={1}
-                              >
-                                {campus}
-                              </Text>
-                            </View>
                           </View>
 
                           {item.sharedInterestCount >
@@ -684,7 +577,6 @@ function ClassmateMatchesContent({ viewerId, routeCourseId }: { viewerId?: strin
                             style={
                               styles.noteText
                             }
-                            numberOfLines={1}
                           >
                             {connectionNote}
                           </Text>
@@ -701,7 +593,8 @@ function ClassmateMatchesContent({ viewerId, routeCourseId }: { viewerId?: strin
                             style={
                               styles.actionButton
                             }
-                            disabled={!!openingProfileId}
+                            disabled={isLoading || !!openingProfileId}
+                            accessibilityState={{ disabled: isLoading || !!openingProfileId }}
                             onPress={() =>
                               handleViewProfile(
                                 item.profileId
@@ -727,7 +620,8 @@ function ClassmateMatchesContent({ viewerId, routeCourseId }: { viewerId?: strin
                           <Pressable
                             accessibilityRole="button"
                             accessibilityLabel={`Message ${item.displayName}`}
-                            disabled={!canMessage || !!openingProfileId}
+                            disabled={isLoading || !canMessage || !!openingProfileId}
+                            accessibilityState={{ disabled: isLoading || !canMessage || !!openingProfileId, busy: openingProfileId === item.profileId }}
                             onPress={() => { void handleMessage(item.profileId); }}
                             style={
                               styles.actionButton
@@ -736,7 +630,7 @@ function ClassmateMatchesContent({ viewerId, routeCourseId }: { viewerId?: strin
                             <Text
                               style={[
                                 styles.messageText,
-                                (!canMessage || !!openingProfileId) && styles.messageDisabledText,
+                                (isLoading || !canMessage || !!openingProfileId) && styles.messageDisabledText,
                               ]}
                             >
                               {openingProfileId === item.profileId ? "Opening chat…"
@@ -771,12 +665,15 @@ const styles = StyleSheet.create({
   },
 
   backRow: {
+    minHeight: 48,
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
   },
 
   headerTitle: {
+    flexShrink: 1,
     fontSize: 19,
     fontWeight: "900",
     color: "#FFFFFF",
@@ -807,36 +704,10 @@ const styles = StyleSheet.create({
     marginBottom: 21,
   },
 
-  filtersRow: {
-    paddingBottom: 24,
-  },
 
-  filterPill: {
-    height: 36,
-    paddingHorizontal: 17,
-    borderRadius: 18,
-    backgroundColor: COLORS.cardWhite,
-    borderWidth: 1,
-    borderColor: "#E7CFCF",
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 10,
-  },
 
-  activeFilterPill: {
-    backgroundColor: COLORS.primary,
-    borderColor: COLORS.primary,
-  },
 
-  filterText: {
-    fontSize: 12,
-    fontWeight: "800",
-    color: "#7A7373",
-  },
 
-  activeFilterText: {
-    color: COLORS.cardWhite,
-  },
 
   studentsList: {
     gap: 17,
@@ -857,6 +728,8 @@ const styles = StyleSheet.create({
 
   cardTopRow: {
     flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
     alignItems: "center",
     paddingHorizontal: 18,
   },
@@ -864,7 +737,6 @@ const styles = StyleSheet.create({
   avatarWrap: {
     width: 72,
     height: 72,
-    marginRight: 15,
   },
 
   avatar: {
@@ -890,7 +762,9 @@ const styles = StyleSheet.create({
   },
 
   studentInfo: {
-    flex: 1,
+    flexGrow: 1,
+    flexBasis: 160,
+    minWidth: 0,
   },
 
   studentName: {
@@ -906,21 +780,12 @@ const styles = StyleSheet.create({
     color: "#6F6A6A",
   },
 
-  campusRow: {
-    marginTop: 6,
-    flexDirection: "row",
-    alignItems: "center",
-  },
 
-  campusText: {
-    marginLeft: 4,
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#6F6A6A",
-  },
 
   matchBadge: {
-    width: 70,
+    minWidth: 70,
+    maxWidth: "100%",
+    paddingVertical: 8,
     minHeight: 45,
     borderRadius: 20,
     backgroundColor: "#FFDDE2",
@@ -947,6 +812,7 @@ const styles = StyleSheet.create({
   },
 
   interestTag: {
+    maxWidth: "100%",
     backgroundColor: COLORS.tagGray,
     borderRadius: 6,
     paddingHorizontal: 10,
@@ -983,32 +849,36 @@ const styles = StyleSheet.create({
     marginLeft: 8,
     fontSize: 12,
     fontWeight: "700",
-    color: "#8A7474",
+    color: COLORS.mutedText,
   },
 
   actionRow: {
     marginTop: 16,
-    height: 55,
+    minHeight: 55,
     borderTopWidth: 1,
     borderTopColor: "#F0EAEA",
     flexDirection: "row",
+    flexWrap: "wrap",
     alignItems: "center",
   },
 
   actionButton: {
-    flex: 1,
-    height: "100%",
+    flexGrow: 1,
+    flexBasis: 140,
+    minHeight: 55,
+    paddingVertical: 12,
+    paddingHorizontal: 10,
     alignItems: "center",
     justifyContent: "center",
   },
 
   actionDivider: {
-    width: 1,
-    height: "100%",
+    display: "none",
     backgroundColor: "#F0EAEA",
   },
 
   viewProfileText: {
+    textAlign: "center",
     fontSize: 15,
     fontWeight: "800",
     color: "#6E6262",
@@ -1034,10 +904,11 @@ const styles = StyleSheet.create({
   },
 
   stateContainer: {
-    flex: 1,
+    flexGrow: 1,
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 28,
+    paddingVertical: 28,
   },
 
   stateTitle: {
@@ -1058,6 +929,9 @@ const styles = StyleSheet.create({
   },
 
   retryButton: {
+    minHeight: 48,
+    alignItems: "center",
+    justifyContent: "center",
     marginTop: 18,
     paddingHorizontal: 22,
     paddingVertical: 11,
@@ -1078,6 +952,7 @@ const styles = StyleSheet.create({
   },
 
   emptyTitle: {
+    textAlign: "center",
     marginTop: 12,
     fontSize: 18,
     fontWeight: "900",

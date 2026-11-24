@@ -6,7 +6,7 @@ SELECT no_plan();
 CREATE FUNCTION pg_temp.uid(i integer) RETURNS uuid LANGUAGE sql AS $$
  SELECT ('a011a011-a011-4011-8011-'||lpad(i::text,12,'0'))::uuid;
 $$;
-INSERT INTO auth.users(id,email) SELECT pg_temp.uid(i),'request-contact-'||i||'@test.local' FROM generate_series(1,30) i;
+INSERT INTO auth.users(id,email,email_confirmed_at) SELECT pg_temp.uid(i),'request-contact-'||i||'@test.local',now() FROM generate_series(1,30) i;
 UPDATE public.profiles SET display_name='Contact Tester',major='Computing Science',year_of_study=2,
  campus_id=(SELECT id FROM public.campuses WHERE slug='burnaby'),is_discoverable=true,onboarding_completed_at=now()
 WHERE id IN (SELECT pg_temp.uid(i) FROM generate_series(1,30) i WHERE i<>5);

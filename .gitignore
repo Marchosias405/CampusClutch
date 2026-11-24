@@ -44,3 +44,13 @@ app-example
 .env
 .env.*
 !.env.example
+
+# Local signing files and provider credentials
+google-services.json
+credentials.json
+*.keystore
+*.pfx
+*-firebase-adminsdk-*.json
+*service-account*.json
+*service_account*.json
+*.env

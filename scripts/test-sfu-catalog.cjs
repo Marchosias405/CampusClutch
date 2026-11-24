@@ -120,6 +120,40 @@ test("CLI requires explicit output and rejects accidental unsupported options", 
   assert.throws(() => parseArguments(["--year", "2028"]), /Unknown argument/);
   assert.throws(() => parseArguments(["--output", "--refresh"]), /directory/);
   assert.deepEqual(parseArguments(["--output", "catalog", "--refresh"]), { output: "catalog", refresh: true });
+  assert.deepEqual(parseArguments(["--output", "catalog", "--term", "2026-fall"]), { output: "catalog", termCode: "2026-fall" });
+  assert.throws(() => parseArguments(["--output", "catalog", "--term"]), /Provide a term/);
+  assert.throws(() => parseArguments(["--output", "catalog", "--term", "2027-fall"]), /Supported catalog terms/);
+});
+
+test("Fall eligibility uses its own source identity and keeps Spring offerings separate", () => {
+  const sourcePath = "2026/fall/cmpt/120/d100";
+  const detail = source({ outlinePath: sourcePath, term: "Fall 2026" });
+  const ctx = context({ sourcePath, termCode: "2026-fall" });
+  const fall = classifySection(detail, ctx).candidates[0];
+  assert.equal(fall.term_code, "2026-fall");
+  assert.equal(aggregateCandidates([fall, classify().candidates[0]]).rows.length, 2);
+  assert.equal(classifySection(detail, context({ sourcePath })).quarantine.reason, "source_identity_mismatch");
+  assert.equal(classifySection(source(), ctx).quarantine.reason, "source_identity_mismatch");
+});
+
+test("Fall collection selects only its own cached inventory and output file", async () => {
+  const output = await fixtureCollection(false);
+  const cache = path.join(output, "cache");
+  try {
+    for (const file of await fs.readdir(cache)) {
+      const entry = JSON.parse(await fs.readFile(path.join(cache, file), "utf8"));
+      const fall = JSON.parse(JSON.stringify(entry).replaceAll("2027/spring", "2026/fall").replaceAll("Spring 2027", "Fall 2026"));
+      await fs.writeFile(path.join(cache, file.replace("2027_spring", "2026_fall")), JSON.stringify(fall));
+    }
+    const scoped = new ApiCache(cache, { termCode: "2026-fall", maxRequests: 0 });
+    await assert.rejects(() => scoped.get("2027/spring", "departments"), /outside Fall 2026/);
+    const result = await collect({ output, termCode: "2026-fall", maxRequests: 0, intervalMs: 0 });
+    assert.equal(result.term.code, "2026-fall"); assert.equal(result.rows.length, 1);
+    assert.equal(result.rows[0].term_code, "2026-fall");
+    assert.equal(result.source.term_url, "https://www.sfu.ca/bin/wcm/course-outlines?2026/fall");
+    assert.equal(result.coverage.network_requests, 0);
+    assert.equal(JSON.parse(await fs.readFile(path.join(output, "fall-2026-undergraduate-3plus.json"), "utf8")).rows[0].code, "CMPT 120");
+  } finally { await fs.rm(output, { recursive: true }); }
 });
 
 async function writeFixtureCache(directory, query, kind, data) {

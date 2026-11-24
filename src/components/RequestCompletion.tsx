@@ -111,7 +111,7 @@ export default function RequestCompletion({ request, disabled = false, onChanged
       {visible.amount} points are reserved from the poster’s balance. {owner ? 'Confirm completion when the work is done to pay your helper.' : 'The poster must confirm completion before these points are added to your balance.'}
     </Text>}
     {visible?.status === 'settled' && <Text accessibilityRole="alert" style={styles.text}>Completed. {visible.amount} points were transferred to the helper. Check Profile for your updated balance.</Text>}
-    {visible?.status === 'released' && <Text accessibilityRole="alert" style={styles.text}>This assignment was cancelled. Its reserved points were released without payment. Refresh the request to see its current status and rate the cancelled assignment.</Text>}
+    {visible?.status === 'released' && <Text accessibilityRole="alert" style={styles.text}>Job cancelled. Reserved points were returned. Refresh to see updates or leave a rating.</Text>}
     {ready && !visible && request.status === 'accepted' && <Text style={styles.text}>
       {owner ? 'This request was accepted before points were enabled. Reopen it and accept a fresh offer to reserve points before completion.' : 'Points have not been reserved for this request. The poster needs to reopen it before you offer again.'}
     </Text>}

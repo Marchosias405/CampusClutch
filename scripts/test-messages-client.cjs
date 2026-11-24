@@ -82,6 +82,39 @@ function client(initialResponse = null) {
 const codeIs = code => error => error.code === code;
 
 (async () => {
+  await test('direct block flags survive summary and inbox parsing, malformed states fail closed', async () => {
+    const { api, state } = client(summary({ interaction_blocked: true, blocked_by_me: true }));
+    assert.equal((await api.loadConversationSummary(A, CHAT)).interaction_blocked, true);
+    state.response = [summary({ interaction_blocked: true, blocked_by_me: false })];
+    assert.equal((await api.loadConversationPage(A)).items[0].interaction_blocked, true);
+    for (const flags of [{ interaction_blocked: 'true' }, { blocked_by_me: null }, { blocked_by_me: true }, { interaction_blocked: false, blocked_by_me: true }]) {
+      state.response = summary(flags);
+      await assert.rejects(api.loadConversationSummary(A, CHAT), codeIs('INVALID_RESPONSE'));
+    }
+  });
+  await test('bounded receipt RPC validates exact IDs, booleans and optional first-read timestamps', async () => {
+    const { api, state } = client([{ message_id: MESSAGE, is_read: true, read_at: TIME }]);
+    assert.deepEqual(plain(await api.loadMessageReadReceipts(A, CHAT, [MESSAGE])), state.response);
+    assert.equal(state.calls[0].name, 'get_message_read_receipts');
+    assert.deepEqual(state.calls[0].args, { p_conversation_id: CHAT, p_message_ids: [MESSAGE] });
+    state.response[0].read_at = null;
+    assert.equal((await api.loadMessageReadReceipts(A, CHAT, [MESSAGE]))[0].is_read, true);
+    for (const response of [[], [state.response[0], state.response[0]], [{ message_id: CLIENT, is_read: true, read_at: TIME }],
+      [{ message_id: MESSAGE, is_read: false, read_at: TIME }], [{ message_id: MESSAGE, is_read: true, read_at: 'bad' }],
+      [{ message_id: MESSAGE, is_read: 'true', read_at: null }]]) {
+      state.response = response; await assert.rejects(api.loadMessageReadReceipts(A, CHAT, [MESSAGE]), codeIs('INVALID_RESPONSE'));
+    }
+    const before = state.calls.length;
+    for (const ids of [[], [MESSAGE,MESSAGE], Array(51).fill(MESSAGE), ['bad']]) {
+      await assert.rejects(api.loadMessageReadReceipts(A, CHAT, ids), codeIs('INVALID_INPUT'));
+    }
+    assert.equal(state.calls.length, before);
+  });
+  await test('receipt results cannot cross an account switch during the RPC', async () => {
+    const { api, state } = client([{ message_id: MESSAGE, is_read: true, read_at: TIME }]);
+    state.onExecute = async () => { state.session = session(B); return { data: state.response, error: null }; };
+    await assert.rejects(api.loadMessageReadReceipts(A, CHAT, [MESSAGE]), codeIs('ACCOUNT_CHANGED'));
+  });
   await test('all RPC names, arguments and explicit authorization headers match the contract', async () => {
     const { api, state } = client(CHAT);
     assert.equal(await api.startDirectConversation(A.toUpperCase(), B.toUpperCase()), CHAT);

@@ -1,3 +1,5 @@
+import { LoadingSkeleton } from '@/components/LoadingState';
+import { useDirectAdmin } from '../../lib/useDirectAdmin';
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
 import React, { useCallback, useRef, useState } from "react";
@@ -9,6 +11,7 @@ import {
   StyleSheet,
   Text,
   View,
+  useWindowDimensions,
 } from "react-native";
 import { useAuth } from "../../context/AuthContext";
 import { loadRequest, cancelRequest, setRequestArchived, requestError } from "../../lib/requests";
@@ -25,83 +28,97 @@ const COLORS = {
   primary: "#9B1C31",
   background: "#FFFFFF",
   textDark: "#2B2525",
-  mutedText: "#8C8585",
+  mutedText: "#635C5C",
   border: "#ECE3E3",
   softPink: "#FBECEC",
   coinGold: "#F4A62A",
 };
 
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export default function RequestDetailsScreen() {
-  const router = useRouter();
-  const { invalidate } = useRequests();
   const { user } = useAuth();
   const { id } = useLocalSearchParams();
-
   const requestId = Array.isArray(id) ? id[0] : id;
+  return <RequestDetails key={`${user?.id}:${requestId}`} userId={user?.id} requestId={requestId} />;
+}
 
-  const [storedRequest, setRequest] = useState<CampusRequest | null>(null);
-  const [loadedFor, setLoadedFor] = useState<string>();
-  const request = user?.id === loadedFor ? storedRequest : null;
+function RequestDetails({ userId, requestId }: { userId?: string; requestId?: string }) {
+  const router = useRouter();
+  const admin = useDirectAdmin(userId ?? '');
+  const { width, fontScale } = useWindowDimensions();
+  const stackDetails = width / fontScale < 420;
+  const detailRowStyle = [styles.detailRow, stackDetails && styles.stackedDetailRow];
+  const detailLabelStyle = [styles.detailLabel, stackDetails && styles.stackedDetailText];
+  const detailValueStyle = [styles.detailValue, stackDetails && styles.stackedDetailText];
+  const { invalidate } = useRequests();
+  const [request, setRequest] = useState<CampusRequest | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [ownerAction, setOwnerAction] = useState<'cancel' | 'archive' | 'restore' | null>(null);
   const [ratingsRevision, setRatingsRevision] = useState(0);
   const lock = useRef(false);
   const focused = useRef(false);
-  const scope = `${user?.id}:${requestId}`;
-  const currentScope = useRef(scope);
-  currentScope.current = scope;
+  const focusEpoch = useRef(0);
   const sequence = useRef(0);
   const refresh = useCallback(async () => {
+    if (!focused.current) return;
     const ticket = ++sequence.current;
     setLoading(true); setError('');
     try {
-      const row = user && requestId ? await loadRequest(requestId) : null;
-      if (ticket === sequence.current) { setLoadedFor(user?.id); setRequest(row); }
+      const row = userId && requestId ? await loadRequest(requestId) : null;
+      if (ticket === sequence.current) setRequest(row);
     } catch (failure) { if (ticket === sequence.current) setError(requestError(failure)); }
     finally { if (ticket === sequence.current) setLoading(false); }
-  }, [requestId, user]);
+  }, [requestId, userId]);
   useFocusEffect(useCallback(() => {
     focused.current = true;
     void refresh();
     const timer = setInterval(() => { void refresh(); }, 60000);
-    return () => { focused.current = false; clearInterval(timer); ++sequence.current; setRequest(null); };
+    return () => { focused.current = false; ++focusEpoch.current; clearInterval(timer); ++sequence.current; setRequest(null); };
   }, [refresh]));
-  const performOwnerAction = async (action: 'cancel' | 'archive' | 'restore') => {
-    if (!user || !request || request.ownerId !== user.id || lock.current || !focused.current || currentScope.current !== scope) return;
+  const performOwnerAction = async (action: 'cancel' | 'archive' | 'restore', epoch: number) => {
+    if (!userId || !request || request.ownerId !== userId || lock.current || !focused.current || epoch !== focusEpoch.current) return;
     lock.current = true; setOwnerAction(action); setError('');
     try {
       if (action === 'cancel') {
         if (request.status !== 'open' && request.status !== 'accepted') return;
-        await cancelRequest(user.id, request.id, request.offerRound ?? 1, request.status);
+        await cancelRequest(userId, request.id, request.offerRound ?? 1, request.status);
       } else {
-        await setRequestArchived(user.id, request.id, action === 'archive');
+        await setRequestArchived(userId, request.id, action === 'archive');
       }
       invalidate();
-      if (focused.current && currentScope.current === scope) await refresh();
+      await refresh();
     } catch (failure) {
-      if (focused.current && currentScope.current === scope) setError(requestError(failure));
+      if (focused.current && epoch === focusEpoch.current) setError(requestError(failure));
     } finally {
       lock.current = false;
       setOwnerAction(null);
     }
   };
   const handleCancel = () => {
+    const epoch = focusEpoch.current;
     const accepted = request?.status === 'accepted';
     Alert.alert(accepted ? 'Cancel accepted request?' : 'Cancel request?', accepted
       ? 'This ends the arrangement with your helper and releases reserved points to your available balance. No points will be paid. You can both rate the cancelled assignment. If the work is finished, use Confirm completion instead.'
       : 'It will leave the campus feed and remain in your history.', [
       { text: 'Keep request', style: 'cancel' },
-      { text: 'Cancel request', style: 'destructive', onPress: () => { void performOwnerAction('cancel'); } },
+      { text: 'Cancel request', style: 'destructive', onPress: () => { void performOwnerAction('cancel', epoch); } },
     ]);
   };
+  const firstPostExpired = request?.status === 'expired' && (request.offerRound ?? 1) === 1;
   const handleArchive = () => {
+    const epoch = focusEpoch.current;
     const restoring = Boolean(request?.ownerArchivedAt);
-    Alert.alert(restoring ? 'Restore request?' : 'Archive request?', restoring
-      ? 'This puts the request back in your main list. Its status and points history stay the same.'
-      : 'This removes it from your main list. You can find and restore it under My requests → Archived. Its history is kept.', [
+    let message = 'You can find this post under My requests → Archived.';
+    if (restoring) {
+      message = firstPostExpired
+        ? 'This returns the post to My requests. If it received no offers, its 90-day window starts again.'
+        : 'This returns the request to your main list. Its status and points history stay the same.';
+    }
+    Alert.alert(restoring ? 'Restore request?' : 'Archive request?', message, [
       { text: 'Keep as is', style: 'cancel' },
-      { text: restoring ? 'Restore' : 'Archive', onPress: () => { void performOwnerAction(restoring ? 'restore' : 'archive'); } },
+      { text: restoring ? 'Restore' : 'Archive', onPress: () => { void performOwnerAction(restoring ? 'restore' : 'archive', epoch); } },
     ]);
   };
 
@@ -109,7 +126,7 @@ export default function RequestDetailsScreen() {
     return (
       <View style={styles.safeArea}>
         <ScreenHeader>
-          <Pressable hitSlop={10} onPress={() => router.back()}>
+          <Pressable accessibilityRole="button" accessibilityLabel="Back" style={styles.headerBack} onPress={() => router.back()}>
             <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
           </Pressable>
 
@@ -118,18 +135,20 @@ export default function RequestDetailsScreen() {
           <View style={styles.headerSpacer} />
         </ScreenHeader>
 
-        <View style={styles.notFoundContainer}>
-          <Text style={styles.notFoundTitle}>{loading ? "Loading request…" : error ? "Unable to load request" : "Request unavailable"}</Text>
-          <Text style={styles.notFoundText}>
-            {error || "This request may be closed, expired, or unavailable to your account."}
-          </Text>
+        <ScrollView style={styles.scrollView} contentContainerStyle={loading && !error ? styles.scrollContent : styles.notFoundContainer}>
+          {loading && !error ? <LoadingSkeleton variant="details" rows={1} label="Loading request…" /> : <>
+            <Text style={styles.notFoundTitle}>{error ? "Unable to load request" : "Request unavailable"}</Text>
+            <Text style={styles.notFoundText}>
+              {error || "This request may be closed, expired, or unavailable to your account."}
+            </Text>
+          </>}
 
-          {!loading && !error && requestId && <ScrollView><RequestOffers key={`${user?.id}:${requestId}`} requestId={requestId} onChanged={refresh} /></ScrollView>}
-          {!loading && <Pressable style={styles.backButton} onPress={() => { void refresh(); }}><Text style={styles.backButtonText}>Retry</Text></Pressable>}
-          <Pressable style={styles.backButton} onPress={() => router.back()}>
+          {!loading && !error && userId && requestId && <View><RequestOffers key={`${userId}:${requestId}`} requestId={requestId} onChanged={refresh} /></View>}
+          {!loading && <Pressable accessibilityRole="button" style={styles.backButton} onPress={() => { void refresh(); }}><Text style={styles.backButtonText}>Retry</Text></Pressable>}
+          <Pressable accessibilityRole="button" style={styles.backButton} onPress={() => router.back()}>
             <Text style={styles.backButtonText}>Back to Requests</Text>
           </Pressable>
-        </View>
+        </ScrollView>
       </View>
     );
   }
@@ -155,6 +174,13 @@ export default function RequestDetailsScreen() {
   };
 
 
+  let archiveHint = 'Archive this closed request to move it out of your main list.';
+  if (request.ownerArchivedAt) {
+    archiveHint = 'Archived. You can restore this request to your main list without reopening it.';
+  } else if (firstPostExpired) {
+    archiveHint = 'If this post received no offers, archive it to keep it beyond 90 days.';
+  }
+
   const hasAdditionalDetails = Boolean(
     request.campus ||
       request.roomLocation ||
@@ -164,7 +190,6 @@ export default function RequestDetailsScreen() {
       request.eventTask ||
       request.courseOrSubject ||
       request.studyTopic ||
-      request.itemSize ||
       request.status ||
       request.createdAt
   );
@@ -173,7 +198,7 @@ export default function RequestDetailsScreen() {
   return (
     <View style={styles.safeArea}>
       <ScreenHeader>
-        <Pressable hitSlop={10} onPress={() => router.back()}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Back" style={styles.headerBack} onPress={() => router.back()}>
           <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
         </Pressable>
 
@@ -245,92 +270,83 @@ export default function RequestDetailsScreen() {
               </Text>
 
               {request.campus && (
-                <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>Campus</Text>
-                  <Text style={styles.detailValue}>{request.campus}</Text>
+                <View style={detailRowStyle}>
+                  <Text style={detailLabelStyle}>Campus</Text>
+                  <Text style={detailValueStyle}>{request.campus}</Text>
                 </View>
               )}
 
               {request.roomLocation && (
-                <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>Room/Location</Text>
-                  <Text style={styles.detailValue}>
+                <View style={detailRowStyle}>
+                  <Text style={detailLabelStyle}>Room/Location</Text>
+                  <Text style={detailValueStyle}>
                     {request.roomLocation}
                   </Text>
                 </View>
               )}
 
               {request.pickupLocation && (
-                <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>Pickup Location</Text>
-                  <Text style={styles.detailValue}>
+                <View style={detailRowStyle}>
+                  <Text style={detailLabelStyle}>Pickup Location</Text>
+                  <Text style={detailValueStyle}>
                     {request.pickupLocation}
                   </Text>
                 </View>
               )}
 
               {request.dropoffLocation && (
-                <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>
+                <View style={detailRowStyle}>
+                  <Text style={detailLabelStyle}>
                     {request.category === "PICKUP"
                       ? "Destination"
                       : "Drop-off Location"}
                   </Text>
 
-                  <Text style={styles.detailValue}>
+                  <Text style={detailValueStyle}>
                     {request.dropoffLocation}
                   </Text>
                 </View>
               )}
 
               {request.eventName && (
-                <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>Event Name</Text>
-                  <Text style={styles.detailValue}>
+                <View style={detailRowStyle}>
+                  <Text style={detailLabelStyle}>Event Name</Text>
+                  <Text style={detailValueStyle}>
                     {request.eventName}
                   </Text>
                 </View>
               )}
 
               {request.eventTask && (
-                <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>Help Needed</Text>
-                  <Text style={styles.detailValue}>
+                <View style={detailRowStyle}>
+                  <Text style={detailLabelStyle}>Help Needed</Text>
+                  <Text style={detailValueStyle}>
                     {request.eventTask}
                   </Text>
                 </View>
               )}
 
               {request.courseOrSubject && (
-                <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>Course/Subject</Text>
-                  <Text style={styles.detailValue}>
+                <View style={detailRowStyle}>
+                  <Text style={detailLabelStyle}>Course/Subject</Text>
+                  <Text style={detailValueStyle}>
                     {request.courseOrSubject}
                   </Text>
                 </View>
               )}
 
               {request.studyTopic && (
-                <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>Study Topic</Text>
-                  <Text style={styles.detailValue}>
+                <View style={detailRowStyle}>
+                  <Text style={detailLabelStyle}>Study Topic</Text>
+                  <Text style={detailValueStyle}>
                     {request.studyTopic}
                   </Text>
                 </View>
               )}
 
-              {request.itemSize && (
-                <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>Item/Task Size</Text>
-                  <Text style={styles.detailValue}>
-                    {request.itemSize}
-                  </Text>
-                </View>
-              )}
-
               {request.status && (
-                <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>Status</Text>
+                <View style={detailRowStyle}>
+                  <Text style={detailLabelStyle}>Status</Text>
                   <Text style={styles.statusValue}>
                     {request.status.charAt(0).toUpperCase() +
                       request.status.slice(1)}
@@ -339,9 +355,9 @@ export default function RequestDetailsScreen() {
               )}
 
               {request.createdAt && (
-                <View style={[styles.detailRow, styles.lastDetailRow]}>
-                  <Text style={styles.detailLabel}>Posted</Text>
-                  <Text style={styles.detailValue}>
+                <View style={[detailRowStyle, styles.lastDetailRow]}>
+                  <Text style={detailLabelStyle}>Posted</Text>
+                  <Text style={detailValueStyle}>
                     {formatCreatedAt(request.createdAt)}
                   </Text>
                 </View>
@@ -363,28 +379,40 @@ export default function RequestDetailsScreen() {
 
 
           {!!error && <Text accessibilityRole="alert" style={styles.notFoundText}>{error}</Text>}
-          {request.ownerId === user?.id && (request.status === 'open' || request.status === 'accepted') && <View style={styles.ownerActions}>
-            {request.status === 'open' && <Pressable accessibilityRole="button" style={styles.offerButton} disabled={loading || !!ownerAction} onPress={() => router.push({ pathname: '/requests/create', params: { edit: request.id } })}>
+          {request.ownerId === userId && (request.status === 'open' || request.status === 'accepted') && <View style={styles.ownerActions}>
+            {request.status === 'open' && <Pressable accessibilityRole="button" style={[styles.offerButton, (loading || !!ownerAction) && styles.offerButtonDisabled]} disabled={loading || !!ownerAction} onPress={() => router.push({ pathname: '/requests/create', params: { edit: request.id } })}>
               <Text style={styles.offerButtonText}>Edit Request</Text>
             </Pressable>}
-            <Pressable accessibilityRole="button" style={[styles.backButton, styles.cancelButton]} disabled={loading || !!ownerAction} onPress={handleCancel}>
+            <Pressable accessibilityRole="button" style={[styles.backButton, styles.cancelButton, (loading || !!ownerAction) && styles.offerButtonDisabled]} disabled={loading || !!ownerAction} onPress={handleCancel}>
               <Text style={styles.backButtonText}>{ownerAction === 'cancel' ? 'Cancelling…' : 'Cancel Request'}</Text>
             </Pressable>
           </View>}
-          {request.ownerId === user?.id && ['expired', 'cancelled', 'completed'].includes(request.status ?? '') && <View style={styles.ownerActions}>
-            <Text style={styles.acceptedNotice}>{request.ownerArchivedAt ? 'Archived. You can restore this request to your main list without reopening it.' : 'This request is closed. Archive it to remove it from your main list and keep its history.'}</Text>
-            <Pressable accessibilityRole="button" style={[styles.backButton, styles.cancelButton]} disabled={loading || !!ownerAction} onPress={handleArchive}>
+          {request.ownerId === userId && ['expired', 'cancelled', 'completed'].includes(request.status ?? '') && <View style={styles.ownerActions}>
+            <Text style={styles.acceptedNotice}>{archiveHint}</Text>
+            <Pressable accessibilityRole="button" style={[styles.backButton, styles.cancelButton, (loading || !!ownerAction) && styles.offerButtonDisabled]} disabled={loading || !!ownerAction} onPress={handleArchive}>
               <Text style={styles.backButtonText}>{ownerAction === 'archive' ? 'Archiving…' : ownerAction === 'restore' ? 'Restoring…' : request.ownerArchivedAt ? 'Restore Request' : 'Archive Request'}</Text>
             </Pressable>
           </View>}
-          {request.ownerId === user?.id && request.status === 'accepted' && <Text style={styles.acceptedNotice}>
+          {request.ownerId === userId && request.status === 'accepted' && <Text style={styles.acceptedNotice}>
             Accepted requests remain in My requests; your helper can find this in My offers.
           </Text>}
-          <ReopenRequest key={`reopen:${user?.id}:${request.id}:${request.offerRound ?? 1}`} request={request} disabled={loading || !!ownerAction} onChanged={refresh} />
-          {(request.status === 'accepted' || request.status === 'completed') && <RequestCompletion key={`completion:${user?.id}:${request.id}:${request.offerRound ?? 1}`} request={request} disabled={loading || !!ownerAction} onChanged={refresh} />}
-          <RequestRating key={`rating:${user?.id}:${request.id}`} requestId={request.id} requestRevision={`${request.offerRound ?? 1}:${request.status}`} disabled={loading || !!ownerAction} onChanged={async () => { setRatingsRevision(value => value + 1); }} />
+          <ReopenRequest key={`reopen:${userId}:${request.id}:${request.offerRound ?? 1}`} request={request} disabled={loading || !!ownerAction} onChanged={refresh} />
+          {(request.status === 'accepted' || request.status === 'completed') && <RequestCompletion key={`completion:${userId}:${request.id}:${request.offerRound ?? 1}`} request={request} disabled={loading || !!ownerAction} onChanged={refresh} />}
+          <RequestRating key={`rating:${userId}:${request.id}`} requestId={request.id} requestRevision={`${request.offerRound ?? 1}:${request.status}`} disabled={loading || !!ownerAction} onChanged={async () => { setRatingsRevision(value => value + 1); }} />
           <RequestConversation requestId={request.id} requestRevision={`${request.offerRound ?? 1}:${request.status}`} disabled={loading || !!ownerAction} />
-          <RequestOffers key={`offers:${user?.id}:${requestId}:${request.offerRound ?? 1}`} request={request} requestId={requestId} ratingsRevision={ratingsRevision} onChanged={refresh} />
+          <RequestOffers key={`offers:${userId}:${requestId}:${request.offerRound ?? 1}`} request={request} requestId={requestId} ratingsRevision={ratingsRevision} onChanged={refresh} />
+          {admin.allowed && request.ownerId !== userId && <Pressable accessibilityRole="button" style={styles.reportButton} disabled={loading || !!ownerAction}
+            onPress={() => { if (focused.current && !loading && !lock.current) admin.open('request', request.id); }}><Text style={styles.reportButtonText}>Admin actions</Text></Pressable>}
+            {!!userId && !!request.ownerId && request.ownerId !== userId && UUID_PATTERN.test(request.id) && (
+            <Pressable accessibilityRole="button" accessibilityLabel="Report request"
+              style={styles.reportButton} disabled={loading} accessibilityState={{ disabled: loading }}
+              onPress={() => {
+                if (!focused.current || loading) return;
+                router.push({ pathname: '/safety/report', params: { targetType: 'request', targetId: request.id } });
+              }}>
+              <Text style={styles.reportButtonText}>Report request</Text>
+            </Pressable>
+          )}
         </View>
       </ScrollView>
     </View>
@@ -392,17 +420,28 @@ export default function RequestDetailsScreen() {
 }
 
 const styles = StyleSheet.create({
+  reportButton: { minHeight: 48, marginTop: 20, padding: 12, borderWidth: 1, borderColor: COLORS.border,
+    borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  reportButtonText: { color: COLORS.primary, fontSize: 15, fontWeight: '700', textAlign: 'center' },
   safeArea: {
     flex: 1,
     backgroundColor: COLORS.background,
   },
   headerTitle: {
+    flex: 1,
+    textAlign: "center",
     color: "#FFFFFF",
     fontSize: 20,
     fontWeight: "800",
   },
   headerSpacer: {
-    width: 24,
+    width: 48,
+  },
+  headerBack: {
+    width: 48,
+    height: 48,
+    alignItems: "center",
+    justifyContent: "center",
   },
   scrollView: {
     flex: 1,
@@ -420,10 +459,12 @@ const styles = StyleSheet.create({
   },
   badgeRow: {
     flexDirection: "row",
+    flexWrap: "wrap",
     gap: 8,
     marginBottom: 16,
   },
   categoryBadge: {
+    maxWidth: "100%",
     backgroundColor: COLORS.softPink,
     borderRadius: 999,
     paddingHorizontal: 12,
@@ -435,6 +476,7 @@ const styles = StyleSheet.create({
     fontWeight: "800",
   },
   urgentBadge: {
+    maxWidth: "100%",
     backgroundColor: COLORS.primary,
     borderRadius: 999,
     paddingHorizontal: 12,
@@ -463,16 +505,20 @@ const styles = StyleSheet.create({
   },
   infoRow: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
     gap: 10,
   },
   infoText: {
+    flex: 1,
+    minWidth: 0,
     color: COLORS.textDark,
     fontSize: 16,
     fontWeight: "600",
   },
 
   offerButton: {
+    minHeight: 48,
+    paddingHorizontal: 16,
     backgroundColor: COLORS.primary,
     borderRadius: 16,
     paddingVertical: 16,
@@ -496,6 +542,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#8C8585",
   },
   offerButtonText: {
+    textAlign: "center",
     color: "#FFFFFF",
     fontSize: 17,
     fontWeight: "800",
@@ -511,12 +558,14 @@ const styles = StyleSheet.create({
 
 
   notFoundContainer: {
-    flex: 1,
+    flexGrow: 1,
+    gap: 12,
     alignItems: "center",
     justifyContent: "center",
     padding: 24,
   },
   notFoundTitle: {
+    textAlign: "center",
     color: COLORS.textDark,
     fontSize: 24,
     fontWeight: "800",
@@ -529,12 +578,15 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   backButton: {
+    minHeight: 48,
+    justifyContent: "center",
     backgroundColor: COLORS.primary,
     borderRadius: 14,
     paddingHorizontal: 20,
     paddingVertical: 12,
   },
   backButtonText: {
+    textAlign: "center",
     color: "#FFFFFF",
     fontWeight: "800",
   },
@@ -568,6 +620,17 @@ const styles = StyleSheet.create({
     borderBottomColor: COLORS.border,
   },
 
+  stackedDetailRow: {
+    flexDirection: "column",
+    gap: 6,
+  },
+
+  stackedDetailText: {
+    flex: 0,
+    maxWidth: "100%",
+    textAlign: "left",
+  },
+
   lastDetailRow: {
     borderBottomWidth: 0,
     paddingBottom: 0,
@@ -590,6 +653,7 @@ const styles = StyleSheet.create({
   },
 
   statusValue: {
+    flexShrink: 1,
     color: COLORS.primary,
     fontSize: 14,
     fontWeight: "900",

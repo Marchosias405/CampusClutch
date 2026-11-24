@@ -1,15 +1,14 @@
 import "@/lib/crypto";
 import "react-native-url-polyfill/auto";
 
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { createClient, processLock } from "@supabase/supabase-js";
 import { Platform } from "react-native";
 
 import { env } from "@/lib/env";
+import { sessionStorageForProject } from './credentialStorage';
 
 // Expo renders the initial web page in Node, where browser storage is absent.
-// Restore persisted sessions only in the browser or native app, never in the
-// shared web-rendering process. Native runtimes may also have no window.
+// The static web client keeps sessions in memory. Native runtimes may have no window.
 const isServerRendering =
   Platform.OS === "web" && typeof window === "undefined";
 
@@ -18,9 +17,9 @@ export const supabase = createClient(
   env.supabasePublishableKey,
   {
     auth: {
-      storage: isServerRendering ? undefined : AsyncStorage,
+      storage: sessionStorageForProject(),
       autoRefreshToken: !isServerRendering,
-      persistSession: !isServerRendering,
+      persistSession: Platform.OS !== "web",
       detectSessionInUrl: false,
       flowType: "pkce",
       lock: processLock,

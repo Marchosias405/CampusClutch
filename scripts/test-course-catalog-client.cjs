@@ -94,8 +94,8 @@ async function test(name, run) { await run(); checks += 1; console.log('PASS ' +
       row(2, { units: 4, delivery_mode: 'online', campus_id: null, campus_display_name: null })]);
     const page = await api.searchCourseCatalog(term);
     assert.equal(api.courseDetailsLabel(page.courses[0]), '');
-    assert.equal(api.courseDetailsLabel(page.courses[1]), 'Online · 4 units');
-    assert.equal(api.courseDetailsLabel({ campusDisplayName: 'Surrey', units: 3 }), 'Surrey · 3 units');
+    assert.equal(api.courseDetailsLabel(page.courses[1]), 'Online, 4 units');
+    assert.equal(api.courseDetailsLabel({ campusDisplayName: 'Surrey', units: 3 }), 'Surrey, 3 units');
   });
   await test('catalog query failures are returned, not shown as an empty successful page', async () => {
     const { api, state } = client(); state.error = Error('offline');

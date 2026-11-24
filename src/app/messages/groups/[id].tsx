@@ -186,7 +186,8 @@ function AccountGroupDetails({ userId, conversationId }: { userId: string; conve
         {summary && <>
           <View style={styles.hero}><View style={styles.heroIcon}><Ionicons name="people" size={30} color={COLORS.primary} /></View>
             <View style={styles.flex}><Text style={styles.groupTitle}>{snapshot?.title ?? summary.group_title}</Text>
-              <Text style={styles.course}>{summary.group_course_code} · {summary.my_role === 'administrator' ? 'Administrator' : summary.my_role[0].toUpperCase() + summary.my_role.slice(1)}</Text></View></View>
+              <Text style={styles.course}>{summary.group_course_code}</Text>
+              <Text style={styles.muted}>{summary.my_role === 'administrator' ? 'Administrator' : summary.my_role[0].toUpperCase() + summary.my_role.slice(1)}</Text></View></View>
           {summary.my_membership_status !== 'active' ? <View style={styles.notice}>
             <Text style={styles.stateTitle}>Read-only group history</Text><Text style={styles.muted}>Your visible title and messages are frozen to your membership period. Current membership and later activity remain private.</Text>
             <Pressable accessibilityRole="button" style={styles.primaryButton} onPress={() => router.replace({ pathname: '/messages/[id]', params: { id: conversationId } })}><Text style={styles.primaryText}>View my message history</Text></Pressable>

@@ -1,8 +1,9 @@
+import { LoadingSkeleton } from '@/components/LoadingState';
+import { useDirectAdmin } from '../../lib/useDirectAdmin';
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator,
   AppState,
   Image,
   Linking,
@@ -15,14 +16,16 @@ import {
 
 import ScreenHeader from "../../components/ScreenHeader";
 import RatingSummary from "../../components/RatingSummary";
+import BlockStudentControl from "../../components/BlockStudentControl";
+import type { StudentBlockState } from "../../lib/studentBlocks";
 import { mockStudents } from "../../constants/mockData";
+import { actionButton, actionButtonText } from "../../constants/actionStyles";
 
 import { useProfile } from "@/context/ProfileContext";
 import { useAuth } from "@/context/AuthContext";
 import { startDirectConversation } from "@/lib/messages";
 import { getProfileAvatarSignedUrl } from "@/lib/avatars";
 import {
-  getCampuses,
   getProfileById,
   getProfileInterests,
   getProfileSocialLinks,
@@ -34,7 +37,7 @@ const COLORS = {
   background: "#FFFFFF",
   cardWhite: "#FFFFFF",
   textDark: "#2B2525",
-  mutedText: "#8C8585",
+  mutedText: "#635C5C",
   border: "#EFE1E1",
   softPink: "#FBECEC",
   tagGray: "#F4F1F1",
@@ -47,7 +50,7 @@ const UUID_PATTERN =
 
 type RealStudentProfile = {
   profile: Profile;
-  campusName: string | null;
+  interests: string[];
   sharedInterests: string[];
   avatarSignedUrl: string | null;
   linkedinUrl: string | null;
@@ -90,6 +93,7 @@ export default function StudentProfileScreen() {
 function StudentProfileContent({ routeId, viewerId }: { routeId: string; viewerId?: string }) {
   const router = useRouter();
   const { profile: currentProfile } = useProfile();
+  const admin = useDirectAdmin(viewerId ?? '');
   const viewerProfile = currentProfile?.id === viewerId ? currentProfile : null;
   const viewerProfileId = viewerProfile?.id;
   const focused = useRef(false);
@@ -99,6 +103,12 @@ function StudentProfileContent({ routeId, viewerId }: { routeId: string; viewerI
   const opening = useRef<object | null>(null);
   const [openingMessage, setOpeningMessage] = useState(false);
   const [messageError, setMessageError] = useState("");
+  const [blockState, setBlockState] = useState<StudentBlockState | null>(null);
+  const latestBlockState = useRef<StudentBlockState | null>(null);
+  const updateBlockState = useCallback((next: StudentBlockState | null) => {
+    latestBlockState.current = next;
+    setBlockState(next);
+  }, []);
 
   const legacyStudent = mockStudents.find(
     (item) => item.id === routeId
@@ -137,8 +147,9 @@ function StudentProfileContent({ routeId, viewerId }: { routeId: string; viewerI
     try {
       const targetProfile = await getProfileById(routeId);
 
+      if (!focused.current || ticket !== generation.current) return;
       if (!targetProfile) {
-        if (focused.current && ticket === generation.current) setRealStudent(null);
+        setRealStudent(null);
         return;
       }
 
@@ -149,13 +160,11 @@ function StudentProfileContent({ routeId, viewerId }: { routeId: string; viewerI
         : Promise.resolve(null);
 
       const [
-        campuses,
         targetInterests,
         currentInterests,
         socialLinks,
         avatarSignedUrl,
       ] = await Promise.all([
-        getCampuses(),
         getProfileInterests(targetProfile.id),
         viewerProfileId
           ? getProfileInterests(viewerProfileId)
@@ -163,11 +172,6 @@ function StudentProfileContent({ routeId, viewerId }: { routeId: string; viewerI
         getProfileSocialLinks(targetProfile.id),
         avatarPromise,
       ]);
-
-      const campus =
-        campuses.find(
-          (item) => item.id === targetProfile.campusId
-        ) ?? null;
 
       const currentInterestIds = new Set(
         currentInterests.map((interest) => interest.id)
@@ -182,7 +186,7 @@ function StudentProfileContent({ routeId, viewerId }: { routeId: string; viewerI
       if (!focused.current || ticket !== generation.current) return;
       setRealStudent({
         profile: targetProfile,
-        campusName: campus?.displayName ?? null,
+        interests: targetInterests.filter(interest => interest.isActive).map(interest => interest.displayName),
         sharedInterests,
         avatarSignedUrl,
         linkedinUrl:
@@ -206,27 +210,38 @@ function StudentProfileContent({ routeId, viewerId }: { routeId: string; viewerI
     viewerProfileId,
   ]);
 
+  const invalidatePendingWork = useCallback(() => {
+    ++focusEpoch.current;
+    ++generation.current;
+    opening.current = null;
+    setOpeningMessage(false);
+  }, []);
+
   useFocusEffect(useCallback(() => {
     focused.current = true;
     ++focusEpoch.current;
     setMessageError("");
     void loadRealStudent();
-    return () => { focused.current = false; ++focusEpoch.current; ++generation.current; };
-  }, [loadRealStudent]));
+    return () => {
+      focused.current = false;
+      invalidatePendingWork();
+    };
+  }, [invalidatePendingWork, loadRealStudent]));
 
   useEffect(() => {
     const subscription = AppState.addEventListener('change', state => {
       foreground.current = state === 'active';
-      if (!foreground.current) { ++focusEpoch.current; ++generation.current; }
+      if (!foreground.current) invalidatePendingWork();
       else if (focused.current) void loadRealStudent();
     });
     return () => subscription.remove();
-  }, [loadRealStudent]);
+  }, [invalidatePendingWork, loadRealStudent]);
 
   const handleMessage = async () => {
     const target = realStudent?.profile;
     if (!viewerId || !viewerProfile?.onboardingCompletedAt || !target?.onboardingCompletedAt
       || target.id === viewerId || target.id.toLowerCase() !== routeId.toLowerCase()
+      || !latestBlockState.current || latestBlockState.current.interaction_blocked
       || legacyStudent || !focused.current || !foreground.current || opening.current || isLoadingRealStudent) return;
     const operation = {};
     const epoch = focusEpoch.current;
@@ -248,6 +263,8 @@ function StudentProfileContent({ routeId, viewerId }: { routeId: string; viewerI
   const renderHeader = () => (
     <ScreenHeader>
       <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Back from Student Profile"
         style={styles.backRow}
         hitSlop={10}
         onPress={() => router.back()}
@@ -267,21 +284,31 @@ function StudentProfileContent({ routeId, viewerId }: { routeId: string; viewerI
     </ScreenHeader>
   );
 
+  const renderBlockControl = () => viewerId && isUuidRoute && !isLegacyStudent
+    && routeId.toLowerCase() !== viewerId.toLowerCase() && !!viewerProfile?.onboardingCompletedAt ? (
+      <BlockStudentControl userId={viewerId} profileId={routeId}
+        displayName={realStudent?.profile.displayName ?? undefined}
+        onState={updateBlockState} onChanged={() => { void loadRealStudent(); }} />
+    ) : null;
+
+  const renderReportControl = () => viewerId && isUuidRoute && !isLegacyStudent
+    && routeId.toLowerCase() !== viewerId.toLowerCase() && !!viewerProfile?.onboardingCompletedAt ? (
+      <Pressable accessibilityRole="button" accessibilityLabel="Report student" style={styles.reportButton}
+        onPress={() => {
+          if (!focused.current || !foreground.current) return;
+          router.push({ pathname: "/safety/report", params: { targetType: "student", targetId: routeId } });
+        }}><Text style={styles.reportButtonText}>Report student</Text></Pressable>
+    ) : null;
+
   if (isLoadingRealStudent) {
     return (
       <View style={styles.safeArea}>
         {renderHeader()}
 
-        <View style={styles.notFoundContent}>
-          <ActivityIndicator
-            size="large"
-            color={COLORS.primary}
-          />
-
-          <Text style={styles.loadingText}>
-            Loading student profile...
-          </Text>
-        </View>
+        <ScrollView contentContainerStyle={styles.scrollContent}>
+          <LoadingSkeleton variant="profile" label="Loading student profile" />
+          {renderBlockControl()}
+        </ScrollView>
       </View>
     );
   }
@@ -291,7 +318,7 @@ function StudentProfileContent({ routeId, viewerId }: { routeId: string; viewerI
       <View style={styles.safeArea}>
         {renderHeader()}
 
-        <View style={styles.notFoundContent}>
+        <ScrollView contentContainerStyle={styles.notFoundContent}>
           <Ionicons
             name="alert-circle-outline"
             size={64}
@@ -307,6 +334,7 @@ function StudentProfileContent({ routeId, viewerId }: { routeId: string; viewerI
           </Text>
 
           <Pressable
+            accessibilityRole="button"
             style={styles.backToClassmatesButton}
             onPress={() => {
               void loadRealStudent();
@@ -316,20 +344,21 @@ function StudentProfileContent({ routeId, viewerId }: { routeId: string; viewerI
               Retry
             </Text>
           </Pressable>
-        </View>
+          {renderBlockControl()}
+        </ScrollView>
       </View>
     );
   }
 
   if (
     !legacyStudent &&
-    (!isUuidRoute || !realStudent)
+    (!isUuidRoute || !realStudent || blockState?.interaction_blocked)
   ) {
     return (
       <View style={styles.safeArea}>
         {renderHeader()}
 
-        <View style={styles.notFoundContent}>
+        <ScrollView contentContainerStyle={styles.notFoundContent}>
           <Ionicons
             name="person-circle-outline"
             size={72}
@@ -345,6 +374,7 @@ function StudentProfileContent({ routeId, viewerId }: { routeId: string; viewerI
           </Text>
 
           <Pressable
+            accessibilityRole="button"
             style={styles.backToClassmatesButton}
             onPress={() => router.back()}
           >
@@ -352,7 +382,11 @@ function StudentProfileContent({ routeId, viewerId }: { routeId: string; viewerI
               Go Back
             </Text>
           </Pressable>
-        </View>
+          {renderBlockControl()}
+          {renderReportControl()}
+          {admin.allowed && viewerId && isUuidRoute && !isLegacyStudent && routeId !== viewerId && <Pressable accessibilityRole="button" style={styles.reportButton}
+            onPress={() => { if (focused.current && foreground.current) admin.open('student', routeId); }}><Text style={styles.reportButtonText}>Admin actions</Text></Pressable>}
+        </ScrollView>
       </View>
     );
   }
@@ -360,7 +394,7 @@ function StudentProfileContent({ routeId, viewerId }: { routeId: string; viewerI
   const isMock = Boolean(legacyStudent);
   const isSelf = !!viewerId && routeId.toLowerCase() === viewerId.toLowerCase();
   const canMessage = !isMock && !isSelf && !!viewerProfile?.onboardingCompletedAt
-    && !!realStudent?.profile.onboardingCompletedAt;
+    && !!realStudent?.profile.onboardingCompletedAt && !!blockState && !blockState.interaction_blocked;
 
   const name = legacyStudent
     ? legacyStudent.name
@@ -376,10 +410,6 @@ function StudentProfileContent({ routeId, viewerId }: { routeId: string; viewerI
         realStudent?.profile.yearOfStudy ?? null
       );
 
-  const campus = legacyStudent
-    ? legacyStudent.campus
-    : realStudent?.campusName ?? "Campus not added";
-
   const avatarUri = legacyStudent
     ? legacyStudent.avatar
     : realStudent?.avatarSignedUrl ?? null;
@@ -387,6 +417,8 @@ function StudentProfileContent({ routeId, viewerId }: { routeId: string; viewerI
   const sharedInterests = legacyStudent
     ? legacyStudent.sharedInterests
     : realStudent?.sharedInterests ?? [];
+
+  const interests = legacyStudent ? legacyStudent.sharedInterests : realStudent?.interests ?? [];
 
   const matchLabel =
     legacyStudent?.matchLabel ?? null;
@@ -448,17 +480,6 @@ function StudentProfileContent({ routeId, viewerId }: { routeId: string; viewerI
             {major}, {year}
           </Text>
 
-          <View style={styles.campusRow}>
-            <Ionicons
-              name="location-sharp"
-              size={17}
-              color={COLORS.primary}
-            />
-
-            <Text style={styles.campusText}>
-              {campus}
-            </Text>
-          </View>
 
           {matchLabel ? (
             <View style={styles.matchBadge}>
@@ -481,6 +502,7 @@ function StudentProfileContent({ routeId, viewerId }: { routeId: string; viewerI
               (!canMessage || openingMessage) && styles.messageButtonDisabled,
             ]}
             onPress={() => { void handleMessage(); }}
+            accessibilityState={{ disabled: !canMessage || openingMessage, busy: openingMessage }}
             disabled={!canMessage || openingMessage}
           >
             <Ionicons
@@ -490,11 +512,15 @@ function StudentProfileContent({ routeId, viewerId }: { routeId: string; viewerI
             />
 
             <Text style={styles.messageButtonText}>
-              {isMock ? "Demo profile · no messaging" : openingMessage ? "Opening chat…"
+              {isMock ? "Demo profile (messaging unavailable)" : openingMessage ? "Opening chat…"
                 : canMessage ? messageError ? "Retry Message" : "Message" : "Messaging unavailable"}
             </Text>
           </Pressable>}
           {!!messageError && <Text accessibilityRole="alert" style={styles.messageError}>{messageError}</Text>}
+          {renderReportControl()}
+          {admin.allowed && viewerId && isUuidRoute && !isLegacyStudent && routeId !== viewerId && <Pressable accessibilityRole="button" style={styles.reportButton}
+            onPress={() => { if (focused.current && foreground.current) admin.open('student', routeId); }}><Text style={styles.reportButtonText}>Admin actions</Text></Pressable>}
+          {renderBlockControl()}
         </View>
 
         {!isMock && realStudent && <RatingSummary key={realStudent.profile.id} profileId={realStudent.profile.id} />}
@@ -546,50 +572,29 @@ function StudentProfileContent({ routeId, viewerId }: { routeId: string; viewerI
             </View>
           </View>
 
-          <View style={styles.divider} />
-
-          <View style={styles.detailRow}>
-            <View style={styles.detailIcon}>
-              <Ionicons
-                name="location"
-                size={18}
-                color={COLORS.primary}
-              />
-            </View>
-
-            <View style={styles.detailContent}>
-              <Text style={styles.detailLabel}>
-                Campus
-              </Text>
-
-              <Text style={styles.detailValue}>
-                {campus}
-              </Text>
-            </View>
-          </View>
         </View>
 
         <View style={styles.sectionCard}>
           <Text style={styles.sectionTitle}>
-            Shared Interests
+            Interests
           </Text>
 
-          {sharedInterests.length > 0 ? (
+          {interests.length > 0 ? (
             <View style={styles.interestsRow}>
-              {sharedInterests.map((interest) => (
+              {interests.map((interest) => (
                 <View
                   key={interest}
                   style={styles.interestTag}
                 >
                   <Text style={styles.interestText}>
-                    {interest}
+                    {interest}{sharedInterests.includes(interest) && !isSelf ? " (In common)" : ""}
                   </Text>
                 </View>
               ))}
             </View>
           ) : (
             <Text style={styles.emptySectionText}>
-              No shared interests yet.
+              No interests added yet.
             </Text>
           )}
         </View>
@@ -602,6 +607,7 @@ function StudentProfileContent({ routeId, viewerId }: { routeId: string; viewerI
 
             {linkedinUrl ? (
               <Pressable
+                accessibilityRole="link"
                 style={styles.socialRow}
                 onPress={() => {
                   void Linking.openURL(linkedinUrl);
@@ -622,7 +628,6 @@ function StudentProfileContent({ routeId, viewerId }: { routeId: string; viewerI
 
                   <Text
                     style={styles.socialValue}
-                    numberOfLines={1}
                   >
                     {linkedinUrl}
                   </Text>
@@ -642,6 +647,7 @@ function StudentProfileContent({ routeId, viewerId }: { routeId: string; viewerI
 
             {instagramUsername ? (
               <Pressable
+                accessibilityRole="link"
                 style={styles.socialRow}
                 onPress={() => {
                   void Linking.openURL(
@@ -706,18 +712,28 @@ function StudentProfileContent({ routeId, viewerId }: { routeId: string; viewerI
 }
 
 const styles = StyleSheet.create({
+  reportButton: {
+    ...actionButton,
+    alignSelf: "stretch",
+    marginTop: 12,
+  },
+  reportButtonText: actionButtonText,
   safeArea: {
     flex: 1,
     backgroundColor: COLORS.background,
   },
 
   backRow: {
+    minHeight: 48,
+    flex: 1,
+    minWidth: 0,
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
   },
 
   headerTitle: {
+    flexShrink: 1,
     fontSize: 19,
     fontWeight: "900",
     color: "#FFFFFF",
@@ -799,18 +815,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
 
-  campusRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 10,
-    gap: 5,
-  },
 
-  campusText: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: COLORS.textDark,
-  },
 
   matchBadge: {
     flexDirection: "row",
@@ -830,13 +835,11 @@ const styles = StyleSheet.create({
   },
 
   messageButton: {
+    ...actionButton,
     width: "100%",
-    minHeight: 48,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
     marginTop: 22,
-    borderRadius: 12,
     backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
@@ -848,10 +851,11 @@ const styles = StyleSheet.create({
   },
 
   messageButtonText: {
+    ...actionButtonText,
     flexShrink: 1,
     textAlign: "center",
     fontSize: 16,
-    fontWeight: "900",
+    fontWeight: "700",
     color: "#FFFFFF",
   },
 
@@ -918,6 +922,7 @@ const styles = StyleSheet.create({
   },
 
   interestTag: {
+    maxWidth: "100%",
     paddingHorizontal: 13,
     paddingVertical: 8,
     borderRadius: 8,
@@ -938,6 +943,7 @@ const styles = StyleSheet.create({
   },
 
   socialRow: {
+    minHeight: 48,
     flexDirection: "row",
     alignItems: "center",
   },
@@ -988,7 +994,7 @@ const styles = StyleSheet.create({
   },
 
   notFoundContent: {
-    flex: 1,
+    flexGrow: 1,
     alignItems: "center",
     justifyContent: "center",
     padding: 24,
@@ -1018,6 +1024,8 @@ const styles = StyleSheet.create({
   },
 
   backToClassmatesButton: {
+    minHeight: 48,
+    justifyContent: "center",
     marginTop: 22,
     paddingHorizontal: 24,
     paddingVertical: 12,

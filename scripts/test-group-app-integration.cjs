@@ -33,6 +33,9 @@ function compile(file, reportDiagnostics = false) {
 }
 
 function production(file, modules = {}) {
+  modules = { '@/components/LoadingState': require('./loading-test-mock.cjs'),
+    '@/components/LegalLinks': { default: 'LegalLinks', __esModule: true },
+    '@/context/LegalDocumentsProvider': { LegalDocumentsProvider: 'LegalDocumentsProvider' }, ...modules };
   const exportsObject = {};
   vm.runInNewContext(compile(file).outputText, {
     exports: exportsObject,
@@ -133,7 +136,7 @@ function test(name, run) {
   console.log('PASS ' + name);
 }
 
-function inboxHarness(search = '', groupsEnabled = true) {
+function inboxHarness(search = '', groupsEnabled = true, initialState = {}) {
   const pushes = [];
   const focusEffects = [];
   let invitationLoads = 0;
@@ -144,6 +147,7 @@ function inboxHarness(search = '', groupsEnabled = true) {
     loading: false,
     error: null,
     cursor: null,
+    ...initialState,
   };
   const model = {
     subscribe() { return () => {}; },
@@ -252,7 +256,7 @@ function threadHarness(summary, groupsEnabled = true) {
   const modules = {
     react,
     '@expo/vector-icons': { Ionicons: 'Ionicons' },
-    '@react-native-async-storage/async-storage': { default: {}, __esModule: true },
+    '../../lib/privateDrafts': { privateDrafts: { forAccount: () => ({}) } },
     'expo-router': {
       useFocusEffect() {},
       useLocalSearchParams: () => ({ id: summary.id }),
@@ -360,13 +364,25 @@ test('all deferred group deep links redirect before mounting account, data or st
   }
 });
 
+test('inbox placeholders are limited to first load and never replace cached conversations or an error', () => {
+  const first = inboxHarness('', false, { items: [], loaded: false, loading: true });
+  assert.equal(nodes(first.flatList.props.ListHeaderComponent).find(node => node.type === 'LoadingSkeleton')?.props.label, 'Loading conversations');
+  assert.equal(first.flatList.props.ListEmptyComponent, null);
+  const refresh = inboxHarness('', false, { loading: true });
+  assert.ok(refresh.flatList.props.data.length > 0);
+  assert.equal(nodes(refresh.flatList.props.ListHeaderComponent).some(node => node.type === 'LoadingSkeleton'), false);
+  const failed = inboxHarness('', false, { items: [], loaded: false, loading: true, error: 'Offline. Retry.' });
+  assert.match(textOf(failed.flatList.props.ListHeaderComponent), /Offline/);
+  assert.equal(nodes(failed.flatList.props.ListHeaderComponent).some(node => node.type === 'LoadingSkeleton'), false);
+});
+
 test('production inbox renders group metadata/preview and navigates to the shared thread', () => {
   const app = inboxHarness();
   assert.equal(app.flatList.props.data.length, 2);
   const row = app.flatList.props.renderItem({ item: app.flatList.props.data[0] });
   const content = textOf(row);
   assert.match(content, /Study Crew/);
-  assert.match(content, /CMPT 125 · 4 members/);
+  assert.match(content, /CMPT 125\s+4 members/);
   assert.match(content, /Group preview/);
   assert.ok(nodes(row).some(node => node.type === 'Ionicons' && node.props.name === 'people'));
   row.props.onPress();
@@ -407,7 +423,7 @@ test('production group thread shows each sender, allows compose, and links activ
   const app = threadHarness(groupSummary());
   const content = textOf(app.tree);
   assert.match(content, /Study Crew/);
-  assert.match(content, /CMPT 125 · 4 members/);
+  assert.match(content, /CMPT 125\s+4 members/);
   const senderLabels = app.messages.map(item => textOf(app.flatList.props.renderItem({ item })));
   assert.match(senderLabels[0], /Alex Helper/);
   assert.match(senderLabels[1], /Blair Tutor/);

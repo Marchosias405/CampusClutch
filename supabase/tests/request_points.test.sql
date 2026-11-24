@@ -4,9 +4,9 @@ SET search_path=public,extensions;
 SELECT no_plan();
 
 -- Isolated fixtures, balances, ledger events, triggers and requests all roll back.
-INSERT INTO auth.users(id,email)
+INSERT INTO auth.users(id,email,email_confirmed_at)
 SELECT ('92929292-9292-4929-8929-'||lpad(i::text,12,'0'))::uuid,
-  'points-'||i||'@test.local' FROM generate_series(1,6) i;
+  'points-'||i||'@test.local',now() FROM generate_series(1,6) i;
 UPDATE public.profiles SET display_name='Points Tester',major='Computing Science',year_of_study=2,
   campus_id=(SELECT id FROM public.campuses WHERE slug='burnaby')
 WHERE id IN (SELECT ('92929292-9292-4929-8929-'||lpad(i::text,12,'0'))::uuid FROM generate_series(1,6) i);

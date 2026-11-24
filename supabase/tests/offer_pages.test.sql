@@ -2,7 +2,7 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET search_path=public,extensions;
 SELECT no_plan();
-INSERT INTO auth.users(id,email) SELECT ('77777777-7777-4777-8777-'||lpad(i::text,12,'0'))::uuid,'page-'||i||'@test.local' FROM generate_series(1,4) i;
+INSERT INTO auth.users(id,email,email_confirmed_at) SELECT ('77777777-7777-4777-8777-'||lpad(i::text,12,'0'))::uuid,'page-'||i||'@test.local',now() FROM generate_series(1,4) i;
 UPDATE public.profiles SET display_name='Private Offer Helper',major='Computing Science',year_of_study=2,is_discoverable=false,
  campus_id=(SELECT id FROM public.campuses WHERE slug='burnaby')
  WHERE id IN (SELECT ('77777777-7777-4777-8777-'||lpad(i::text,12,'0'))::uuid FROM generate_series(1,4) i);

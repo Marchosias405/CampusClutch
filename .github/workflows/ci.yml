@@ -44,8 +44,32 @@ jobs:
       - name: Test Preview deployment safeguards
         run: node --test scripts/release/preview.test.cjs
 
+      - name: Check public build settings and private file exclusions
+        run: node --test scripts/test-public-client-security.cjs
+
+      - name: Check Edge worker authentication and allowed origins
+        run: node --test scripts/test-edge-request-boundaries.mjs
+
       - name: Check server, browser and native auth initialization
         run: npm run test:auth-runtime
+
+      - name: Check signup, sign-in, session restoration and routing
+        run: npm run test:auth-ui
+
+      - name: Check offline privacy and terms reading, draft preservation and close behavior
+        run: npm run test:legal-pages
+
+      - name: Check Create Request form validation and submission
+        run: npm run test:request-form
+
+      - name: Check Request Details permissions, actions and refresh
+        run: npm run test:request-details
+
+      - name: Check campus feed filters, deadlines and pagination
+        run: npm run test:request-feed
+
+      - name: Check Home loading, account isolation and bottom navigation
+        run: npm run test:home-navigation
 
       - name: Check offer action lifecycle
         run: npm run test:offers-lifecycle
@@ -61,3 +85,165 @@ jobs:
 
       - name: Check course catalog import, search and upcoming enrollment
         run: npm run test:catalog
+
+      - name: Check course reviews, anonymity and account isolation
+        run: npm run test:course-reviews
+
+      - name: Check notifications, read state and account isolation
+        run: npm run test:notifications
+
+      - name: Check own profile, student profiles, interests and account isolation
+        run: npm run test:profiles
+
+      - name: Check loading animation lifecycle and protected waiting screens
+        run: npm run test:loading
+
+      - name: Check native motion and reduced-motion preferences
+        run: npm run test:motion
+
+      - name: Check concise guidance, appeal drafts and visible account status
+        run: npm run test:interface-usability
+
+      - name: Check private reporting contracts and durable retry
+        run: npm run test:safety-reports
+
+      - name: Check moderation access, projections and durable decisions
+        run: npm run test:moderation
+
+      - name: Check direct admin actions and durable confirmation
+        run: npm run test:direct-moderation
+
+      - name: Check blocking contracts, account isolation and durable retry
+        run: npm run test:student-blocks
+
+  database:
+    name: Database migrations and pgTAP
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      SUPABASE_TELEMETRY_DISABLED: "1"
+      DO_NOT_TRACK: "1"
+      EXPO_NO_TELEMETRY: "1"
+      EXPO_PUBLIC_APP_ENV: development
+      EXPO_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Start local Auth, REST and Realtime with migrations and seed data
+        run: ./node_modules/.bin/supabase start --exclude studio,meta,imgproxy,analytics,vector,edge-runtime
+
+      - name: Allow fixture email addresses in the local database
+        run: npm run db:local-test-emails
+
+      - name: Run database tests
+        run: ./node_modules/.bin/supabase test db --local
+
+      - name: Configure the test app for the local API
+        run: |
+          key=$(./node_modules/.bin/supabase status -o json | jq -er '.PUBLISHABLE_KEY // .ANON_KEY')
+          echo "EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY=$key" >> "$GITHUB_ENV"
+
+      - name: Test the two-student workflow against local services
+        run: npm run test:student-journey-local
+
+      - name: Test authenticated reporting retries and quota concurrency
+        run: npm run test:safety-reports-local
+
+      - name: Test individual message and course-review reporting permissions and retries
+        run: npm run test:content-safety-reports-local
+
+      - name: Test privileged report triage, role revocation and concurrent decisions
+        run: npm run test:moderation-triage-local
+
+      - name: Test warnings, suspensions and active-session enforcement
+        run: npm run test:moderation-enforcement-local
+
+      - name: Test direct admin permissions, concurrent retries and private notices
+        run: npm run test:direct-moderation-local
+
+      - name: Test suspended-account appeals and competing admin decisions
+        run: npm run test:moderation-appeals-local
+
+      - name: Test owner-only staff recovery and revoked sessions
+        run: npm run test:staff-recovery-local
+
+      - name: Test caller-bound account deletion readiness and revoked sessions
+        run: npm run test:account-deletion-local
+
+      - name: Test permanent deletion with local-only Auth and Storage credentials
+        run: |
+          export CAMPUSCLUTCH_LOCAL_SERVICE_KEY=$(./node_modules/.bin/supabase status -o json | jq -er '.SERVICE_ROLE_KEY')
+          npm run test:account-deletion-client
+          npm run test:account-deletion-cleanup-local
+
+      - name: Test simultaneous review replacement and appeal restoration
+        run: python3 scripts/test-moderation-appeals-concurrency.py
+
+      - name: Test blocking, contact races and reserved points
+        run: npm run test:student-blocks-local
+
+      - name: Test the two-student workflow in Chrome
+        run: npm run test:student-browser
+
+      - name: Test moderator UI, conflicts, private evidence and account isolation in Chrome
+        run: node scripts/test-moderation-browser.cjs .expo/task12-web
+
+      - name: Test admin actions and affected-student notices in Chrome
+        run: node scripts/test-moderation-enforcement-browser.cjs .expo/task12-web
+
+      - name: Test moderation appeal screens and interrupted retries
+        run: node scripts/test-moderation-appeals-browser.cjs .expo/task12-web
+
+      - name: Enable email confirmation for cross-device Auth tests
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          config = Path('supabase/config.toml')
+          text = config.read_text()
+          start = text.index('[auth.email]')
+          end = text.index('[auth.sms]', start)
+          section = text[start:end].replace('enable_confirmations = false', 'enable_confirmations = true')
+          config.write_text(text[:start] + section + text[end:])
+          PY
+          ./node_modules/.bin/supabase stop
+          ./node_modules/.bin/supabase start --exclude studio,meta,imgproxy,analytics,vector,edge-runtime
+          npm run db:local-test-emails
+          key=$(./node_modules/.bin/supabase status -o json | jq -er '.PUBLISHABLE_KEY // .ANON_KEY')
+          echo "EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY=$key" >> "$GITHUB_ENV"
+
+      - name: Serve the public email confirmation callback locally
+        run: |
+          ./node_modules/.bin/supabase functions serve --no-verify-jwt > /tmp/email-callback.log 2>&1 &
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:54321/functions/v1/email-verified > /dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/email-callback.log
+          exit 1
+
+      - name: Test cross-device email links, expiry, replay and password sign-in
+        run: npm run test:email-verification-local
+
+      - name: Test signup verification and restart recovery in Chrome
+        run: npm run test:email-verification-browser
+
+      - name: Test cross-device recovery requests and form retry behavior
+        run: npm run test:password-recovery
+
+      - name: Test password reset in a separate browser with real Auth emails
+        run: npm run test:password-recovery-local
+
+      - name: Test Forgot Password navigation in the exported app
+        run: npm run test:password-recovery-browser

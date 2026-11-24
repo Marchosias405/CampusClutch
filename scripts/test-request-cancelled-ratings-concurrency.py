@@ -50,6 +50,8 @@ def fixture():
 
 
 def remove_request(request):
+    sql(f"delete from public.notifications where request_id='{request}' and request_id in "
+        f"(select id from public.requests where owner_id='{users[0]}')")
     sql(f"delete from public.requests where id='{request}' and owner_id='{users[0]}'")
 
 
@@ -121,7 +123,7 @@ def race(request, calls):
 
 try:
     for user in users:
-        sql(f"insert into auth.users(id,email) values('{user}','{user}@cancelled-rating-race.local'); "
+        sql(f"insert into auth.users(id,email,email_confirmed_at) values('{user}','{user}@cancelled-rating-race.local',now()); "
             f"update public.profiles set display_name='Cancelled Rating Race Tester',major='Testing',year_of_study=2,"
             f"campus_id=(select id from public.campuses where slug='burnaby') where id='{user}';")
 
@@ -236,7 +238,10 @@ try:
     print('PASS conflicting historical cancelled scores preserve the first committed choice privately', flush=True)
     remove_request(request)
 finally:
+    sql('delete from public.notifications where recipient_id in (' + ','.join(f"'{u}'" for u in users) + ')')
     sql('delete from public.requests where owner_id in (' + ','.join(f"'{u}'" for u in users) + ')')
     for user in users:
+        sql(f"delete from points_private.starter_grant_claims where email_fingerprint="
+            f"points_private.email_fingerprint('{user}@cancelled-rating-race.local')")
         sql(f"delete from auth.users where id='{user}'")
     print('Temporary cancelled-rating concurrency fixtures removed.', flush=True)

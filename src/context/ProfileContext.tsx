@@ -47,70 +47,67 @@ export function ProfileProvider({
   children: React.ReactNode;
 }) {
   const { user, isRestoringSession } = useAuth();
-
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [isLoadingProfileState, setIsLoadingProfile] = useState(false);
-  const [loadedProfileUserId, setLoadedProfileUserId] = useState<string | null>(
-    null
-    );
-  const [profileError, setProfileError] = useState<string | null>(null);
+  const userId = user?.id ?? null;
+  const account = useMemo(() => ({ userId, active: true, read: 0 }), [userId]);
+  const [result, setResult] = useState<{
+    account: typeof account;
+    profile: Profile | null;
+    error: string | null;
+    loading: boolean;
+  } | null>(null);
 
   const loadProfile = useCallback(async () => {
-    if (!user) {
-    setProfile(null);
-    setProfileError(null);
-    setLoadedProfileUserId(null);
-    setIsLoadingProfile(false);
-    return;
-    }
-
-    const profileUserId = user.id;
-
-    setIsLoadingProfile(true);
-    setProfileError(null);
-
+    if (!account.active || !account.userId) return;
+    const read = ++account.read;
+    setResult(previous => ({
+      account,
+      profile: previous?.account === account ? previous.profile : null,
+      error: null,
+      loading: true,
+    }));
+    let profile: Profile | null = null;
+    let error: string | null = null;
     try {
-      const nextProfile = await getProfileById(profileUserId);
-      setProfile(nextProfile);
-    } catch (error) {
-      setProfile(null);
-      setProfileError(getErrorMessage(error));
-    } finally {
-      setLoadedProfileUserId(profileUserId);
-      setIsLoadingProfile(false);
+      profile = await getProfileById(account.userId);
+    } catch (cause) {
+      error = getErrorMessage(cause);
     }
-  }, [user]);
+    if (account.active && account.read === read) {
+      setResult({ account, profile, error, loading: false });
+    }
+  }, [account]);
 
   useEffect(() => {
-    if (isRestoringSession) {
-      return;
-    }
-
-    void loadProfile();
-  }, [isRestoringSession, loadProfile]);
-
-  const refreshProfile = useCallback(async () => {
-    await loadProfile();
-  }, [loadProfile]);
+    account.active = true;
+    if (!account.userId) setResult(null);
+    else if (!isRestoringSession) void loadProfile();
+    return () => {
+      account.active = false;
+      account.read++;
+    };
+  }, [account, isRestoringSession, loadProfile]);
 
   const saveProfile = useCallback(
     async (input: ProfileUpdateInput) => {
-      if (!user) {
+      if (!account.active || !account.userId) {
         throw new Error("You must be signed in to update your profile.");
       }
 
-      const updatedProfile = await updateProfile(user.id, input);
-
-      setProfile(updatedProfile);
-      setProfileError(null);
+      const updatedProfile = await updateProfile(account.userId, input);
+      if (account.active) {
+        // A read started before this save may still return the previous profile.
+        account.read++;
+        setResult({ account, profile: updatedProfile, error: null, loading: false });
+      }
 
       return updatedProfile;
     },
-    [user]
+    [account]
   );
-  const isLoadingProfile =
-    user !== null &&
-    (isLoadingProfileState || loadedProfileUserId !== user.id);
+  const current = result?.account === account ? result : null;
+  const profile = current?.profile ?? null;
+  const profileError = current?.error ?? null;
+  const isLoadingProfile = Boolean(userId) && (current?.loading ?? true);
   const isProfileComplete = Boolean(
     profile?.onboardingCompletedAt && profile.displayName
   );
@@ -121,7 +118,7 @@ export function ProfileProvider({
       isLoadingProfile,
       profileError,
       isProfileComplete,
-      refreshProfile,
+      refreshProfile: loadProfile,
       saveProfile,
     }),
     [
@@ -129,7 +126,7 @@ export function ProfileProvider({
       isLoadingProfile,
       profileError,
       isProfileComplete,
-      refreshProfile,
+      loadProfile,
       saveProfile,
     ]
   );

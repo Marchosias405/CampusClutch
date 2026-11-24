@@ -102,7 +102,10 @@ function AssignmentChats({ userId, requestId, disabled }: Props & { userId: stri
     {(loaded || !!error) && <Pressable accessibilityRole="button" style={styles.secondary} disabled={blocked}
       onPress={() => { void load(); }}><Text style={styles.secondaryText}>Refresh chats</Text></Pressable>}
     {items.map(assignment => <View key={assignment.offer_round} style={styles.card}>
-      <Text style={styles.title}>{labels[assignment.status]} · Round {assignment.offer_round}</Text>
+      <View>
+        <Text style={styles.title}>{labels[assignment.status]}</Text>
+        <Text style={styles.text}>Round {assignment.offer_round}</Text>
+      </View>
       <Pressable accessibilityRole="button" disabled={blocked} style={[styles.primary, blocked && styles.disabled]}
         onPress={() => { void open(assignment); }}>
         <Text style={styles.primaryText}>{openingRound === assignment.offer_round ? 'Opening chat…'

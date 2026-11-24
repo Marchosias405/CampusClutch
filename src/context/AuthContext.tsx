@@ -9,22 +9,29 @@ import React, {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import { AppState } from "react-native";
 
 import { supabase } from "@/lib/supabase";
+import { env } from "@/lib/env";
+import { privateDrafts } from "@/lib/privateDrafts";
+import { sendPasswordRecoveryEmail } from "@/lib/passwordRecovery";
 
 type SignUpResult = {
   error: AuthError | null;
+  // No session: may need verification, or Supabase may be hiding an existing account.
   verificationRequired: boolean;
 };
 
 type AuthContextValue = {
   session: Session | null;
+  draftSessionId: string | undefined;
   user: User | null;
   isRestoringSession: boolean;
   restorationError: string | null;
+  retrySessionRestore: () => Promise<void>;
   isPasswordRecovery: boolean;
   signIn: (
     email: string,
@@ -56,11 +63,11 @@ function normalizeEmail(email: string) {
   return email.trim().toLowerCase();
 }
 
-const AUTH_CALLBACK_URL =
-  "campusclutch://auth/callback";
+// Signup confirmation must be readable on devices without the app or PKCE state.
+// Supabase verifies the email before redirecting; the app then uses password sign-in.
+const AUTH_CALLBACK_URL = `${env.supabaseUrl}/functions/v1/email-verified`;
 
-const PASSWORD_RESET_URL =
-  "campusclutch://auth/reset-password";
+
 
 export function AuthProvider({
   children,
@@ -83,8 +90,34 @@ export function AuthProvider({
     setRestorationError,
   ] = useState<string | null>(null);
 
+  const restoreSequence = useRef(0);
+  const initialAuthRead = useRef(true);
+  const retrySessionRestore = useCallback(async () => {
+    const sequence = ++restoreSequence.current;
+    setIsRestoringSession(true);
+    setRestorationError(null);
+    let restoredSession: Session | null = null;
+    let restoreError: string | null = null;
+    try {
+      const { data, error } = await supabase.auth.getSession();
+      if (error) throw error;
+      restoredSession = data.session;
+    } catch {
+      restoreError = "Check your connection and try again.";
+    }
+    if (sequence !== restoreSequence.current) return;
+    if (!restoreError) {
+      void privateDrafts.setSession(restoredSession, initialAuthRead.current).catch(() => undefined);
+      initialAuthRead.current = false;
+    }
+    setSession(restoredSession);
+    setRestorationError(restoreError);
+    setIsRestoringSession(false);
+  }, []);
+
   useEffect(() => {
     let isMounted = true;
+    void retrySessionRestore();
 
     const updateAutoRefresh = (state: string) => {
       if (state === "active") {
@@ -107,9 +140,11 @@ export function AuthProvider({
       data: { subscription: authSubscription },
     } = supabase.auth.onAuthStateChange(
       (event, nextSession) => {
-        if (!isMounted) {
+        // getSession distinguishes a signed-out user from a failed initial read.
+        if (!isMounted || event === "INITIAL_SESSION") {
           return;
         }
+        ++restoreSequence.current;
 
         if (event === "PASSWORD_RECOVERY") {
           setIsPasswordRecovery(true);
@@ -119,43 +154,31 @@ export function AuthProvider({
           setIsPasswordRecovery(false);
         }
 
+        // The SDK can emit SIGNED_IN while restoring a saved login.
+        const restored = initialAuthRead.current && (event === "SIGNED_IN" || event === "TOKEN_REFRESHED");
+        initialAuthRead.current = false;
+        void privateDrafts.setSession(nextSession, restored).catch(() => undefined);
         setSession(nextSession);
         setRestorationError(null);
         setIsRestoringSession(false);
       }
     );
 
-    void supabase.auth
-      .getSession()
-      .then(({ data, error }) => {
-        if (!isMounted) {
-          return;
-        }
-
-        if (error) {
-          setSession(null);
-          setRestorationError(error.message);
-        } else {
-          setSession(data.session);
-          setRestorationError(null);
-        }
-
-        setIsRestoringSession(false);
-      });
-
     return () => {
       isMounted = false;
+      restoreSequence.current += 1;
       appStateSubscription.remove();
       authSubscription.unsubscribe();
       supabase.auth.stopAutoRefresh();
     };
-  }, []);
+  }, [retrySessionRestore]);
 
   const signIn = useCallback(
     async (
       email: string,
       password: string
     ) => {
+      initialAuthRead.current = false;
       const { error } =
         await supabase.auth.signInWithPassword({
           email: normalizeEmail(email),
@@ -172,6 +195,7 @@ export function AuthProvider({
       email: string,
       password: string
     ): Promise<SignUpResult> => {
+      initialAuthRead.current = false;
       const { data, error } =
         await supabase.auth.signUp({
           email: normalizeEmail(email),
@@ -208,15 +232,7 @@ export function AuthProvider({
 
   const requestPasswordReset = useCallback(
     async (email: string) => {
-      const { error } =
-        await supabase.auth.resetPasswordForEmail(
-          normalizeEmail(email),
-          {
-            redirectTo: PASSWORD_RESET_URL,
-          }
-        );
-
-      return error;
+      return sendPasswordRecoveryEmail(normalizeEmail(email));
     },
     []
   );
@@ -248,11 +264,14 @@ export function AuthProvider({
   );
 
   const signOut = useCallback(async () => {
+    const previous = privateDrafts.sessionId;
     const { error } =
       await supabase.auth.signOut({
         scope: "local",
       });
-
+    if (!error && (!privateDrafts.sessionId || privateDrafts.sessionId === previous)) {
+      await privateDrafts.setSession(null);
+    }
     return error;
   }, []);
 
@@ -260,8 +279,10 @@ export function AuthProvider({
     () => ({
       session,
       user: session?.user ?? null,
+      draftSessionId: privateDrafts.sessionId,
       isRestoringSession,
       restorationError,
+      retrySessionRestore,
       isPasswordRecovery,
       signIn,
       signUp,
@@ -276,6 +297,7 @@ export function AuthProvider({
       session,
       isRestoringSession,
       restorationError,
+      retrySessionRestore,
       isPasswordRecovery,
       signIn,
       signUp,

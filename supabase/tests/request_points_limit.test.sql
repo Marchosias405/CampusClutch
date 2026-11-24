@@ -3,9 +3,9 @@ CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET search_path=public,extensions;
 SELECT no_plan();
 
-INSERT INTO auth.users(id,email)
+INSERT INTO auth.users(id,email,email_confirmed_at)
 SELECT ('93939393-9393-4939-8939-'||lpad(i::text,12,'0'))::uuid,
-  'points-limit-'||i||'@test.local' FROM generate_series(1,3) i;
+  'points-limit-'||i||'@test.local',now() FROM generate_series(1,3) i;
 CREATE FUNCTION pg_temp.uid(i integer) RETURNS uuid LANGUAGE sql AS $$
  SELECT ('93939393-9393-4939-8939-'||lpad(i::text,12,'0'))::uuid;
 $$;

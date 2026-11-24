@@ -27,7 +27,7 @@ function mapRow(row: Row): CampusRequest {
     id: row.id, ownerId: row.owner_id, offerRound: row.offer_round, ownerArchivedAt: row.owner_archived_at, campusId: row.campus_id,
     category: Object.keys(categories).find(key => categories[key as keyof typeof categories] === row.category) as CampusRequest['category'],
     title: row.title, description: row.description, campus: row.campuses ? row.campuses.slug[0].toUpperCase() + row.campuses.slug.slice(1) : undefined,
-    roomLocation: row.room_location, location: `${row.campuses?.display_name ?? 'Campus'} • ${row.room_location}`,
+    roomLocation: row.room_location, location: `${row.campuses?.display_name ?? 'Campus'}, ${row.room_location}`,
     deadlineAt: row.deadline_at, timeLabel: new Date(row.deadline_at).toLocaleString(),
     points: row.points, itemSize: (row.item_size[0].toUpperCase() + row.item_size.slice(1)) as CampusRequest['itemSize'],
     status: row.status === 'open' && Date.parse(row.deadline_at) <= Date.now() ? 'expired' : row.status,
@@ -67,7 +67,12 @@ export async function loadRequests(category: RequestCategory, ownerId: string | 
   const { data, error } = await supabase.from('requests').select(selection).in('id', ids);
   if (error) throw error;
   const rows = new Map((data as unknown as Row[]).map(row => [row.id, mapRow(row)]));
-  return { items: ids.flatMap(id => rows.has(id) ? [rows.get(id)!] : []), hasMore: ids.length === 20, nextOffset: offset + ids.length };
+  const items = ids.flatMap(id => {
+    const item = rows.get(id);
+    // The request may have changed since the feed selected its ID.
+    return item?.status === 'open' && (category === 'ALL' || item.category === category) ? [item] : [];
+  });
+  return { items, hasMore: ids.length === 20, nextOffset: offset + ids.length };
 }
 export async function saveRequest(request: Omit<CampusRequest, 'id'>, id?: string): Promise<string> {
   const { data: initial } = await supabase.auth.getSession();

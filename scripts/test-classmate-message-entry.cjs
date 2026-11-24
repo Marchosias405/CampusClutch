@@ -76,6 +76,7 @@ function harness(initial = {}) {
   }
   const AppState = { currentState: 'active', addEventListener: (_event, listener) => { events.add(listener); return { remove: () => events.delete(listener) }; } };
   const modules = {
+    '@/components/LoadingState': require('./loading-test-mock.cjs'),
     react,
     'react-native': { AppState, ActivityIndicator: 'ActivityIndicator', Pressable: 'Pressable', View: 'View', Text: 'Text',
       Image: 'Image', ScrollView: 'ScrollView', StyleSheet: { create: value => value } },
@@ -132,7 +133,10 @@ let checks = 0;
 const pass = name => { checks++; console.log('PASS ' + name); };
 (async () => {
   {
-    const app = harness(); await app.settle();
+    const app = harness(); app.render();
+    assert.equal(app.allNodes().find(node => node.type === 'LoadingSkeleton')?.props.variant, 'people');
+    await app.settle();
+    assert.equal(app.allNodes().filter(node => node.type === 'LoadingSkeleton').length, 0);
     const handler = app.button('Message').props.onPress;
     handler(); handler(); await app.settle();
     assert.equal(app.opens.length, 1); assert.deepEqual(app.opens[0].args, [A, B]);
@@ -240,6 +244,19 @@ const pass = name => { checks++; console.log('PASS ' + name); };
     app.switchCourse(COURSE2); await app.settle(); pending.reject(Error('private old load error')); await app.settle();
     assert.ok(app.content().includes('CMPT 225')); assert.ok(!app.content().includes('Unable to load classmates'));
     pass('Stale failures cannot replace a new course with an error screen');
+  }
+  {
+    const app = harness(); await app.settle();
+    const pending = deferred(); app.classmateQueue.push(pending); app.blur(); app.focus(); await app.settle();
+    assert.ok(app.content().includes('Student b'), 'Refresh keeps the existing classmate card');
+    assert.equal(app.allNodes().filter(node => node.type === 'LoadingSkeleton').length, 0);
+    assert.equal(app.allNodes().find(node => node.type === 'LoadingNotice')?.props.label, 'Refreshing classmates…');
+    assert.equal(app.button('View Profile').props.disabled, true);
+    assert.equal(app.button('Message').props.disabled, true);
+    pending.resolve([]); await app.settle();
+    assert.ok(app.content().includes('No classmates found'));
+    assert.equal(app.allNodes().filter(node => node.type === 'LoadingSkeleton' || node.type === 'LoadingNotice').length, 0);
+    pass('Classmate refresh retains rows while loading and reaches the true empty state after success');
   }
   console.log('Classmate messaging entry checks passed: ' + checks + '.');
 })().catch(error => { console.error(error); process.exitCode = 1; });

@@ -162,7 +162,8 @@ site_url = "http://127.0.0.1:3000"
 # A list of *exact* URLs that auth providers are permitted to redirect to post authentication.
 additional_redirect_urls = [
   "https://127.0.0.1:3000",
-  "campusclutch://auth/callback",
+  "campusclutch://auth/callback", "http://127.0.0.1:54731/reset-password.html",
+  "http://127.0.0.1:54321/functions/v1/email-verified",
   "campusclutch://auth/reset-password",
 ]
 # How long tokens are valid for, in seconds. Defaults to 3600 (1 hour), maximum 604,800 (1 week).
@@ -183,7 +184,7 @@ enable_anonymous_sign_ins = false
 # Allow/disallow testing manual linking of accounts
 enable_manual_linking = false
 # Passwords shorter than this value will be rejected as weak. Minimum 6, recommended 8 or more.
-minimum_password_length = 6
+minimum_password_length = 8
 # Passwords that do not meet the following requirements will be rejected as weak. Supported values
 # are: `letters_digits`, `lower_upper_letters_digits`, `lower_upper_letters_digits_symbols`
 password_requirements = ""
@@ -386,8 +387,9 @@ inspector_port = 8083
 # The Deno major version to use.
 deno_version = 2
 
-# [edge_runtime.secrets]
-# secret_key = "env(SECRET_VALUE)"
+[edge_runtime.secrets]
+# Local Expo Web dev server. Hosted projects set their own exact app origins.
+DELETION_ALLOWED_WEB_ORIGINS = "http://localhost:8081,http://127.0.0.1:8081"
 
 [analytics]
 enabled = true
@@ -416,3 +418,15 @@ enabled = true
 # declarative_schema_path = "./database"
 # JSON string passed through to pg-delta SQL formatting.
 # format_options = "{\"keywordCase\":\"upper\",\"indent\":2,\"maxWidth\":80,\"commaStyle\":\"trailing\"}"
+
+# Deletion cleanup uses its single-operation random receipt after Auth is revoked.
+[functions.account-deletion]
+verify_jwt = false
+
+# pg_cron authenticates to this worker with a dedicated per-project secret.
+[functions.android-push]
+verify_jwt = false
+
+# Informational browser callback: no account data, credentials, or mutations.
+[functions.email-verified]
+verify_jwt = false
