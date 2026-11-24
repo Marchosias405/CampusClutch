@@ -1,11 +1,12 @@
+import LegalLinks from "@/components/LegalLinks";
+import { MotionPressable as Pressable } from '@/components/motion';
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
-import React, { useState } from "react";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import React, { useRef, useState } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -15,12 +16,15 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useAuth } from "@/context/AuthContext";
+import { env } from "@/lib/env";
+
+const requiresSfuEmail = env.appEnvironment === 'production';
 
 const COLORS = {
   primary: "#9B1C31",
   background: "#FFFFFF",
   textDark: "#2B2525",
-  mutedText: "#8C8585",
+  mutedText: "#635C5C",
   border: "#E8DDDF",
   inputBackground: "#FBF8F8",
   errorBackground: "#FDECEE",
@@ -28,8 +32,21 @@ const COLORS = {
   successBackground: "#F7ECEE",
 };
 
+// Email quota and request throttling have different causes. Neither is
+// cleared by restarting the app; Auth does not provide an exact retry time.
+function signupRateLimitMessage(error: { code?: string; status?: number }) {
+  if (error.code === "over_email_send_rate_limit") {
+    return "Verification emails are temporarily limited. Please try again later. Restarting the app won't reset this limit.";
+  }
+  if (error.code === "over_request_rate_limit" || error.status === 429) {
+    return "Too many attempts. Please wait before trying again. Restarting the app won't reset this limit.";
+  }
+  return null;
+}
+
 export default function SignUpScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ verify?: string; email?: string }>();
   const insets = useSafeAreaInsets();
   const { signUp, resendVerification } = useAuth();
 
@@ -40,16 +57,24 @@ export default function SignUpScreen() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isResending, setIsResending] = useState(false);
   const [verificationEmail, setVerificationEmail] = useState<string | null>(
-    null
+    params.verify === "1" ? (typeof params.email === "string" ? params.email.trim().toLowerCase() : "") : null
   );
+  const requestInFlight = useRef(false);
+  const verificationBusy = isResending;
   const [message, setMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const handleSignUp = async () => {
-    const normalizedEmail = email.trim();
+    if (requestInFlight.current) return;
+    const normalizedEmail = email.trim().toLowerCase();
 
     if (!normalizedEmail || !password || !confirmPassword) {
       setErrorMessage("Complete all required fields.");
+      return;
+    }
+
+    if (requiresSfuEmail && !/^[^\s@]+@sfu\.ca$/.test(normalizedEmail)) {
+      setErrorMessage("Use your SFU email address ending in @sfu.ca.");
       return;
     }
 
@@ -63,62 +88,95 @@ export default function SignUpScreen() {
       return;
     }
 
+    requestInFlight.current = true;
     setIsSubmitting(true);
     setErrorMessage(null);
     setMessage(null);
 
-    const result = await signUp(normalizedEmail, password);
+    try {
+      const result = await signUp(normalizedEmail, password);
 
-    if (result.error) {
+      if (result.error) {
+        const alreadyRegistered =
+          result.error.code === "user_already_exists" ||
+          result.error.code === "email_exists";
+        setErrorMessage(
+          signupRateLimitMessage(result.error) ??
+            (alreadyRegistered
+              ? "This email is already registered. Sign in with your existing password or reset it."
+              : "Unable to create the account. Check your information and try again.")
+        );
+        requestInFlight.current = false;
+        setIsSubmitting(false);
+        return;
+      }
+
+      if (result.verificationRequired) {
+        // A no-session response can also hide an existing, verified account.
+        // It does not prove a new account was created or an email was sent.
+        setVerificationEmail(normalizedEmail);
+        setPassword("");
+        setConfirmPassword("");
+        setPasswordVisible(false);
+        setMessage(
+          "If this address needs verification, check your inbox and spam folder for a verification link. Open it on any device, then return here to sign in."
+        );
+        requestInFlight.current = false;
+        setIsSubmitting(false);
+      }
+      // With a session, the auth navigator takes over.
+    } catch {
       setErrorMessage(
-        result.error.status === 429
-          ? "Too many attempts. Wait a moment and try again."
-          : "Unable to create the account. Check your information and try again."
+        "Unable to complete signup. Check your connection and try again."
       );
+      requestInFlight.current = false;
       setIsSubmitting(false);
-      return;
     }
-
-    if (result.verificationRequired) {
-      setVerificationEmail(normalizedEmail);
-      setMessage(
-        "Check your email and open the verification link before signing in."
-      );
-      setIsSubmitting(false);
-      return;
-    }
-
   };
 
   const handleResendVerification = async () => {
-    if (!verificationEmail) {
+    if (requestInFlight.current) return;
+    const address = verificationEmail?.trim().toLowerCase();
+    if (!address || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(address)) {
+      setErrorMessage("Enter the email address you used to sign up.");
       return;
     }
+    requestInFlight.current = true;
 
     setIsResending(true);
     setErrorMessage(null);
     setMessage(null);
 
-    const error = await resendVerification(verificationEmail);
-
-    if (error) {
+    try {
+      const error = await resendVerification(address);
+      if (error) {
+        setErrorMessage(
+          signupRateLimitMessage(error) ??
+            "Unable to resend the verification email."
+        );
+      } else {
+        setMessage(
+          "If this address still needs verification, check your inbox and spam folder for a verification link. Open it on any device, then return here to sign in."
+        );
+      }
+    } catch {
       setErrorMessage(
-        error.status === 429
-          ? "Please wait before requesting another email."
-          : "Unable to resend the verification email."
+        "Unable to request another email. Check your connection and try again."
       );
-    } else {
-      setMessage("A new verification email was requested.");
+    } finally {
+      requestInFlight.current = false;
+      setIsResending(false);
     }
-
-    setIsResending(false);
   };
 
-  if (verificationEmail) {
+  if (verificationEmail !== null) {
     return (
-      <View
-        style={[
-          styles.verificationScreen,
+      <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+      <ScrollView
+        style={styles.screen}
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={[
+          styles.scrollContent,
           {
             paddingTop: Math.max(insets.top + 32, 56),
             paddingBottom: Math.max(insets.bottom + 24, 32),
@@ -129,14 +187,27 @@ export default function SignUpScreen() {
           <Ionicons name="mail-outline" size={34} color="#FFFFFF" />
         </View>
 
-        <Text style={styles.title}>Verify your email</Text>
+        <Text style={styles.title}>Check your email</Text>
 
         <Text style={styles.subtitle}>
-          We created an account for:
+          Open the verification link on any device. Then return to CampusClutch and sign in.
         </Text>
-
-        <Text style={styles.verificationEmail}>{verificationEmail}</Text>
-
+        <Text style={styles.label}>Email address</Text>
+        <TextInput
+          style={styles.input}
+          accessibilityLabel="Verification email address"
+          value={verificationEmail}
+          onChangeText={value => {
+            setVerificationEmail(value);
+            setErrorMessage(null);
+            setMessage(null);
+          }}
+          placeholder="student@example.com"
+          placeholderTextColor={COLORS.mutedText}
+          autoCapitalize="none" autoCorrect={false}
+          keyboardType="email-address" autoComplete="email"
+          editable={!verificationBusy}
+        />
         {message ? (
           <View style={styles.messageBox}>
             <Text style={styles.messageText}>{message}</Text>
@@ -155,19 +226,33 @@ export default function SignUpScreen() {
         ) : null}
 
         <Pressable
+          style={[styles.primaryButton, verificationBusy && styles.primaryButtonDisabled]}
+          accessibilityRole="button"
+          disabled={verificationBusy}
+          onPress={() => router.replace({ pathname: "/sign-in", params: { email: verificationEmail.trim().toLowerCase() } })}
+        >
+          <Text style={styles.primaryButtonText}>Return to Sign In</Text>
+        </Pressable>
+
+        <Text style={styles.accountGuidance}>
+          Already registered? Sign in with your existing password or reset it.
+          Verified accounts do not need another verification email.
+        </Text>
+
+        <Pressable
           style={[
-            styles.primaryButton,
-            isResending && styles.primaryButtonDisabled,
+            styles.secondaryButton,
+            verificationBusy && styles.primaryButtonDisabled,
           ]}
           onPress={() => {
             void handleResendVerification();
           }}
-          disabled={isResending}
+          disabled={verificationBusy}
         >
           {isResending ? (
-            <ActivityIndicator color="#FFFFFF" />
+            <ActivityIndicator color={COLORS.primary} />
           ) : (
-            <Text style={styles.primaryButtonText}>
+            <Text style={styles.secondaryButtonText}>
               Resend Verification Email
             </Text>
           )}
@@ -175,11 +260,25 @@ export default function SignUpScreen() {
 
         <Pressable
           style={styles.secondaryButton}
-          onPress={() => router.replace("/sign-in" as never)}
+          onPress={() => router.replace("/forgot-password" as never)}
+          disabled={verificationBusy}
         >
-          <Text style={styles.secondaryButtonText}>Return to Sign In</Text>
+          <Text style={styles.secondaryButtonText}>Forgot Password?</Text>
         </Pressable>
-      </View>
+        <Pressable
+          style={styles.secondaryButton}
+          onPress={() => {
+            setVerificationEmail(null);
+            setMessage(null);
+            setErrorMessage(null);
+          }}
+          disabled={verificationBusy}
+        >
+          <Text style={styles.secondaryButtonText}>Use a different email</Text>
+        </Pressable>
+        <LegalLinks disabled={verificationBusy} />
+      </ScrollView>
+      </KeyboardAvoidingView>
     );
   }
 
@@ -206,15 +305,17 @@ export default function SignUpScreen() {
         <Text style={styles.brandName}>CampusClutch</Text>
         <Text style={styles.title}>Create your account</Text>
         <Text style={styles.subtitle}>
-          Join your campus community and connect with other students.
+          {requiresSfuEmail
+            ? "Use your @sfu.ca email so you can open the verification link."
+            : "Use an email address you can open to verify your account."}
         </Text>
 
-        <Text style={styles.label}>Email address</Text>
+        <Text style={styles.label}>{requiresSfuEmail ? "SFU email address" : "Email address"}</Text>
         <TextInput
           style={styles.input}
           value={email}
           onChangeText={setEmail}
-          placeholder="student@example.com"
+          placeholder={requiresSfuEmail ? "computingID@sfu.ca" : "student@example.com"}
           placeholderTextColor={COLORS.mutedText}
           autoCapitalize="none"
           autoCorrect={false}
@@ -285,6 +386,8 @@ export default function SignUpScreen() {
           </View>
         ) : null}
 
+        <LegalLinks disabled={isSubmitting} />
+
         <Pressable
           style={[
             styles.primaryButton,
@@ -311,6 +414,13 @@ export default function SignUpScreen() {
             Already have an account? Sign In
           </Text>
         </Pressable>
+        <Pressable
+          style={styles.secondaryButton}
+          onPress={() => router.replace("/forgot-password" as never)}
+          disabled={isSubmitting}
+        >
+          <Text style={styles.secondaryButtonText}>Forgot Password?</Text>
+        </Pressable>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -328,11 +438,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
   },
 
-  verificationScreen: {
-    flex: 1,
-    justifyContent: "center",
-    paddingHorizontal: 24,
-    backgroundColor: COLORS.background,
+  accountGuidance: {
+    marginTop: 20,
+    fontSize: 14,
+    lineHeight: 21,
+    color: COLORS.textDark,
+    textAlign: "center",
   },
 
   brandIcon: {
@@ -370,15 +481,6 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
 
-  verificationEmail: {
-    marginTop: -16,
-    marginBottom: 20,
-    fontSize: 16,
-    fontWeight: "800",
-    color: COLORS.textDark,
-    textAlign: "center",
-  },
-
   label: {
     marginBottom: 8,
     fontSize: 14,
@@ -391,7 +493,8 @@ const styles = StyleSheet.create({
   },
 
   input: {
-    height: 54,
+    minHeight: 54,
+    paddingVertical: 12,
     borderWidth: 1,
     borderColor: COLORS.border,
     borderRadius: 12,
@@ -402,7 +505,7 @@ const styles = StyleSheet.create({
   },
 
   passwordInputContainer: {
-    height: 54,
+    minHeight: 54,
     flexDirection: "row",
     alignItems: "center",
     borderWidth: 1,
@@ -413,15 +516,18 @@ const styles = StyleSheet.create({
 
   passwordInput: {
     flex: 1,
-    height: "100%",
+    minHeight: 54,
+    paddingVertical: 12,
     paddingLeft: 16,
     fontSize: 16,
     color: COLORS.textDark,
   },
 
   visibilityButton: {
+    alignSelf: "stretch",
     width: 52,
-    height: "100%",
+    minHeight: 54,
+    paddingVertical: 12,
     alignItems: "center",
     justifyContent: "center",
   },

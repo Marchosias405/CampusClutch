@@ -1,3 +1,5 @@
+import { LegalDocumentsProvider } from "@/context/LegalDocumentsProvider";
+import { LoadingState } from "@/components/LoadingState";
 import { DefaultTheme, ThemeProvider } from "@react-navigation/native";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
@@ -15,20 +17,28 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { ProfileProvider, useProfile } from "@/context/ProfileContext";
 import { RequestsProvider } from "@/context/RequestsContext";
+import { NotificationsProvider } from "@/context/NotificationsContext";
 import { UnreadMessagesProvider } from "@/context/UnreadMessagesContext";
+import { useAndroidPush } from "@/lib/useAndroidPush";
 import { GROUP_MESSAGING_ENABLED } from "@/lib/messagingFeatures";
+import { AccountDeletionProvider } from "@/context/AccountDeletionProvider";
+import AccountStandingGate from "@/components/AccountStandingGate";
 
 export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <ThemeProvider value={DefaultTheme}>
+        <LegalDocumentsProvider>
         <AuthProvider>
+          <AccountDeletionProvider><AccountStandingGate>
           <ProfileProvider>
             <RequestsProvider>
-              <UnreadMessagesProvider><RootNavigator /></UnreadMessagesProvider>
+              <UnreadMessagesProvider><NotificationsProvider><RootNavigator /></NotificationsProvider></UnreadMessagesProvider>
             </RequestsProvider>
           </ProfileProvider>
+          </AccountStandingGate></AccountDeletionProvider>
         </AuthProvider>
+        </LegalDocumentsProvider>
       </ThemeProvider>
     </SafeAreaProvider>
   );
@@ -38,6 +48,8 @@ function RootNavigator() {
   const {
     session,
     isRestoringSession,
+    restorationError,
+    retrySessionRestore,
     isPasswordRecovery,
     signOut,
   } = useAuth();
@@ -50,6 +62,8 @@ function RootNavigator() {
     refreshProfile,
   } = useProfile();
 
+  useAndroidPush(!isRestoringSession && !isPasswordRecovery && isProfileComplete && session?.user.id === profile?.id ? profile?.id : undefined);
+
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [signOutError, setSignOutError] = useState<string | null>(null);
 
@@ -60,12 +74,14 @@ function RootNavigator() {
     setIsSigningOut(true);
     setSignOutError(null);
 
-    const error = await signOut();
-
-    if (error) {
+    try {
+      const error = await signOut();
+      if (error) throw error;
+    } catch {
       setSignOutError(
         "Unable to sign out. Please try again."
       );
+    } finally {
       setIsSigningOut(false);
     }
   };
@@ -78,27 +94,21 @@ function RootNavigator() {
       <View style={styles.loadingScreen}>
         <StatusBar style="dark" />
 
-        <ActivityIndicator
-          size="large"
-          color="#9B1C31"
+        <LoadingState
+          title={isRestoringSession ? "Opening CampusClutch" : "Loading your profile"}
+          detail={isRestoringSession ? "Restoring your session" : undefined}
         />
-
-        <Text style={styles.loadingText}>
-          {isRestoringSession
-            ? "Restoring your session..."
-            : "Loading your profile..."}
-        </Text>
       </View>
     );
   }
 
-  if (shouldLoadProfile && profileError) {
+  if (restorationError || (shouldLoadProfile && profileError)) {
     return (
       <View style={styles.loadingScreen}>
         <StatusBar style="dark" />
 
         <Text style={styles.stateTitle}>
-          Unable to load your profile
+          {restorationError ? "Unable to restore your session" : "Unable to load your profile"}
         </Text>
 
         <Text style={styles.stateMessage}>
@@ -108,7 +118,8 @@ function RootNavigator() {
         <Pressable
           style={styles.retryButton}
           onPress={() => {
-            void refreshProfile();
+            if (restorationError) void retrySessionRestore();
+            else void refreshProfile();
           }}
         >
           <Text style={styles.retryButtonText}>
@@ -190,11 +201,20 @@ function RootNavigator() {
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="courses/add" />
           <Stack.Screen name="courses/classmates" />
+          <Stack.Screen name="courses/reviews" />
+          <Stack.Screen name="courses/review-directory" />
           <Stack.Screen name="requests/create" />
           <Stack.Screen name="requests/[id]" />
           <Stack.Screen name="requests/offers" />
           <Stack.Screen name="students/[id]" />
+          <Stack.Screen name="safety/report" />
+          <Stack.Screen name="moderation/index" />
+          <Stack.Screen name="moderation/[id]" />
+          <Stack.Screen name="moderation/appeals" />
+          <Stack.Screen name="moderation/direct" />
+          <Stack.Screen name="moderation/holds" />
           <Stack.Screen name="notifications" />
+          <Stack.Screen name="notification-preferences" />
           <Stack.Screen name="messages/[id]" />
           <Stack.Protected guard={GROUP_MESSAGING_ENABLED}>
             <Stack.Screen name="messages/groups/create" />
@@ -204,6 +224,8 @@ function RootNavigator() {
             <Stack.Screen name="messages/groups/invite/[id]" />
           </Stack.Protected>
           <Stack.Screen name="profile/settings" />
+          <Stack.Screen name="profile/blocked" />
+          <Stack.Screen name="profile/appeals" />
         </Stack.Protected>
 
         <Stack.Protected

@@ -132,8 +132,10 @@ function AccountInvitations({ userId }: { userId: string }) {
         <View style={styles.icon}><Ionicons name="people" size={25} color={COLORS.primary} /></View>
         <View style={styles.cardBody}>
           <Text style={styles.groupTitle}>{item.group_title}</Text>
-          <Text style={styles.course}>{item.course_code} · {item.course_title}</Text>
-          <Text style={styles.muted}>Invited by {item.invited_by_display_name} · {item.active_member_count} active {item.active_member_count === 1 ? 'member' : 'members'}</Text>
+          <Text style={styles.course}>{item.course_code}</Text>
+          <Text style={styles.muted}>{item.course_title}</Text>
+          <Text style={styles.muted}>Invited by {item.invited_by_display_name}</Text>
+          <Text style={styles.muted}>{item.active_member_count} active {item.active_member_count === 1 ? 'member' : 'members'}</Text>
           <View style={styles.actions}>
              <Pressable accessibilityRole="button" accessibilityLabel={`Accept invitation to ${item.group_title}`}
                accessibilityState={{ disabled: actionDisabled, busy: actingId === item.id }}

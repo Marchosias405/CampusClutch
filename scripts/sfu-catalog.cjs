@@ -6,10 +6,10 @@
 const fs = require("node:fs/promises");
 const path = require("node:path");
 const crypto = require("node:crypto");
+const { catalogTerm } = require("./sfu-catalog-terms.cjs");
 
 const BASE_URL = "https://www.sfu.ca/bin/wcm/course-outlines";
-const TERM = Object.freeze({ code: "2027-spring", year: 2027, season: "spring", display_name: "Spring 2027" });
-const TERM_PATH = "2027/spring";
+const TERM = catalogTerm();
 // SFU Student Services identifies Goldcorp and the DT Visual Art Studio as Vancouver sites:
 // https://www.sfu.ca/students/enrolment-services/exams/study-spaces/building-and-locations.html
 const CAMPUS_SLUGS = new Map([["burnaby", "burnaby"], ["surrey", "surrey"], ["vancouver", "vancouver"],
@@ -46,10 +46,12 @@ function sanitizeResponse(data, kind) {
 
 function classifySection(detail, context) {
   const { sourcePath, section, fetched_at } = context;
+  const term = catalogTerm(context.termCode);
   const info = detail?.info;
   if (!info) return { quarantine: issue(sourcePath, "missing_section_info") };
   const expected = sourcePath.split("/");
-  if (text(info.outlinePath).toLowerCase() !== sourcePath || text(info.term) !== TERM.display_name ||
+  if (!sourcePath.startsWith(`${term.year}/${term.season}/`) ||
+      text(info.outlinePath).toLowerCase() !== sourcePath || text(info.term) !== term.display_name ||
       text(info.dept).toLowerCase() !== expected[2] || text(info.number).toLowerCase() !== expected[3] ||
       text(info.section).toLowerCase() !== expected[4]) {
     return { quarantine: issue(sourcePath, "source_identity_mismatch") };
@@ -84,7 +86,7 @@ function classifySection(detail, context) {
   return { candidates: campuses.map((campus_slug) => ({
     code: `${expected[2].toUpperCase()} ${expected[3].toUpperCase()}`,
     title,
-    term_code: TERM.code,
+    term_code: term.code,
     campus_slug,
     units,
     degree_level: "undergraduate",
@@ -129,12 +131,14 @@ function aggregateCandidates(candidates) {
 }
 
 class ApiCache {
-  constructor(directory, { refresh = false, intervalMs = 300, maxRequests = 10000 } = {}) {
+  constructor(directory, { refresh = false, intervalMs = 300, maxRequests = 10000, termCode } = {}) {
+    this.term = catalogTerm(termCode);
+    this.queryPattern = new RegExp(`^${this.term.year}/${this.term.season}(?:/[a-z0-9]+){0,3}$`);
     this.directory = directory; this.refresh = refresh; this.intervalMs = intervalMs; this.maxRequests = maxRequests;
     this.nextStart = 0; this.networkRequests = 0; this.cacheHits = 0; this.sources = new Map();
   }
   async get(query, kind) {
-    if (!/^2027\/spring(?:\/[a-z0-9]+){0,3}$/.test(query)) throw new Error(`Refused query outside Spring 2027: ${query}`);
+    if (!this.queryPattern.test(query)) throw new Error(`Refused query outside ${this.term.display_name}: ${query}`);
     const filename = path.join(this.directory, `${query.replace(/\//g, "_")}.json`);
     let cached;
     if (!this.refresh) {
@@ -180,6 +184,8 @@ async function boundedMap(items, worker, concurrency = 4) {
 }
 
 async function collect(options) {
+  const term = catalogTerm(options.termCode);
+  const termPath = `${term.year}/${term.season}`;
   const output = path.resolve(options.output);
   await fs.mkdir(path.join(output, "cache"), { recursive: true });
   const cache = new ApiCache(path.join(output, "cache"), options);
@@ -199,12 +205,12 @@ async function collect(options) {
     }
     return [...entries].map(([key, value]) => ({ key, value }));
   };
-  const departmentsResult = await get(TERM_PATH, "departments");
-  const departments = departmentsResult ? uniqueList(departmentsResult.data, TERM_PATH) : [];
+  const departmentsResult = await get(termPath, "departments");
+  const departments = departmentsResult ? uniqueList(departmentsResult.data, termPath) : [];
   coverage.departments_discovered = departments.length;
   const courses = [];
   await boundedMap(departments, async ({ key }) => {
-    const query = `${TERM_PATH}/${key}`;
+    const query = `${termPath}/${key}`;
     const result = await get(query, "courses");
     if (!result) return;
     coverage.departments_read += 1;
@@ -232,7 +238,7 @@ async function collect(options) {
     const result = await get(context.sourcePath, "detail");
     if (!result) return;
     coverage.section_details_read += 1;
-    const parsed = classifySection(result.data, { ...context, fetched_at: result.fetched_at });
+    const parsed = classifySection(result.data, { ...context, fetched_at: result.fetched_at, termCode: term.code });
     if (parsed.exclusion) exclusions.push(parsed.exclusion);
     if (parsed.quarantine) quarantine.push(parsed.quarantine);
     if (parsed.candidates) candidates.push(...parsed.candidates);
@@ -245,17 +251,17 @@ async function collect(options) {
   const sourceTimes = [...cache.sources.values()].map((source) => source.fetched_at).sort();
   const snapshot = {
     schema_version: 1,
-    term: TERM,
+    term: { code: term.code, year: term.year, season: term.season, display_name: term.display_name },
     generated_at: new Date().toISOString(), started_at,
-    source: { name: "SFU Course Outlines REST API", base_url: BASE_URL, documentation_url: "https://www.sfu.ca/outlines/help/api.html", root_url: apiUrl(TERM_PATH), term_url: apiUrl(TERM_PATH), oldest_fetched_at: sourceTimes[0] ?? null, newest_fetched_at: sourceTimes.at(-1) ?? null },
-    scope: { degree_level: "undergraduate", minimum_units: 3, enrollment_sections_only: true, campuses: ["burnaby", "surrey", "vancouver", "online"], term_code: TERM.code },
+    source: { name: "SFU Course Outlines REST API", base_url: BASE_URL, documentation_url: "https://www.sfu.ca/outlines/help/api.html", root_url: apiUrl(termPath), term_url: apiUrl(termPath), oldest_fetched_at: sourceTimes[0] ?? null, newest_fetched_at: sourceTimes.at(-1) ?? null },
+    scope: { degree_level: "undergraduate", minimum_units: 3, enrollment_sections_only: true, campuses: ["burnaby", "surrey", "vancouver", "online"], term_code: term.code },
     coverage: { ...coverage, inventory_complete: errors.length === 0 && !quarantine.some((item) => item.reason === "invalid_inventory_identifier") && departments.length > 0 && coverage.departments_read === departments.length && coverage.course_section_lists_read === courses.length && coverage.section_details_read === sections.length, eligible_course_campus_rows: grouped.rows.length, eligible_unique_courses: new Set(grouped.rows.map((row) => row.code)).size, network_requests: cache.networkRequests, cache_hits: cache.cacheHits, exclusions_by_reason: summaryCounts(exclusions), quarantine_by_reason: summaryCounts(quarantine), errors_count: errors.length, duplicate_inventory_items: duplicates.length },
-    limitations: ["Coverage is the published Course Outlines API inventory at the recorded fetch times; it is not a guarantee of every eventual Spring 2027 offering or seat availability.", "Unpublished outlines and unresolved eligibility/campus records are omitted and require review; no department or course number is inferred to be undergraduate.", "No absence-based deletion is implied by this snapshot; course memberships must be preserved when refreshing."],
+    limitations: [`Coverage is the published Course Outlines API inventory at the recorded fetch times; it is not a guarantee of every ${term.display_name} offering or seat availability.`, "Unpublished outlines and unresolved eligibility/campus records are omitted and require review; no department or course number is inferred to be undergraduate.", "No absence-based deletion is implied by this snapshot; course memberships must be preserved when refreshing."],
     rows: grouped.rows, exclusions: sortIssues(exclusions), quarantine: sortIssues(quarantine), errors: sortIssues(errors), duplicates: sortIssues(duplicates),
   };
   snapshot.coverage.complete = snapshot.coverage.inventory_complete;
   snapshot.rows_sha256 = crypto.createHash("sha256").update(JSON.stringify(snapshot.rows)).digest("hex");
-  const filename = path.join(output, "spring-2027-undergraduate-3plus.json");
+  const filename = path.join(output, `${term.season}-${term.year}-undergraduate-3plus.json`);
   await fs.writeFile(filename, `${JSON.stringify(snapshot, null, 2)}\n`);
   console.log(JSON.stringify({ snapshot: filename, coverage: snapshot.coverage }, null, 2));
   return snapshot;
@@ -268,6 +274,11 @@ function parseArguments(argv) {
       options.output = argv[++index];
       if (!options.output || options.output.startsWith("--")) throw new Error("Provide a directory after --output.");
     }
+    else if (argv[index] === "--term") {
+      const code = argv[++index];
+      if (!code || code.startsWith("--")) throw new Error("Provide a term after --term.");
+      options.termCode = catalogTerm(code).code;
+    }
     else if (argv[index] === "--refresh") options.refresh = true;
     else if (argv[index] === "--help") return null;
     else throw new Error(`Unknown argument: ${argv[index]}`);
@@ -279,7 +290,7 @@ function parseArguments(argv) {
 if (require.main === module) {
   (async () => {
     const options = parseArguments(process.argv.slice(2));
-    if (!options) { console.log("node scripts/sfu-catalog.cjs --output <directory> [--refresh]\nDefault reuses cached source responses. --refresh fetches current official data. Never writes to a database."); return; }
+    if (!options) { console.log("node scripts/sfu-catalog.cjs --output <directory> [--term 2026-fall|2027-spring] [--refresh]\nDefaults to Spring 2027 and reuses cached source responses. --refresh fetches current official data. Never writes to a database."); return; }
     const snapshot = await collect(options);
     if (!snapshot.coverage.inventory_complete) process.exitCode = 2;
   })().catch((error) => { console.error(error.message); process.exitCode = 1; });

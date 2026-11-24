@@ -86,8 +86,32 @@ test("does not infer an unknown physical campus or delivery mode", () => {
 
 test("rejects unsupported snapshot schemas and terms", () => {
   assert.throws(() => validateSnapshot(snapshot(undefined, { schema_version: 2 })), /schema/);
-  assert.throws(() => validateSnapshot(snapshot(undefined, { term: { code: "2027-fall", year: 2027, season: "fall" } })), /Spring 2027/);
+  assert.throws(() => validateSnapshot(snapshot(undefined, { term: { code: "2027-fall", year: 2027, season: "fall" } })), /Supported catalog terms/);
   assert.throws(() => validateSnapshot(snapshot([offering({ term_code: "2026-fall" })])), /another term/);
+});
+
+function fallSnapshot() {
+  const result = snapshot();
+  result.term = { code: "2026-fall", year: 2026, season: "fall" };
+  for (const row of result.rows) {
+    row.term_code = "2026-fall";
+    row.sections = row.sections.map((section) => ({ ...section,
+      source_url: section.source_url.replace("2027/spring", "2026/fall") }));
+  }
+  return result;
+}
+
+test("Fall imports require matching term metadata and source provenance", () => {
+  const input = fallSnapshot();
+  assert.equal(validateSnapshot(input).term.code, "2026-fall");
+  const plan = makePlan(input, { closeMissing: true });
+  assert.match(plan, /2026-09-09/); assert.match(plan, /2026-12-20/);
+  assert.doesNotMatch(plan, /2027-spring|2027\/spring|Spring 2027/);
+  input.rows[0].sections[0].source_url = offering().sections[0].source_url;
+  assert.throws(() => validateSnapshot(input), /source URL/);
+  input.term.year = 2027;
+  assert.throws(() => validateSnapshot(input), /term identity/);
+  assert.throws(() => validateSnapshot(snapshot(undefined, { term: {} })), /Missing catalog term/);
 });
 
 test("rejects empty snapshots rather than silently clearing the catalog", () => {
@@ -174,6 +198,19 @@ test("plan defaults to rollback and commits only after explicit local apply", ()
   assert.match(makePlan(snapshot(), { applyLocal: true }), /\ncommit;\s*$/);
 });
 
+test("equivalent snapshot, offering and section timestamps generate identical import plans", () => {
+  const makeSnapshot = (generatedAt, fetchedAt, sectionTime) => {
+    const row = offering({ source_fetched_at: fetchedAt });
+    row.sections[0].source_fetched_at = sectionTime;
+    return snapshot([row], { generated_at: generatedAt });
+  };
+  const utc = makeSnapshot("2026-09-01T20:30:00.000Z", "2026-09-01T19:00:00.000Z", "2026-09-01T19:00:00.000Z");
+  const equivalent = makeSnapshot("2026-09-01T13:30:00-07:00", "Tue, 01 Sep 2026 19:00:00 GMT", "2026-09-01T12:00:00-07:00");
+  for (const options of [{}, { closeMissing: true, applyLocal: true }]) {
+    assert.equal(makePlan(equivalent, options), makePlan(utc, options));
+  }
+});
+
 test("catalog title quotes stay data in the SQL plan", () => {
   const title = "Student's course'); SELECT pg_sleep(99); --";
   const plan = makePlan(snapshot([offering({ title })]));
@@ -183,7 +220,7 @@ test("catalog title quotes stay data in the SQL plan", () => {
 
 function psql(sql) {
   const result = spawnSync("psql", ["-X", "-qAt", "-v", "ON_ERROR_STOP=1", "-h", "127.0.0.1",
-    "-p", "54322", "-U", "postgres", "-d", "postgres"], { input: sql, encoding: "utf8",
+    "-p", process.env.CAMPUSCLUTCH_TEST_DB_PORT || "54322", "-U", "postgres", "-d", "postgres"], { input: sql, encoding: "utf8",
     env: { ...process.env, PGPASSWORD: "postgres", PGCONNECT_TIMEOUT: "5" },
     windowsHide: true, timeout: 120000, maxBuffer: 4 * 1024 * 1024 });
   if (result.error) throw result.error;
@@ -298,4 +335,40 @@ ROLLBACK;
   const count = (result.match(/^ok \d+ -/gm) || []).length;
   assert.equal(count, 19, result);
   console.log(`Local import: ${count} SQL assertions passed; all original table fingerprints unchanged.`);
+});
+
+test("local Fall import preserves the same Spring course and survives repeat imports", { skip: !runLocal }, () => {
+  const before = psql(fingerprints);
+  let result;
+  try {
+    result = psql(`BEGIN;
+CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
+SET search_path=public,extensions;
+SELECT no_plan();
+${body(snapshot())}
+CREATE TEMP TABLE spring_before AS SELECT to_jsonb(c) AS row FROM public.courses c
+ WHERE term_id=(SELECT id FROM public.academic_terms WHERE code='2027-spring');
+${body(fallSnapshot())}
+SELECT is((SELECT count(*) FROM public.courses WHERE code='ZZCCIMPORT 101'),2::bigint,'Same code exists independently in Fall and Spring');
+INSERT INTO auth.users(id,email) VALUES('cf260000-0000-4260-8260-000000000001','fall-import@test.local');
+INSERT INTO public.course_memberships(course_id,profile_id,status)
+ SELECT id,'cf260000-0000-4260-8260-000000000001','enrolled' FROM public.courses
+ WHERE code='ZZCCIMPORT 101' AND term_id=(SELECT id FROM public.academic_terms WHERE code='2026-fall');
+CREATE TEMP TABLE fall_before AS SELECT to_jsonb(c) AS row FROM public.courses c
+ WHERE term_id=(SELECT id FROM public.academic_terms WHERE code='2026-fall');
+CREATE TEMP TABLE memberships_before AS SELECT to_jsonb(m) AS row FROM public.course_memberships m;
+${body(fallSnapshot())}
+SELECT results_eq($$SELECT to_jsonb(c) FROM public.courses c WHERE term_id=(SELECT id FROM public.academic_terms WHERE code='2026-fall') ORDER BY id$$,
+ $$SELECT row FROM fall_before ORDER BY row->>'id'$$,'Repeated Fall import preserves IDs and all course values');
+SELECT results_eq($$SELECT to_jsonb(c) FROM public.courses c WHERE term_id=(SELECT id FROM public.academic_terms WHERE code='2027-spring') ORDER BY id$$,
+ $$SELECT row FROM spring_before ORDER BY row->>'id'$$,'Fall import leaves every Spring course unchanged');
+SELECT results_eq($$SELECT to_jsonb(m) FROM public.course_memberships m ORDER BY to_jsonb(m)::text$$,
+ $$SELECT row FROM memberships_before ORDER BY row::text$$,'Every existing membership survives the repeat import');
+SELECT * FROM finish();
+ROLLBACK;`);
+  } finally {
+    assert.equal(psql(fingerprints), before, "Fall test must roll back all changes");
+  }
+  assert.doesNotMatch(result, /^not ok\b/m, result);
+  assert.equal((result.match(/^ok \d+ -/gm) || []).length, 4, result);
 });

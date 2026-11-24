@@ -1,11 +1,12 @@
+import LegalLinks from "@/components/LegalLinks";
+import { MotionPressable as Pressable } from '@/components/motion';
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
-import React, { useState } from "react";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import React, { useRef, useState } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -20,7 +21,7 @@ const COLORS = {
   primary: "#9B1C31",
   background: "#FFFFFF",
   textDark: "#2B2525",
-  mutedText: "#8C8585",
+  mutedText: "#635C5C",
   border: "#E8DDDF",
   inputBackground: "#FBF8F8",
   errorBackground: "#FDECEE",
@@ -29,16 +30,19 @@ const COLORS = {
 
 export default function SignInScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ email?: string }>();
   const insets = useSafeAreaInsets();
   const { signIn } = useAuth();
 
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(typeof params.email === "string" ? params.email : "");
   const [password, setPassword] = useState("");
   const [passwordVisible, setPasswordVisible] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const submitInFlight = useRef(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const handleSignIn = async () => {
+    if (submitInFlight.current) return;
     const normalizedEmail = email.trim();
 
     if (!normalizedEmail || !password) {
@@ -46,21 +50,31 @@ export default function SignInScreen() {
       return;
     }
 
+    submitInFlight.current = true;
     setIsSubmitting(true);
     setErrorMessage(null);
 
-    const error = await signIn(normalizedEmail, password);
-
-    if (error) {
-      setErrorMessage(
-        error.status === 429
-          ? "Too many sign-in attempts. Wait a moment and try again."
-          : "Unable to sign in. Check your email and password and try again."
-      );
-      setIsSubmitting(false);
-      return;
+    const connectionMessage = "Unable to sign in. Check your connection and try again.";
+    try {
+      const error = await signIn(normalizedEmail, password);
+      if (!error) return; // The auth navigator takes over when the session is ready.
+      if (error.code === "email_not_confirmed") {
+        router.push({
+          pathname: "/sign-up",
+          params: { verify: "1", email: normalizedEmail.toLowerCase() },
+        });
+      } else if (error.status === 429) {
+        setErrorMessage("Too many sign-in attempts. Wait a moment and try again.");
+      } else if (error.status === 0 || error.name === "AuthRetryableFetchError") {
+        setErrorMessage(connectionMessage);
+      } else {
+        setErrorMessage("Unable to sign in. Check your email and password and try again.");
+      }
+    } catch {
+      setErrorMessage(connectionMessage);
     }
-
+    submitInFlight.current = false;
+    setIsSubmitting(false);
   };
 
   return (
@@ -114,6 +128,8 @@ export default function SignInScreen() {
             <Pressable
               onPress={() => router.push("/forgot-password" as never)}
               disabled={isSubmitting}
+              style={styles.forgotPasswordButton}
+              accessibilityRole="button"
               hitSlop={8}
             >
               <Text style={styles.forgotPasswordText}>
@@ -195,6 +211,7 @@ export default function SignInScreen() {
               New to CampusClutch? Create Account
             </Text>
           </Pressable>
+          <LegalLinks disabled={isSubmitting} />
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -263,7 +280,8 @@ const styles = StyleSheet.create({
 
 
   input: {
-    height: 54,
+    minHeight: 54,
+    paddingVertical: 12,
     borderWidth: 1,
     borderColor: COLORS.border,
     borderRadius: 12,
@@ -274,7 +292,7 @@ const styles = StyleSheet.create({
   },
 
   passwordInputContainer: {
-    height: 54,
+    minHeight: 54,
     flexDirection: "row",
     alignItems: "center",
     borderWidth: 1,
@@ -285,14 +303,17 @@ const styles = StyleSheet.create({
 
   passwordInput: {
     flex: 1,
-    height: "100%",
+    minHeight: 54,
+    paddingVertical: 12,
     paddingLeft: 16,
     fontSize: 16,
     color: COLORS.textDark,
   },
 
   visibilityButton: {
-    height: "100%",
+    alignSelf: "stretch",
+    minHeight: 54,
+    paddingVertical: 12,
     width: 52,
     alignItems: "center",
     justifyContent: "center",
@@ -317,7 +338,8 @@ const styles = StyleSheet.create({
   },
 
   primaryButton: {
-    height: 54,
+    minHeight: 54,
+    paddingVertical: 12,
     marginTop: 24,
     borderRadius: 12,
     alignItems: "center",
@@ -353,7 +375,11 @@ const styles = StyleSheet.create({
 
 
 
+  forgotPasswordButton: { minHeight: 48, justifyContent: "center" },
+
   passwordHeader: {
+    flexWrap: "wrap",
+    columnGap: 12,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",

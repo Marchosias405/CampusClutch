@@ -115,7 +115,7 @@ def wallet_race(user, calls):
 
 try:
     for user in users:
-        sql(f"insert into auth.users(id,email) values('{user}','{user}@points-test.local'); "
+        sql(f"insert into auth.users(id,email,email_confirmed_at) values('{user}','{user}@points-test.local',now()); "
             f"update public.profiles set display_name='Points Race Tester',major='Computing Science',year_of_study=2,"
             f"campus_id=(select id from public.campuses where slug='burnaby') where id='{user}';")
         assert wallet(user) == (100, 0)
@@ -202,7 +202,10 @@ try:
     print('PASS posting and editing waiting on acceptance recheck the reduced available balance', flush=True)
 finally:
     # Include a post unexpectedly created by a failed race assertion in cleanup.
+    sql('delete from public.notifications where recipient_id in (' + ','.join(f"'{u}'" for u in users) + ')')
     sql('delete from public.requests where owner_id in (' + ','.join(f"'{u}'" for u in users) + ')')
     for user in users:
+        sql(f"delete from points_private.starter_grant_claims where email_fingerprint="
+            f"points_private.email_fingerprint('{user}@points-test.local')")
         sql(f"delete from auth.users where id='{user}'")
     print('Temporary points concurrency fixtures removed.', flush=True)

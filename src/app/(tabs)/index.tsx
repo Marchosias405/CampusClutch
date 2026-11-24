@@ -1,20 +1,23 @@
+import { LoadingSkeleton } from '@/components/LoadingState';
 import { FontAwesome5, Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
 import React, {
   useCallback,
+  useRef,
   useState,
 } from "react";
 import {
-  ActivityIndicator,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from "react-native";
 
 import ScreenHeader from "../../components/ScreenHeader";
+import NotificationBell from "../../components/NotificationBell";
 
 import { useAuth } from "@/context/AuthContext";
 import { useProfile } from "@/context/ProfileContext";
@@ -29,10 +32,9 @@ const COLORS = {
   background: "#FFFFFF",
   cardWhite: "#FFFFFF",
   textDark: "#2B2525",
-  mutedText: "#8C8585",
+  mutedText: "#635C5C",
   border: "#ECE3E3",
   softPink: "#FBECEC",
-  track: "#F0E7E8",
 };
 
 function getCourseNumber(code: string) {
@@ -47,51 +49,61 @@ export default function HomeDashboardScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const { profile } = useProfile();
+  const { width, fontScale } = useWindowDimensions();
+  const compact = width / fontScale < 350;
+  const userId = user?.id ?? null;
+  const activeUser = useRef(userId);
+  activeUser.current = userId;
+  const focused = useRef(false);
+  const readSequence = useRef(0);
+  const pendingRead = useRef<number | null>(null);
   const displayName =
     (profile?.id === user?.id ? profile?.displayName?.trim() : null) ||
     "Student";
 
-  const [currentCourses, setCurrentCourses] =
-    useState<MyCourse[]>([]);
-
-  const [isLoadingCourses, setIsLoadingCourses] =
-    useState(true);
-
-  const [courseError, setCourseError] =
-    useState<string | null>(null);
+  const [courseState, setCourseState] = useState<{
+    userId: string | null;
+    courses: MyCourse[];
+    loading: boolean;
+    error: string | null;
+  }>({ userId, courses: [], loading: true, error: null });
+  const sameAccount = courseState.userId === userId;
+  const currentCourses = sameAccount ? courseState.courses : [];
+  const isLoadingCourses = !sameAccount || courseState.loading;
+  const courseError = sameAccount ? courseState.error : null;
 
   const loadCurrentCourses = useCallback(
     async () => {
-      setIsLoadingCourses(true);
-      setCourseError(null);
+      if (!userId || activeUser.current !== userId || !focused.current || pendingRead.current !== null) return;
+      const sequence = ++readSequence.current;
+      pendingRead.current = sequence;
+      const isCurrentRead = () => focused.current && activeUser.current === userId && readSequence.current === sequence;
+      setCourseState(previous => ({ userId, courses: previous.userId === userId ? previous.courses : [], loading: true, error: null }));
 
       try {
-        const courses = await getMyCourses();
+        const courses = await getMyCourses(userId);
 
-        setCurrentCourses(
-          courses.filter(isCurrentCourse)
-        );
-      } catch (error) {
-        console.error(
-          "Failed to load home courses:",
-          error
-        );
-
-        setCurrentCourses([]);
-
-        setCourseError(
-          "Unable to load your courses."
-        );
+        if (isCurrentRead()) setCourseState({ userId, courses: courses.filter(isCurrentCourse), loading: false, error: null });
+      } catch {
+        if (isCurrentRead()) {
+          setCourseState(previous => ({ ...previous, loading: false, error: "Unable to refresh your courses. Check your connection and try again." }));
+        }
       } finally {
-        setIsLoadingCourses(false);
+        if (pendingRead.current === sequence) pendingRead.current = null;
       }
     },
-    []
+    [userId]
   );
 
   useFocusEffect(
     useCallback(() => {
+      focused.current = true;
       void loadCurrentCourses();
+      return () => {
+        focused.current = false;
+        readSequence.current += 1;
+        pendingRead.current = null;
+      };
     }, [loadCurrentCourses])
   );
 
@@ -113,18 +125,7 @@ export default function HomeDashboardScreen() {
           CampusClutch
         </Text>
 
-        <Pressable
-          hitSlop={10}
-          onPress={() =>
-            router.push("/notifications" as any)
-          }
-        >
-          <Ionicons
-            name="notifications-outline"
-            size={23}
-            color="#FFFFFF"
-          />
-        </Pressable>
+        <NotificationBell />
       </ScreenHeader>
 
       <ScrollView
@@ -136,8 +137,8 @@ export default function HomeDashboardScreen() {
       >
         {/* Combined greeting + balance hero */}
         <View style={styles.heroCard}>
-          <View style={styles.heroTopRow}>
-            <View style={styles.heroTextBlock}>
+          <View style={[styles.heroTopRow, compact && styles.stackedRow]}>
+            <View style={[styles.heroTextBlock, compact && styles.stackedTextBlock]}>
               <Text style={styles.heroHello}>
                 Welcome back,
               </Text>
@@ -146,7 +147,7 @@ export default function HomeDashboardScreen() {
               </Text>
             </View>
 
-            <Pressable accessibilityRole="button" style={styles.pointsPill} onPress={() => router.push('/(tabs)/profile')}>
+            <Pressable accessibilityRole="button" accessibilityLabel="View points" style={styles.pointsPill} onPress={() => router.push('/(tabs)/profile')}>
               <FontAwesome5
                 name="star"
                 size={11}
@@ -165,12 +166,15 @@ export default function HomeDashboardScreen() {
         </View>
 
         {/* Current courses */}
-        <View style={styles.sectionHeaderRow}>
-          <Text style={styles.sectionTitle}>
+        <View style={[styles.sectionHeaderRow, compact && styles.stackedRow]}>
+          <Text accessibilityRole="header" style={[styles.sectionTitle, styles.courseHeading]}>
             Current Courses
           </Text>
 
           <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="View all courses"
+            style={styles.textButton}
             onPress={() =>
               router.push("/courses" as any)
             }
@@ -182,24 +186,18 @@ export default function HomeDashboardScreen() {
         </View>
 
         <View style={styles.courseList}>
-          {isLoadingCourses ? (
+          {isLoadingCourses && !courseError && currentCourses.length === 0 &&
+            <LoadingSkeleton variant="courses" rows={2} label="Loading courses…" />}
+          {courseError ? (
             <View style={styles.courseState}>
-              <ActivityIndicator
-                size="small"
-                color={COLORS.primary}
-              />
-
-              <Text style={styles.courseStateText}>
-                Loading courses...
-              </Text>
-            </View>
-          ) : courseError ? (
-            <View style={styles.courseState}>
-              <Text style={styles.courseStateText}>
+              <Text accessibilityLiveRegion="polite" style={styles.courseStateText}>
                 {courseError}
               </Text>
 
               <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Retry home courses"
+                style={styles.textButton}
                 onPress={() =>
                   void loadCurrentCourses()
                 }
@@ -209,20 +207,23 @@ export default function HomeDashboardScreen() {
                 </Text>
               </Pressable>
             </View>
-          ) : currentCourses.length === 0 ? (
+          ) : null}
+          {!isLoadingCourses && !courseError && currentCourses.length === 0 ? (
             <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Add a course"
               style={styles.emptyCourseCard}
               onPress={() =>
                 router.push("/courses/add" as any)
               }
             >
-              <View style={styles.courseBadge}>
+              {!compact && <View style={styles.courseBadge}>
                 <Ionicons
                   name="add"
                   size={22}
                   color={COLORS.primary}
                 />
-              </View>
+              </View>}
 
               <View style={styles.courseInfo}>
                 <Text style={styles.courseCode}>
@@ -241,16 +242,19 @@ export default function HomeDashboardScreen() {
                 color={COLORS.mutedText}
               />
             </Pressable>
-          ) : (
+          ) : null}
+          {
             currentCourses.map((course) => (
               <Pressable
                 key={course.id}
+                accessibilityRole="button"
+                accessibilityLabel={`${course.code}, ${course.title}. View classmates`}
                 style={styles.courseCard}
                 onPress={() =>
                   handleOpenCourse(course.id)
                 }
               >
-                <View style={styles.courseBadge}>
+                {!compact && <View style={styles.courseBadge}>
                   <Text
                     style={
                       styles.courseBadgeText
@@ -260,7 +264,7 @@ export default function HomeDashboardScreen() {
                       course.code
                     )}
                   </Text>
-                </View>
+                </View>}
 
                 <View style={styles.courseInfo}>
                   <Text style={styles.courseCode}>
@@ -269,7 +273,6 @@ export default function HomeDashboardScreen() {
 
                   <Text
                     style={styles.courseTitle}
-                    numberOfLines={1}
                   >
                     {course.title}
                   </Text>
@@ -282,40 +285,40 @@ export default function HomeDashboardScreen() {
                 />
               </Pressable>
             ))
-          )}
+          }
         </View>
 
         {/* Active requests - compact banner */}
-        <Text style={styles.sectionTitle}>
+        <Text accessibilityRole="header" style={styles.sectionTitle}>
           Active Requests
         </Text>
 
         <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Find a campus request"
           style={styles.requestBanner}
           onPress={() =>
             router.push("/requests" as any)
           }
         >
-          <View style={styles.requestIcon}>
+          {!compact && <View style={styles.requestIcon}>
             <FontAwesome5
               name="route"
               size={15}
               color="#FFFFFF"
               solid
             />
-          </View>
+          </View>}
 
           <View style={styles.requestText}>
             <Text
               style={styles.requestTitle}
-              numberOfLines={1}
             >
               Find a campus request
             </Text>
 
             <Text
               style={styles.requestSub}
-              numberOfLines={1}
             >
               Help a student and earn their offered points
             </Text>
@@ -339,6 +342,9 @@ const styles = StyleSheet.create({
   },
 
   brandText: {
+    flex: 1,
+    minWidth: 0,
+    marginRight: 12,
     fontSize: 19,
     fontWeight: "900",
     color: "#FFFFFF",
@@ -378,11 +384,25 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     marginBottom: 16,
+    gap: 12,
+  },
+
+  stackedRow: {
+    flexDirection: "column",
+    alignItems: "stretch",
+  },
+
+  stackedTextBlock: {
+    flexGrow: 0,
+    flexShrink: 0,
+    flexBasis: "auto",
   },
 
   heroTextBlock: {
-    flex: 1,
-    marginRight: 12,
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: 0,
+    minWidth: 0,
   },
 
   heroHello: {
@@ -402,31 +422,20 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    height: 34,
+    minHeight: 48,
+    maxWidth: "100%",
+    alignSelf: "flex-start",
+    paddingVertical: 10,
     paddingHorizontal: 14,
     borderRadius: 17,
     backgroundColor: COLORS.primary,
   },
 
   pointsPillText: {
+    flexShrink: 1,
     fontSize: 14,
     fontWeight: "900",
     color: "#FFFFFF",
-  },
-
-  progressTrack: {
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: COLORS.track,
-    overflow: "hidden",
-    marginBottom: 8,
-  },
-
-  progressFill: {
-    width: "60%",
-    height: "100%",
-    borderRadius: 3,
-    backgroundColor: COLORS.primary,
   },
 
   heroSub: {
@@ -440,6 +449,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     marginBottom: 14,
+    gap: 8,
   },
 
   sectionTitle: {
@@ -449,11 +459,24 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
 
+  courseHeading: {
+    flexShrink: 1,
+    marginBottom: 0,
+  },
+
+  textButton: {
+    minWidth: 48,
+    minHeight: 48,
+    paddingHorizontal: 8,
+    paddingVertical: 10,
+    justifyContent: "center",
+    alignSelf: "flex-start",
+  },
+
   viewAllText: {
     fontSize: 13,
     fontWeight: "900",
     color: COLORS.primary,
-    marginBottom: 14,
   },
 
   courseList: {
@@ -468,6 +491,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.border,
     paddingHorizontal: 14,
+    paddingVertical: 14,
+    gap: 12,
     flexDirection: "row",
     alignItems: "center",
     shadowColor: "#000",
@@ -487,18 +512,20 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.border,
     paddingHorizontal: 14,
+    paddingVertical: 14,
+    gap: 12,
     flexDirection: "row",
     alignItems: "center",
   },
 
   courseBadge: {
     width: 46,
-    height: 46,
+    minHeight: 46,
+    paddingVertical: 6,
     borderRadius: 12,
     backgroundColor: COLORS.softPink,
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 14,
   },
 
   courseBadgeText: {
@@ -509,6 +536,7 @@ const styles = StyleSheet.create({
 
   courseInfo: {
     flex: 1,
+    minWidth: 0,
   },
 
   courseCode: {
@@ -544,7 +572,6 @@ const styles = StyleSheet.create({
   },
 
   retryText: {
-    marginTop: 7,
     fontSize: 12,
     fontWeight: "900",
     color: COLORS.primary,
@@ -557,6 +584,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.softPink,
     paddingHorizontal: 14,
     paddingVertical: 13,
+    gap: 12,
   },
 
   requestIcon: {
@@ -566,11 +594,11 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.primary,
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 13,
   },
 
   requestText: {
     flex: 1,
+    minWidth: 0,
   },
 
   requestTitle: {

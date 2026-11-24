@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 const root = path.resolve(__dirname, '..');
-const ts = require(path.join(root, 'node_modules/typescript'));
+const ts = require('typescript');
 const A = 'a0000000-0000-4000-8000-000000000001';
 const B = 'b0000000-0000-4000-8000-000000000002';
 const C = 'c0000000-0000-4000-8000-000000000003';
@@ -25,12 +25,13 @@ function nodes(node, output = []) {
   if (Array.isArray(node)) { node.forEach(item => nodes(item, output)); return output; }
   output.push(node); nodes(node.props.children, output); return output;
 }
-function harness(kind) {
+function harness(kind, { initialUser = A, initialRoute = B, dependencies = {} } = {}) {
   let slots = [], focusEffects = new Set(), normalEffects = new Set(), effectQueue = [];
-  let cursor = 0, dirty = true, focused = true, tree, currentKey, userId = A, routeId = B;
+  let cursor = 0, dirty = true, focused = true, tree, currentKey, userId = initialUser, routeId = initialRoute;
   const events = new Set(), calls = [], opens = [], navigation = [];
   const props = { requestId: REQUEST, requestRevision: '2:accepted', disabled: false };
   const state = { rows: [assignment()], hasMore: false, nextRound: null, readError: false, profiles: true };
+  const blockStates = new Map();
   const equal = (left, right) => left?.length === right?.length && left.every((item, index) => Object.is(item, right[index]));
   const react = {
     createElement: (type, properties, ...children) => ({ type, props: { ...properties, children } }),
@@ -69,6 +70,9 @@ function harness(kind) {
     opens.push({ args, resolve, reject }); return promise;
   }
   const modules = {
+    '@/components/LoadingState': require('./loading-test-mock.cjs'),
+    '../../lib/useDirectAdmin': { useDirectAdmin: () => ({ allowed: false, open() {} }) },
+    '../../constants/actionStyles': (() => { const out = {}; vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.join(root, 'src/constants/actionStyles.ts'), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, { exports: out }); return out; })(),
     react,
     'react-native': { AppState, ActivityIndicator: 'ActivityIndicator', Pressable: 'Pressable', View: 'View', Text: 'Text',
       Image: 'Image', ScrollView: 'ScrollView', Linking: { openURL() {} }, StyleSheet: { create: value => value } },
@@ -89,7 +93,9 @@ function harness(kind) {
       getCampuses: async () => [], getProfileInterests: async () => [], getProfileSocialLinks: async () => ({}) },
     '../../components/ScreenHeader': { default: 'ScreenHeader', __esModule: true },
     '../../components/RatingSummary': { default: 'RatingSummary', __esModule: true },
+    '../../components/BlockStudentControl': { default: 'BlockStudentControl', __esModule: true },
     '../../constants/mockData': { mockStudents: [{ id: 'demo', name: 'Demo student', sharedInterests: [] }] },
+    ...dependencies,
   };
   const exports = {};
   vm.runInNewContext(compiled[kind], { exports, require: name => {
@@ -108,6 +114,16 @@ function harness(kind) {
       if (currentKey !== outer.props.key) { reset(); currentKey = outer.props.key; }
       cursor = 0; tree = outer.type(outer.props);
       while (effectQueue.length) effectQueue.shift()();
+      // This harness isolates profile navigation; exercise the independent block
+      // boundary with the same callback a mounted block control publishes.
+      if (kind === 'student' && focused && AppState.currentState === 'active') {
+        for (const control of nodes(tree).filter(node => node.type === 'BlockStudentControl')) {
+          const peer = control.props.profileId;
+          const scope = `${userId}:${peer}`;
+          if (!blockStates.has(scope)) blockStates.set(scope, { profile_id: peer, blocked_by_me: false, interaction_blocked: false, revision: '0' });
+          control.props.onState?.(blockStates.get(scope));
+        }
+      }
     }
   }
   async function settle() { for (let i = 0; i < 5; i++) { render(); await new Promise(setImmediate); } render(); }
@@ -120,15 +136,17 @@ function harness(kind) {
   }
   function press(label) { const found = button(label); assert.ok(!found.props.disabled); found.props.onPress(); render(); }
   render();
-  return { settle, press, button, blur, focus, appState, state, calls, opens, navigation, content: () => textOf(tree),
+  return { settle, press, button, blur, focus, appState, state, calls, opens, navigation, content: () => textOf(tree), elements: () => nodes(tree),
     switchAccount: id => { userId = id; dirty = true; render(); },
     switchRoute: id => { if (kind === 'student') routeId = id; else props.requestId = id; dirty = true; render(); },
     setRevision: value => { props.requestRevision = value; dirty = true; render(); },
+    setBlockState: value => { blockStates.set(`${userId}:${routeId}`, value); dirty = true; render(); },
   };
 }
+module.exports = { harness };
 let checks = 0;
 const pass = name => { checks++; console.log('PASS ' + name); };
-(async () => {
+if (require.main === module) (async () => {
   for (const kind of ['request', 'student']) {
     const label = kind === 'request' ? 'Message helper' : 'Message';
     {
@@ -169,7 +187,7 @@ const pass = name => { checks++; console.log('PASS ' + name); };
     const app = harness('student'); await app.settle(); app.switchRoute(A); await app.settle();
     assert.ok(!app.content().includes('Message'));
     app.switchRoute('demo'); await app.settle();
-    const demo = app.button('Demo profile · no messaging'); assert.equal(demo.props.disabled, true);
+    const demo = app.button('Demo profile (messaging unavailable)'); assert.equal(demo.props.disabled, true);
     demo.props.onPress(); await app.settle(); assert.equal(app.opens.length, 0);
     pass('self profiles omit messaging and demo profiles cannot create fake chats');
   }
@@ -181,8 +199,8 @@ const pass = name => { checks++; console.log('PASS ' + name); };
     app.state.rows = [assignment({ offer_round: 1, status: 'released' })]; app.state.hasMore = false; app.state.nextRound = null;
     app.press('Load older assignments'); await app.settle();
     assert.equal(app.calls.at(-1)[2], 2);
-    assert.ok(app.content().includes('Accepted assignment · Round 2'));
-    assert.ok(app.content().includes('Ended assignment · Round 1'));
+    assert.ok(app.content().includes('Accepted assignmentRound 2'));
+    assert.ok(app.content().includes('Ended assignmentRound 1'));
     pass('request entry hides unaccepted histories and appends older accepted rounds without replacing the current round');
   }
   {

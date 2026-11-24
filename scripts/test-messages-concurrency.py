@@ -105,7 +105,7 @@ def race(lock_query, calls):
 
 try:
     for user in users:
-        sql(f"insert into auth.users(id,email) values('{user}','{user}@messaging-race.local'); "
+        sql(f"insert into auth.users(id,email,email_confirmed_at) values('{user}','{user}@messaging-race.local',now()); "
             f"update public.profiles set display_name='Messaging Race Tester',major='Testing',year_of_study=2,"
             f"is_discoverable=true,campus_id=(select id from public.campuses where slug='burnaby') where id='{user}';")
 
@@ -226,7 +226,8 @@ finally:
     # graph is deleted here, child-first, before removing its temporary accounts.
     user_list = ','.join(f"'{user}'" for user in users)
     owned = f"select id from public.conversations where created_by in ({user_list})"
-    sql(f"delete from public.request_conversations where conversation_id in ({owned}); "
+    sql(f"delete from public.notifications where recipient_id in ({user_list}); "
+        f"delete from public.request_conversations where conversation_id in ({owned}); "
         f"delete from public.messages where conversation_id in ({owned}); "
         f"delete from public.group_membership_periods where conversation_id in ({owned}); "
         f"delete from public.direct_conversation_pairs where conversation_id in ({owned}); "
@@ -234,5 +235,7 @@ finally:
         f"delete from public.conversations where created_by in ({user_list}); "
         f"delete from public.requests where owner_id in ({user_list});")
     for user in users:
+        sql(f"delete from points_private.starter_grant_claims where email_fingerprint="
+            f"points_private.email_fingerprint('{user}@messaging-race.local')")
         sql(f"delete from auth.users where id='{user}'")
     print('Temporary messaging concurrency fixtures removed.', flush=True)

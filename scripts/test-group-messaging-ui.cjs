@@ -119,10 +119,26 @@ test('direct inbox presentation preserves familiar labels and searchable content
   assert.equal(production.conversationMatchesSearch(direct(), 'chemistry'), false);
 });
 
+test('either direction of blocking keeps history read-only without exposing the other person’s block', () => {
+  for (const blockedByMe of [true, false]) {
+    const item = direct({ interaction_blocked: true, blocked_by_me: blockedByMe });
+    const inbox = production.getConversationInboxPresentation(item);
+    const thread = production.getConversationThreadPresentation(item);
+    assert.equal(inbox.isReadOnly, true);
+    assert.equal(inbox.preview, item.last_message_body);
+    assert.equal(thread.canCompose, false);
+    assert.equal(thread.isReadOnly, true);
+    assert.match(thread.readOnlyMessage, /existing work|Existing requests/);
+    assert.equal(thread.readOnlyMessage.includes('You blocked'), blockedByMe);
+    assert.doesNotMatch(thread.readOnlyMessage, /blocked you/i);
+  }
+  assert.equal(production.getConversationThreadPresentation(direct({ interaction_blocked: false, blocked_by_me: false })).canCompose, true);
+});
+
 test('group inbox presentation includes title, course, member count and group search fields', () => {
   const item = production.getConversationInboxPresentation(group());
   assert.equal(item.title, 'CMPT 125 Study Crew');
-  assert.equal(item.subtitle, 'CMPT 125 · 4 members');
+  assert.equal(item.subtitle, 'CMPT 125\n4 members');
   assert.equal(item.avatarKind, 'group');
   assert.equal(item.isReadOnly, false);
   assert.equal(production.conversationMatchesSearch(group(), 'study crew'), true);
@@ -135,7 +151,7 @@ test('empty previews and singular group counts remain readable', () => {
     active_member_count: 1,
     last_message_body: null,
   }));
-  assert.equal(item.subtitle, 'CMPT 125 · 1 member');
+  assert.equal(item.subtitle, 'CMPT 125\n1 member');
   assert.equal(item.preview, 'No messages yet');
 });
 
@@ -147,7 +163,7 @@ test('former-member inbox and thread presentation hides the current roster size'
   });
   const inbox = production.getConversationInboxPresentation(former);
   const thread = production.getConversationThreadPresentation(former);
-  assert.equal(inbox.subtitle, 'CMPT 125 · Read-only group history');
+  assert.equal(inbox.subtitle, 'CMPT 125\nRead-only group history');
   assert.equal(inbox.subtitle.includes('17'), false);
   assert.equal(inbox.isReadOnly, true);
   assert.equal(thread.visibleMemberCount, null);

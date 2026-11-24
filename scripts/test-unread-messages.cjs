@@ -11,6 +11,7 @@ const B = 'b0000000-0000-4000-8000-000000000002';
 const CHAT = 'c0000000-0000-4000-8000-000000000003';
 const tick = () => new Promise(setImmediate);
 function production(file, modules = {}, globals = {}) {
+  modules = { '@/components/LoadingState': require('./loading-test-mock.cjs'), '@/components/motion': require('./motion-test-mock.cjs'), ...modules };
   const compiled = ts.transpileModule(fs.readFileSync(path.join(root, file), 'utf8'), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, jsx: ts.JsxEmit.React, esModuleInterop: true },
   }).outputText;
@@ -128,7 +129,7 @@ function wiringHarness(kind) {
   const modules = {
     react,
     '@expo/vector-icons': { Ionicons: 'Ionicons' },
-    '@react-native-async-storage/async-storage': { default: {}, __esModule: true },
+    '../../lib/privateDrafts': { privateDrafts: { forAccount: () => ({}) } },
     'expo-router': { useRouter: () => ({}), useFocusEffect() {}, useLocalSearchParams: () => ({ id: CHAT }) },
     'react-native': { AppState: { currentState: 'active', addEventListener: () => ({ remove() {} }) }, StyleSheet: { create: value => value }, Platform: { OS: 'android' },
       FlatList: 'FlatList', Pressable: 'Pressable', View: 'View', Text: 'Text', TextInput: 'TextInput', KeyboardAvoidingView: 'KeyboardAvoidingView', RefreshControl: 'RefreshControl' },
@@ -364,7 +365,10 @@ function inboxSyncHarness(initialTotal = 0) {
   await test('the real Messages tab displays zero, exact counts and 99+ from the shared provider', () => {
     let count = 0;
     const component = production('src/app/(tabs)/_layout.tsx', {
-      react: { createElement }, '@expo/vector-icons': { Ionicons: 'Ionicons' }, 'expo-router': { Tabs: { Screen: 'TabScreen' } },
+      react: { createElement, useState: initial => [initial, () => {}] },
+      'react-native': { Text: 'Text', useWindowDimensions: () => ({ width: 360, fontScale: 1 }) },
+      'react-native-safe-area-context': { useSafeAreaInsets: () => ({ left: 0, right: 0, top: 0, bottom: 0 }) },
+      '@expo/vector-icons': { Ionicons: 'Ionicons' }, 'expo-router': { Tabs: { Screen: 'TabScreen' } },
       '../../context/UnreadMessagesContext': { useUnreadMessages: () => ({ unreadCount: count }) },
     }).default;
     for (const [value, badge] of [[0, undefined], [1, 1], [99, 99], [100, '99+'], [347, '99+']]) {

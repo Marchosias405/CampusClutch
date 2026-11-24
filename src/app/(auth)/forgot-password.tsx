@@ -1,11 +1,11 @@
+import { MotionPressable as Pressable } from '@/components/motion';
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -20,7 +20,7 @@ const COLORS = {
   primary: "#9B1C31",
   background: "#FFFFFF",
   textDark: "#2B2525",
-  mutedText: "#8C8585",
+  mutedText: "#635C5C",
   border: "#E8DDDF",
   inputBackground: "#FBF8F8",
   errorBackground: "#FDECEE",
@@ -33,12 +33,14 @@ export default function ForgotPasswordScreen() {
   const insets = useSafeAreaInsets();
   const { requestPasswordReset } = useAuth();
 
+  const pending = useRef(false);
   const [email, setEmail] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const handleResetRequest = async () => {
+    if (pending.current) return;
     const normalizedEmail = email.trim();
 
     if (!normalizedEmail) {
@@ -46,26 +48,25 @@ export default function ForgotPasswordScreen() {
       return;
     }
 
+    pending.current = true;
     setIsSubmitting(true);
     setErrorMessage(null);
     setMessage(null);
-
-    const error = await requestPasswordReset(normalizedEmail);
-
-    if (error) {
-      setErrorMessage(
-        error.status === 429
-          ? "Too many requests. Wait a moment and try again."
-          : "Unable to send the password reset email."
-      );
+    try {
+      const error = await requestPasswordReset(normalizedEmail);
+      if (error) {
+        setErrorMessage(error.status === 429
+          ? "Too many reset requests. Please try again later. Closing the app will not reset this limit."
+          : "Could not send the reset link. Check your connection and try again.");
+        return;
+      }
+      setMessage("If an account exists, we sent a reset link. Open it on any device to choose a new password. Then return here to sign in.");
+    } catch {
+      setErrorMessage("Could not send the reset link. Check your connection and try again.");
+    } finally {
+      pending.current = false;
       setIsSubmitting(false);
-      return;
     }
-
-    setMessage(
-      "If an account exists for this email, a password reset link has been sent."
-    );
-    setIsSubmitting(false);
   };
 
   return (
@@ -152,7 +153,7 @@ export default function ForgotPasswordScreen() {
 
         <Pressable
           style={styles.secondaryButton}
-          onPress={() => router.replace("/sign-in" as never)}
+          onPress={() => router.replace({ pathname: "/sign-in", params: { email: email.trim() } } as never)}
           disabled={isSubmitting}
         >
           <Text style={styles.secondaryButtonText}>
@@ -211,7 +212,8 @@ const styles = StyleSheet.create({
   },
 
   input: {
-    height: 54,
+    minHeight: 54,
+    paddingVertical: 12,
     borderWidth: 1,
     borderColor: COLORS.border,
     borderRadius: 12,

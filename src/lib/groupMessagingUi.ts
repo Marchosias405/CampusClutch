@@ -80,7 +80,7 @@ export function getConversationInboxPresentation(
 
   if (summary.type === 'direct') {
     const title = displayName(summary.other_display_name);
-    const isReadOnly = summary.status !== 'active';
+    const isReadOnly = summary.status !== 'active' || !!summary.interaction_blocked;
     const subtitle = isReadOnly ? 'Read-only conversation' : 'Direct message';
     return {
       title,
@@ -96,8 +96,8 @@ export function getConversationInboxPresentation(
   const formerMember = summary.my_membership_status !== 'active';
   // A former member's summary deliberately avoids presenting the current roster size.
   const subtitle = formerMember
-    ? `${summary.group_course_code} · Read-only group history`
-    : `${summary.group_course_code} · ${summary.active_member_count} ${memberWord(summary.active_member_count)}${isReadOnly ? ' · Read-only' : ''}`;
+    ? `${summary.group_course_code}\nRead-only group history`
+    : `${summary.group_course_code}\n${summary.active_member_count} ${memberWord(summary.active_member_count)}${isReadOnly ? '\nRead-only' : ''}`;
   return {
     title: summary.group_title,
     subtitle,
@@ -121,15 +121,20 @@ export function getConversationThreadPresentation(
   summary: ConversationSummary,
 ): ConversationThreadPresentation {
   if (summary.type === 'direct') {
-    const isReadOnly = summary.status !== 'active';
+    const blocked = !!summary.interaction_blocked;
+    const isReadOnly = summary.status !== 'active' || blocked;
     return {
       title: displayName(summary.other_display_name),
-      subtitle: isReadOnly ? 'Closed conversation' : 'Direct messages',
+      subtitle: blocked ? 'Read-only conversation' : isReadOnly ? 'Closed conversation' : 'Direct messages',
       isReadOnly,
       canCompose: !isReadOnly,
       canOpenGroupDetails: false,
       visibleMemberCount: null,
-      readOnlyMessage: isReadOnly
+      readOnlyMessage: blocked
+        ? summary.blocked_by_me
+          ? 'You blocked this student. Open their profile to manage the block. Existing requests can still be finished or cancelled from Requests.'
+          : 'Messaging is unavailable between these accounts. You can still read this conversation and finish or cancel existing work from Requests.'
+        : isReadOnly
         ? 'This conversation is closed to new messages.'
         : null,
     };
@@ -140,8 +145,8 @@ export function getConversationThreadPresentation(
   return {
     title: summary.group_title,
     subtitle: formerMember
-      ? `${summary.group_course_code} · Read-only group history`
-      : `${summary.group_course_code} · ${summary.active_member_count} ${memberWord(summary.active_member_count)}${isReadOnly ? ' · Read-only' : ''}`,
+      ? `${summary.group_course_code}\nRead-only group history`
+      : `${summary.group_course_code}\n${summary.active_member_count} ${memberWord(summary.active_member_count)}${isReadOnly ? '\nRead-only' : ''}`,
     isReadOnly,
     canCompose: !isReadOnly,
     canOpenGroupDetails: !formerMember && summary.status === 'active',

@@ -325,11 +325,11 @@ export function isUpcomingCourse(course: MyCourse): boolean {
     && course.status !== "archived" && course.term.status === "upcoming";
 }
 
-export function courseDetailsLabel(course: CourseCatalogItem): string {
+export function courseDetailsLabel(course: CourseCatalogItem, separator = ", "): string {
   const campus = course.deliveryMode === "online"
     ? "Online" : course.campusDisplayName;
   return [campus, course.units == null ? null : `${course.units} units`]
-    .filter(Boolean).join(" · ");
+    .filter(Boolean).join(separator);
 }
 
 async function membershipAction(name: string, courseId: string, expectedUserId?: string) {

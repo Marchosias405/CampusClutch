@@ -87,7 +87,10 @@ function ContactCard({ userId, requestId, profileId, role, compact = false }: Pr
     {loading && <ActivityIndicator accessibilityLabel={`Loading ${role} contact`} color="#9B1C31" />}
     {contact && !compact && <>
       <Text style={styles.name}>{contact.displayName}</Text>
-      <Text style={styles.description}>{[contact.major, contact.yearOfStudy ? `Year ${contact.yearOfStudy}` : null, contact.campusDisplayName].filter(Boolean).join(' · ')}</Text>
+      <View>
+        {!!contact.major && <Text style={styles.description}>{contact.major}</Text>}
+        {!!contact.yearOfStudy && <Text style={styles.description}>Year {contact.yearOfStudy}</Text>}
+      </View>
       <Text style={styles.description}>You can ask questions here before offering help.</Text>
     </>}
     {!!error && <>

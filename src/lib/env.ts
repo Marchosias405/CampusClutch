@@ -35,7 +35,7 @@ function parseAppEnvironment(
     )
   ) {
     throw new Error(
-      `Invalid EXPO_PUBLIC_APP_ENV: ${normalizedValue}. Expected development, preview, or production.`
+      'Invalid EXPO_PUBLIC_APP_ENV. Expected development, preview, or production.'
     );
   }
 

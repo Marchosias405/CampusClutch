@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(13);
+SELECT plan(23);
 
 -- =========================================================
 -- Test identities
@@ -409,6 +409,131 @@ SELECT results_eq(
   'Classmate lookup derives shared interest count'
 );
 
+
+-- Cross-campus discovery: keep each caller authorized by their own selected
+-- offering, then match enrolled peers by normalized course code and term.
+RESET ROLE;
+
+INSERT INTO public.academic_terms
+  (id, code, display_name, year, season, starts_on, ends_on, status)
+VALUES ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaab', '2099-spring', 'Spring 2099',
+        2099, 'spring', '2099-01-01', '2099-04-30', 'past');
+
+INSERT INTO public.courses (id, code, title, term_id, campus_id, status)
+VALUES
+  ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb3', 'CMPT 295', 'Surrey offering',
+   'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', (SELECT id FROM public.campuses WHERE slug = 'surrey'), 'active'),
+  ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb4', 'CMPT 295', 'Archived offering',
+   'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', NULL, 'archived'),
+  ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb5', 'CMPT 295', 'Earlier offering',
+   'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaab', (SELECT id FROM public.campuses WHERE slug = 'burnaby'), 'active');
+
+-- D is a discoverable negative control until D also joins Surrey. Hidden C
+-- belongs to both campuses throughout the positive and deduplication cases.
+INSERT INTO public.course_memberships (course_id, profile_id, status) VALUES
+  ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb2', '44444444-4444-4444-8444-444444444444', 'enrolled'),
+  ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb4', '44444444-4444-4444-8444-444444444444', 'enrolled'),
+  ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb5', '44444444-4444-4444-8444-444444444444', 'enrolled'),
+  ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb3', '33333333-3333-4333-8333-333333333333', 'enrolled');
+
+SET LOCAL ROLE authenticated;
+SET LOCAL request.jwt.claim.sub = '11111111-1111-4111-8111-111111111111';
+
+SELECT results_eq(
+  $$SELECT profile_id FROM public.get_course_classmates('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1') ORDER BY profile_id$$,
+  ARRAY['22222222-2222-4222-8222-222222222222'::uuid],
+  'Different codes, earlier terms and archived offerings do not create a match'
+);
+
+RESET ROLE;
+INSERT INTO public.course_memberships (course_id, profile_id, status) VALUES
+  ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb3', '44444444-4444-4444-8444-444444444444', 'enrolled');
+
+SET LOCAL ROLE authenticated;
+SET LOCAL request.jwt.claim.sub = '11111111-1111-4111-8111-111111111111';
+
+SELECT results_eq(
+  $$SELECT profile_id FROM public.get_course_classmates('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1') ORDER BY profile_id$$,
+  ARRAY['22222222-2222-4222-8222-222222222222'::uuid, '44444444-4444-4444-8444-444444444444'::uuid],
+  'Burnaby sees its same-campus peer and the eligible Surrey peer, excluding self and hidden students'
+);
+
+SELECT throws_like(
+  $$SELECT * FROM public.get_course_classmates('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb3')$$,
+  '%must be enrolled%',
+  'An enrolled Burnaby caller cannot use the Surrey offering ID without joining it'
+);
+
+SET LOCAL request.jwt.claim.sub = '44444444-4444-4444-8444-444444444444';
+SELECT results_eq(
+  $$SELECT profile_id FROM public.get_course_classmates('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb3') ORDER BY profile_id$$,
+  ARRAY['11111111-1111-4111-8111-111111111111'::uuid, '22222222-2222-4222-8222-222222222222'::uuid],
+  'The Surrey caller sees both discoverable Burnaby peers even with no shared interests'
+);
+
+SELECT throws_like(
+  $$SELECT * FROM public.get_course_classmates('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1')$$,
+  '%must be enrolled%',
+  'An enrolled Surrey caller cannot use the Burnaby offering ID without joining it'
+);
+
+RESET ROLE;
+INSERT INTO public.course_memberships (course_id, profile_id, status) VALUES
+  ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb3', '22222222-2222-4222-8222-222222222222', 'enrolled');
+
+SET LOCAL ROLE authenticated;
+SET LOCAL request.jwt.claim.sub = '11111111-1111-4111-8111-111111111111';
+
+SELECT results_eq(
+  $$SELECT profile_id, shared_interest_count
+    FROM public.get_course_classmates('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1')
+    ORDER BY profile_id$$,
+  $$VALUES ('22222222-2222-4222-8222-222222222222'::uuid, 1),
+           ('44444444-4444-4444-8444-444444444444'::uuid, 0)$$,
+  'Membership at two campuses produces one classmate card and counts each shared interest once'
+);
+
+RESET ROLE;
+UPDATE public.courses SET status = 'closed' WHERE id = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb3';
+
+SET LOCAL ROLE authenticated;
+SET LOCAL request.jwt.claim.sub = '11111111-1111-4111-8111-111111111111';
+SELECT results_eq(
+  $$SELECT profile_id FROM public.get_course_classmates('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1') ORDER BY profile_id$$,
+  ARRAY['22222222-2222-4222-8222-222222222222'::uuid, '44444444-4444-4444-8444-444444444444'::uuid],
+  'Closing enrollment preserves classmate discovery for already enrolled peers'
+);
+
+RESET ROLE;
+UPDATE public.course_memberships SET status = 'left'
+WHERE course_id = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb3' AND profile_id = '44444444-4444-4444-8444-444444444444';
+
+SET LOCAL ROLE authenticated;
+SET LOCAL request.jwt.claim.sub = '11111111-1111-4111-8111-111111111111';
+SELECT results_eq(
+  $$SELECT profile_id FROM public.get_course_classmates('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1') ORDER BY profile_id$$,
+  ARRAY['22222222-2222-4222-8222-222222222222'::uuid],
+  'A Surrey peer who leaves disappears immediately'
+);
+
+SET LOCAL request.jwt.claim.sub = '44444444-4444-4444-8444-444444444444';
+SELECT throws_like(
+  $$SELECT * FROM public.get_course_classmates('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb3')$$,
+  '%must be enrolled%',
+  'Leaving the selected offering removes permission to use its roster'
+);
+
+RESET ROLE;
+UPDATE public.course_memberships SET status = 'completed'
+WHERE course_id = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb3' AND profile_id = '44444444-4444-4444-8444-444444444444';
+
+SET LOCAL ROLE authenticated;
+SET LOCAL request.jwt.claim.sub = '11111111-1111-4111-8111-111111111111';
+SELECT results_eq(
+  $$SELECT profile_id FROM public.get_course_classmates('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1') ORDER BY profile_id$$,
+  ARRAY['22222222-2222-4222-8222-222222222222'::uuid],
+  'A completed membership also excludes a peer from current discovery'
+);
 
 SELECT * FROM finish();
 

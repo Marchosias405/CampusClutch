@@ -3,10 +3,10 @@ CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET search_path = public, extensions;
 SELECT no_plan();
 
-INSERT INTO auth.users (id,email) VALUES
- ('88888888-8888-4888-8888-888888888881','request-owner@test.local'),
- ('88888888-8888-4888-8888-888888888882','request-reader@test.local'),
- ('88888888-8888-4888-8888-888888888883','request-incomplete@test.local');
+INSERT INTO auth.users (id,email,email_confirmed_at) VALUES
+ ('88888888-8888-4888-8888-888888888881','request-owner@test.local',now()),
+ ('88888888-8888-4888-8888-888888888882','request-reader@test.local',now()),
+ ('88888888-8888-4888-8888-888888888883','request-incomplete@test.local',now());
 UPDATE public.profiles SET display_name='Request Tester',major='Computing Science',
  year_of_study=2,campus_id=(SELECT id FROM public.campuses WHERE slug='burnaby')
 WHERE id IN ('88888888-8888-4888-8888-888888888881','88888888-8888-4888-8888-888888888882');

@@ -5,12 +5,21 @@ const { Buffer } = require('node:buffer');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
+const crypto = require('node:crypto');
 const root = path.resolve(__dirname, '..');
 const ts = require(path.join(root, 'node_modules/typescript'));
 const sdk = require(path.join(root, 'node_modules/@supabase/supabase-js'));
-const source = ts.transpileModule(fs.readFileSync(path.join(root, 'src/lib/supabase.ts'), 'utf8'), {
-  compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, esModuleInterop: true },
-}).outputText;
+function load(file, modules, globals = {}) {
+  const source = ts.transpileModule(fs.readFileSync(path.join(root, 'src/lib', file), 'utf8'), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, esModuleInterop: true },
+  }).outputText;
+  const exports = {};
+  vm.runInNewContext(source, { exports, URL, ...globals, require: name => {
+    if (!(name in modules)) throw Error('Unexpected import: ' + name);
+    return modules[name];
+  } }, { filename: file });
+  return exports;
+}
 const backend = 'https://campusclutch-runtime.invalid';
 const key = 'synthetic-publishable-key';
 const userId = 'a0000000-0000-4000-8000-000000000001';
@@ -19,7 +28,6 @@ let checks = 0;
 async function test(name, run) { await run(); checks++; console.log('PASS ' + name); }
 
 function production(os, storage, createClient, browserWindow) {
-  const exports = {};
   const modules = {
     '@/lib/crypto': {}, 'react-native-url-polyfill/auto': {},
     '@react-native-async-storage/async-storage': { default: storage, __esModule: true },
@@ -28,16 +36,18 @@ function production(os, storage, createClient, browserWindow) {
     '@/lib/env': { env: { supabaseUrl: backend, supabasePublishableKey: key } },
   };
   const globals = browserWindow === undefined ? {} : { window: browserWindow };
-  vm.runInNewContext(source, { exports, ...globals, require: name => {
-    if (!(name in modules)) throw Error('Unexpected import: ' + name);
-    return modules[name];
-  } }, { filename: 'src/lib/supabase.ts' });
-  return exports.supabase;
+  modules['./credentialMigration'] = load('credentialMigration.ts', {});
+  modules['expo-secure-store'] = storage.keychain;
+  modules['react-native-quick-crypto'] = { ...crypto, Buffer };
+  modules['./credentialStorage'] = load(os === 'web' ? 'credentialStorage.ts' : 'credentialStorage.native.ts', modules, globals);
+  return load('supabase.ts', modules, globals).supabase;
 }
 
 function browserStorage() {
   const values = new Map(), operations = [];
   const browserWindow = { localStorage: {
+    get length() { return values.size; },
+    key: index => [...values.keys()][index] ?? null,
     getItem: item => { operations.push(['get', item]); return values.get(item) ?? null; },
     setItem: (item, value) => { operations.push(['set', item]); values.set(item, String(value)); },
     removeItem: item => { operations.push(['remove', item]); values.delete(item); },
@@ -52,8 +62,13 @@ function browserStorage() {
 }
 
 function nativeStorage() {
-  const values = new Map(), operations = [];
+  const values = new Map(), keys = new Map(), operations = [];
   return { values, operations, storage: {
+    getAllKeys: async () => [...values.keys()],
+    keychain: { WHEN_UNLOCKED_THIS_DEVICE_ONLY: 3,
+      getItemAsync: async k => keys.get(k) ?? null,
+      setItemAsync: async (k,v) => { assert.ok(v.length < 100); keys.set(k,v); },
+      deleteItemAsync: async k => { keys.delete(k); } },
     getItem: async item => { operations.push(['get', item]); return values.get(item) ?? null; },
     setItem: async (item, value) => { operations.push(['set', item]); values.set(item, value); },
     removeItem: async item => { operations.push(['remove', item]); values.delete(item); },
@@ -112,18 +127,19 @@ async function syntheticSignIn(client) {
     assert.equal(config.auth.autoRefreshToken, false);
   });
 
-  await test('browser and native runtimes retain persistent AsyncStorage and refresh', () => {
-    for (const [os, browserWindow] of [['web', {}], ['android', undefined], ['ios', undefined]]) {
+  await test('only native uses protected persistent storage; browser and native refresh while running', () => {
+    for (const [os, browserWindow] of [['web', browserStorage().browserWindow], ['android', undefined], ['ios', undefined]]) {
       const storage = {};
       const config = production(os, storage, (_url, _key, options) => options, browserWindow);
-      assert.equal(config.auth.storage, storage, os);
-      assert.equal(config.auth.persistSession, true, os);
+      assert.equal(Boolean(config.auth.storage), os !== 'web', os);
+      assert.notEqual(config.auth.storage, storage, os);
+      assert.equal(config.auth.persistSession, os !== 'web', os);
       assert.equal(config.auth.autoRefreshToken, true, os);
     }
   });
 
   await test('all runtimes preserve PKCE, explicit URL handling and process locking', () => {
-    for (const [os, browserWindow] of [['web', undefined], ['web', {}], ['android', undefined], ['ios', undefined]]) {
+    for (const [os, browserWindow] of [['web', undefined], ['web', browserStorage().browserWindow], ['android', undefined], ['ios', undefined]]) {
       const config = production(os, {}, (_url, _key, options) => options, browserWindow);
       assert.equal(config.auth.flowType, 'pkce');
       assert.equal(config.auth.detectSessionInUrl, false);
@@ -169,22 +185,74 @@ async function syntheticSignIn(client) {
     assert.equal(next.requests.length, 0);
   });
 
-  await test('installed browser AsyncStorage persists real SDK sign-in across client reloads', async () => {
+  await test('browser removes legacy credentials and keeps a real SDK sign-in only in memory', async () => {
     const browser = browserStorage();
+    const item = 'sb-campusclutch-runtime-auth-token';
+    for (const suffix of ['', '-user', '-code-verifier']) browser.values.set(item + suffix, 'old credential');
+    browser.values.set('sb-other-dev-auth-token', 'old development credential');
+    browser.values.set('unrelated', 'retained');
     const first = realClient('web', browser.storage, browser.browserWindow);
     assert.equal(await session(first.supabase), null);
     await syntheticSignIn(first.supabase);
-    assert.ok(browser.operations.some(([operation]) => operation === 'set'));
+    assert.equal((await session(first.supabase)).user.id, userId);
+    assert.deepEqual([...browser.values], [['unrelated','retained']]);
+    assert.ok(!browser.operations.some(([operation]) => operation === 'set'));
     const next = realClient('web', browser.storage, browser.browserWindow);
-    assert.equal((await session(next.supabase)).user.id, userId);
+    assert.equal(await session(next.supabase), null);
     assert.equal(first.requests.length, 1);
     assert.equal(next.requests.length, 0);
-    await browser.storage.removeItem('sb-campusclutch-runtime-auth-token');
-    const signedOutReload = realClient('web', browser.storage, browser.browserWindow);
-    assert.equal(await session(signedOutReload.supabase), null);
   });
 
-  await test('native without window still restores the persisted session through AsyncStorage', async () => {
+  await test('browser startup migrates every legacy receipt independently and retries an interrupted write', async () => {
+    const { storage, browserWindow, values } = browserStorage();
+    const prefix = 'campusclutch:account-deletion:v1:';
+    const current = prefix + encodeURIComponent('http://127.0.0.1:54321');
+    const previous = prefix + encodeURIComponent('https://past-project.invalid');
+    const unrelated = previous + ':display';
+    values.set(current, 'pending current receipt');
+    values.set(previous, 'pending previous receipt');
+    values.set(unrelated, 'keep');
+    const protectedValues = new Map();
+    let interrupt = true;
+    const failed = [];
+    const protectedStore = {
+      getItem: async name => protectedValues.get(name) ?? null,
+      async setItem(name, value) {
+        if (interrupt && name === previous) {
+          failed.push(name);
+          throw Error('Interrupted protected write');
+        }
+        protectedValues.set(name, value);
+      },
+      removeItem: async name => { protectedValues.delete(name); },
+    };
+    const migration = load('credentialMigration.ts', {});
+    const web = load('credentialStorage.ts', {
+      '@react-native-async-storage/async-storage': { default: storage, __esModule: true },
+      './credentialMigration': {
+        ...migration,
+        migrateCredentials: (_indexedDb, legacy) => migration.migrateCredentials(protectedStore, legacy),
+      },
+    }, { window: browserWindow });
+    async function start() {
+      assert.equal(web.sessionStorageForProject(), undefined, 'Web sign-in still uses memory');
+      await new Promise(setImmediate); // Drain the in-memory stores' queued promises.
+    }
+    await start();
+    assert.deepEqual(failed, [previous]);
+    assert.equal(protectedValues.get(current), 'pending current receipt');
+    assert.equal(values.has(current), false);
+    assert.equal(values.get(previous), 'pending previous receipt');
+    interrupt = false;
+    values.set(current, 'stale duplicate');
+    await start();
+    assert.equal(await web.credentialStorage.getItem(current), 'pending current receipt');
+    assert.equal(protectedValues.get(previous), 'pending previous receipt');
+    assert.deepEqual([...values], [[unrelated, 'keep']]);
+    assert.equal(protectedValues.has(unrelated), false);
+  });
+
+  await test('native restores signed-in sessions across launches with only ciphertext in AsyncStorage', async () => {
     const native = nativeStorage();
     const first = realClient('android', native.storage);
     assert.equal(await session(first.supabase), null);
@@ -195,6 +263,50 @@ async function syntheticSignIn(client) {
     assert.ok(native.operations.some(([operation]) => operation === 'get'));
     assert.equal(first.requests.length, 1);
     assert.equal(next.requests.length, 0);
+    assert.ok(!JSON.stringify([...native.values.values()]).includes('synthetic-refresh-token'));
+    assert.ok(!native.values.has('sb-campusclutch-runtime-auth-token'));
+  });
+
+  await test('native migrates active session and PKCE companion, handles large data, and serializes sign-out', async () => {
+    const native = nativeStorage();
+    const item = 'sb-campusclutch-runtime-auth-token';
+    const old = fakeSession();
+    old.user.user_metadata = { description: 'long profile '.repeat(1100) };
+    native.values.set(item, JSON.stringify(old)); native.values.set(item + '-code-verifier','private verifier');
+    native.values.set('sb-other-dev-auth-token', JSON.stringify(old));
+    native.values.set('unrelated', 'keep');
+    const client = realClient('android', native.storage);
+    assert.equal((await session(client.supabase)).user.id, userId);
+    assert.ok(!native.values.has(item));
+    assert.ok(!native.values.has(item + '-code-verifier'));
+    assert.ok(!native.values.has('sb-other-dev-auth-token'));
+    assert.equal(native.values.get('unrelated'),'keep');
+    assert.ok([...native.values.values()].every(v => !v.includes('long profile') && !v.includes('private verifier')));
+    const adapter = production('android', native.storage, (_u, _k, options) => options).auth.storage;
+    const read = adapter.getItem(item);
+    const signout = adapter.removeItem(item);
+    assert.equal(JSON.parse(await read).user.id, userId);
+    await signout;
+    assert.equal(await adapter.getItem(item), null);
+  });
+
+  await test('failed protected write preserves legacy data for retry and never falls back to a plaintext write', async () => {
+    const native = nativeStorage();
+    native.values.set('receipt','pending-deletion');
+    const write = native.storage.keychain.setItemAsync;
+    native.storage.keychain.setItemAsync = async () => { throw Error('Keystore locked'); };
+    const adapter = production('android', native.storage, (_u, _k, options) => options).auth.storage;
+    await assert.rejects(adapter.getItem('receipt'), /Keystore locked/);
+    assert.equal(native.values.get('receipt'), 'pending-deletion');
+    await assert.rejects(adapter.setItem('new','secret'), /Keystore locked/);
+    assert.equal(native.values.has('new'), false);
+    native.storage.keychain.setItemAsync = write;
+    assert.equal(await adapter.getItem('receipt'),'pending-deletion');
+    assert.ok(!native.values.has('receipt'));
+    const sealed = 'campusclutch:sealed:v1:receipt';
+    const bytes = Buffer.from(native.values.get(sealed), 'base64'); bytes[28] ^= 1;
+    native.values.set(sealed,bytes.toString('base64'));
+    await assert.rejects(adapter.getItem('receipt'));
   });
   console.log(`Supabase runtime regressions: ${checks} passed.`);
 })().catch(error => { console.error(error); process.exitCode = 1; }).finally(async () => {

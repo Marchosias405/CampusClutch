@@ -1,5 +1,5 @@
 import React, { useCallback, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Platform, Pressable, StyleSheet, Text, TextInput, View, type AlertButton } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useAuth } from '../context/AuthContext';
 import { useRequests } from '../context/RequestsContext';
@@ -11,6 +11,14 @@ import RequestContact from './RequestContact';
 type Props = { request?: CampusRequest; requestId?: string; ratingsRevision?: number; onChanged?: () => Promise<void> };
 type OfferTerms = { round: number; points: number };
 const labels = { pending: 'Pending', accepted: 'Accepted', rejected: 'Not selected', withdrawn: 'Withdrawn' };
+
+function confirmAction(title: string, message: string, cancelText: string, action: AlertButton & { onPress: () => void }) {
+  if (Platform.OS === 'web') {
+    if (window.confirm(`${title}\n\n${message}`)) action.onPress();
+    return;
+  }
+  Alert.alert(title, message, [{ text: cancelText, style: 'cancel' }, action]);
+}
 
 export default function RequestOffers({ request, requestId, ratingsRevision = 0, onChanged }: Props) {
   const { user } = useAuth();
@@ -113,10 +121,9 @@ export default function RequestOffers({ request, requestId, ratingsRevision = 0,
       ? `Accept this helper and reserve ${terms.points} points from your available balance? Points transfer only after you confirm completion. Other pending offers will be declined. Reopening releases the reservation and requires fresh offers.`
       : action === 'rejected' ? 'Decline this offer? This helper can offer again after you change the reward or reopen the request.'
       : 'Withdraw your offer? You can offer again after the poster changes the reward or reopens the request.';
-    Alert.alert(action === 'accepted' ? 'Accept helper?' : action === 'rejected' ? 'Decline offer?' : 'Withdraw offer?', text, [
-      { text: 'Keep as is', style: 'cancel' },
+    confirmAction(action === 'accepted' ? 'Accept helper?' : action === 'rejected' ? 'Decline offer?' : 'Withdraw offer?', text, 'Keep as is',
       { text: action === 'accepted' ? 'Accept' : action === 'rejected' ? 'Decline' : 'Withdraw', style: action === 'accepted' ? 'default' : 'destructive', onPress: () => { void perform(action, terms, epoch, offer); } },
-    ]);
+    );
   };
 
   const confirmOffer = (offer?: RequestOffer) => {
@@ -126,10 +133,9 @@ export default function RequestOffers({ request, requestId, ratingsRevision = 0,
       : request ? { round: request.offerRound ?? 1, points: request.points } : null;
     if (!terms) return;
     const offerMessage = offer ? renewMessages[offer.id] ?? '' : message;
-    Alert.alert(offer ? 'Confirm offer again?' : 'Offer help?', `Offer to help for ${terms.points} points? Points transfer after the poster confirms completion.`, [
-      { text: 'Cancel', style: 'cancel' },
+    confirmAction(offer ? 'Confirm offer again?' : 'Offer help?', `Offer to help for ${terms.points} points? Points transfer after the poster confirms completion.`, 'Cancel',
       { text: 'Confirm offer', onPress: () => { void perform(offer ? 'renew' : 'create', terms, epoch, offer, offerMessage); } },
-    ]);
+    );
   };
 
   return <View style={styles.section}>
@@ -149,7 +155,7 @@ export default function RequestOffers({ request, requestId, ratingsRevision = 0,
     {requestId && request && !owner && visible.length === 0 && <View style={styles.card}>
       {canOffer ? <>
         <Text style={styles.label}>Current reward: {request.points} points</Text>
-        <Text style={styles.text}>Offer to help with this request. The owner will see your name, major, year, campus and published reliability rating, even if your profile is hidden from discovery.</Text>
+        <Text style={styles.text}>The poster will see your name, major, year and reliability rating, even if your profile is hidden.</Text>
         <Text style={styles.label}>Message (optional)</Text>
         <TextInput accessibilityLabel="Optional offer message" style={styles.input} multiline maxLength={1000} value={message} editable={!saving} onChangeText={setMessage} placeholder="Let the owner know how you can help" textAlignVertical="top" />
         <Text style={styles.text}>{message.length}/1000</Text>
@@ -165,9 +171,12 @@ export default function RequestOffers({ request, requestId, ratingsRevision = 0,
         <Text style={styles.title}>{requestId ? owner ? offer.helper_display_name || 'Campus helper' : 'Your offer' : offer.request_title}</Text>
         <Text style={styles.status}>{open && !currentRound ? 'Confirmation needed' : labels[offer.status]}</Text>
         <Text style={styles.label}>Current reward: {offer.request_points} points</Text>
-        {!currentRound && <Text style={styles.text}>The poster changed the reward or reopened this request. This earlier offer is closed; the helper must confirm the current reward to be considered again.</Text>}
+        {!currentRound && <Text style={styles.text}>The reward changed or the request reopened. Helpers must offer again at the current points.</Text>}
         {!open && <Text style={styles.text}>Request {offer.request_status === 'open' ? 'expired' : offer.request_status}.</Text>}
-        {owner && <Text style={styles.text}>{[offer.helper_major, offer.helper_year ? `Year ${offer.helper_year}` : null, offer.helper_campus].filter(Boolean).join(' • ')}</Text>}
+        {owner && <View>
+          {!!offer.helper_major && <Text style={styles.text}>{offer.helper_major}</Text>}
+          {!!offer.helper_year && <Text style={styles.text}>Year {offer.helper_year}</Text>}
+        </View>}
         {owner && <RatingSummary key={`helper-rating:${offer.offering_user_id}:${ratingsRevision}`} profileId={offer.offering_user_id} requestId={offer.request_id} />}
         {owner && <RequestContact requestId={offer.request_id} profileId={offer.offering_user_id} role="helper" compact revision={`${offer.request_offer_round}:${offer.request_status}`} />}
         {!!offer.message && <Text style={styles.text}>{offer.message}</Text>}
@@ -183,8 +192,8 @@ export default function RequestOffers({ request, requestId, ratingsRevision = 0,
           <Pressable accessibilityRole="button" disabled={!ready} style={[styles.primary, !ready && styles.disabled]} onPress={() => confirmOffer(offer)}><Text style={styles.primaryText}>Offer again</Text></Pressable>
         </>}
         {!requestId && (open || offer.status === 'accepted' || offer.has_assignment_history) && <Pressable accessibilityRole="button" style={styles.secondary} onPress={() => router.push({ pathname: '/requests/[id]', params: { id: offer.request_id } })}><Text style={styles.secondaryText}>View request</Text></Pressable>}
-        {offer.has_assignment_history && <Text style={styles.text}>Open request details to view your completed or cancelled assignments and rate the other participant after an assignment ends.</Text>}
-        {offer.status === 'accepted' && <Text style={styles.text}>{offer.request_status === 'completed' ? 'Request completed. Open its details to rate the other participant.' : 'Help confirmed. Find this request in My offers as the helper, or My requests as the poster.'}</Text>}
+        {offer.has_assignment_history && <Text style={styles.text}>Open request details to see past jobs and rate the other person.</Text>}
+        {offer.status === 'accepted' && <Text style={styles.text}>{offer.request_status === 'completed' ? 'Request completed. Open its details to rate the other participant.' : 'Accepted. Find this job in My offers (helper) or My requests (poster).'}</Text>}
       </View>;
     })}
     {hasMore && <Pressable accessibilityRole="button" disabled={loading || saving} style={styles.secondary} onPress={() => { void fetchPage(true); }}><Text style={styles.secondaryText}>Load more offers</Text></Pressable>}

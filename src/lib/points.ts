@@ -1,7 +1,7 @@
 import { supabase } from './supabase';
 import { assertOfferSession } from './offers';
 
-export type PointsEntry = { id: string; kind: 'starter_grant' | 'request_sent' | 'request_received'; amount: number; created_at: string; request_id: string | null };
+export type PointsEntry = { id: string; kind: 'starter_grant' | 'balance_restored' | 'request_sent' | 'request_received'; amount: number; created_at: string; request_id: string | null };
 export type PointsWallet = { balance: number; reserved: number; available: number; history: PointsEntry[] };
 export type RequestReservation = { request_id: string; offer_round: number; poster_id: string; helper_id: string; amount: number; status: 'reserved' | 'released' | 'settled' };
 

@@ -511,7 +511,7 @@ function CreateGroupScreen({ userId }: { userId: string }) {
           <View style={styles.sectionHeading}>
             <View>
               <Text style={styles.sectionTitle}>Invite classmates</Text>
-              <Text style={styles.muted}>{selectedInviteeIds.length} selected · 19 maximum</Text>
+              <Text style={styles.muted}>{selectedInviteeIds.length} of 19 selected</Text>
             </View>
             {classmatesLoading && <ActivityIndicator color={COLORS.primary} />}
           </View>

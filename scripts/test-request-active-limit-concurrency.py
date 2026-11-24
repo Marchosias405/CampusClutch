@@ -125,7 +125,7 @@ def wallet_race(owner, calls, before_release=''):
 try:
     campus = value("select id from public.campuses where slug='burnaby'")
     for user in users:
-        sql(f"insert into auth.users(id,email) values('{user}','{user}@active-limit-test.local'); "
+        sql(f"insert into auth.users(id,email,email_confirmed_at) values('{user}','{user}@active-limit-test.local',now()); "
             "update public.profiles set display_name='Active Limit Race Tester',"
             "major='Computing Science',year_of_study=2,"
             f"campus_id='{campus}' where id='{user}';")
@@ -200,5 +200,8 @@ try:
 finally:
     # Include any unexpected successful post in cleanup, not just known IDs.
     ids = ','.join(f"'{user}'" for user in users)
+    sql(f'delete from public.notifications where recipient_id in ({ids})')
     sql(f'delete from public.requests where owner_id in ({ids})')
+    sql(f"delete from points_private.starter_grant_claims where email_fingerprint in "
+        f"(select points_private.email_fingerprint(email) from auth.users where id in ({ids}))")
     sql(f'delete from auth.users where id in ({ids})')

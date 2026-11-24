@@ -5,32 +5,35 @@
  */
 const fs = require('node:fs');
 const { spawnSync } = require('node:child_process');
+const { catalogTerm } = require('./sfu-catalog-terms.cjs');
 
-const TERM = { code: '2027-spring', year: 2027, season: 'spring',
-  name: 'Spring 2027', starts: '2027-01-05', ends: '2027-04-26' };
+const TERM = Object.freeze({ ...catalogTerm(), name: catalogTerm().display_name });
 const SOURCE = 'sfu-course-outlines';
 
 function ensure(condition, message) {
   if (!condition) throw new Error(message);
 }
-function officialUrl(value) {
+function officialUrl(value, term) {
   try {
     const url = new URL(value);
     return url.origin === 'https://www.sfu.ca' &&
       url.pathname === '/bin/wcm/course-outlines' &&
-      /^\?2027\/spring\/[a-z]+\/[a-z0-9]+\/[a-z0-9]+$/i.test(url.search) &&
+      new RegExp(`^\\?${term.year}/${term.season}/[a-z]+/[a-z0-9]+/[a-z0-9]+$`, 'i').test(url.search) &&
       !url.hash && !url.username && !url.password;
   } catch { return false; }
 }
-function validDate(value) {
-  return typeof value === 'string' && Number.isFinite(Date.parse(value)) &&
-    Date.parse(value) <= Date.now() + 86400000;
+function canonicalTimestamp(value, message) {
+  const time = typeof value === 'string' ? Date.parse(value) : NaN;
+  ensure(Number.isFinite(time) && time <= Date.now() + 86400000, message);
+  return new Date(time).toISOString();
 }
 function validateSnapshot(snapshot, options = {}) {
   ensure(snapshot?.schema_version === 1, 'Unsupported snapshot schema.');
-  ensure(snapshot.term?.code === TERM.code && snapshot.term?.year === TERM.year &&
-    snapshot.term?.season === TERM.season, 'Only Spring 2027 is supported.');
-  ensure(validDate(snapshot.generated_at), 'Invalid snapshot timestamp.');
+  ensure(typeof snapshot.term?.code === 'string', 'Missing catalog term.');
+  const term = catalogTerm(snapshot.term.code);
+  ensure(snapshot.term.year === term.year && snapshot.term.season === term.season,
+    'Snapshot term identity does not match its code.');
+  const generatedAt = canonicalTimestamp(snapshot.generated_at, 'Invalid snapshot timestamp.');
   ensure(Array.isArray(snapshot.errors) && Array.isArray(snapshot.quarantine),
     'Snapshot must report source errors and quarantined records.');
   const complete = snapshot.coverage?.complete === true && snapshot.errors.length === 0;
@@ -42,7 +45,7 @@ function validateSnapshot(snapshot, options = {}) {
     'Snapshot must contain between 1 and 10000 verified offerings.');
   const keys = new Set();
   const rows = snapshot.rows.map((row) => {
-    ensure(row.term_code === TERM.code, 'Offering belongs to another term.');
+    ensure(row.term_code === term.code, 'Offering belongs to another term.');
     ensure(typeof row.code === 'string' && /^[A-Z][A-Z0-9 ]{1,31}$/.test(row.code) &&
       row.code === row.code.trim() && !/\s{2}/.test(row.code), 'Invalid course code.');
     ensure(typeof row.title === 'string' && row.title.trim() === row.title &&
@@ -59,14 +62,14 @@ function validateSnapshot(snapshot, options = {}) {
     const key = `${row.code}:${row.campus_slug ?? 'online'}`;
     ensure(!keys.has(key), `Duplicate offering: ${key}`);
     keys.add(key);
-    ensure(validDate(row.source_fetched_at), `Missing fetch timestamp: ${row.code}`);
+    const fetchedAt = canonicalTimestamp(row.source_fetched_at, `Missing fetch timestamp: ${row.code}`);
     ensure(Array.isArray(row.sections) && row.sections.length > 0,
       `No source enrollment sections: ${row.code}`);
     const sectionKeys = new Set();
     const sections = row.sections.map((section) => {
       ensure(typeof section.section === 'string' && /^[A-Z0-9]{1,12}$/i.test(section.section),
         `Invalid section: ${row.code}`);
-      ensure(officialUrl(section.source_url), `Invalid official source URL: ${row.code}`);
+      ensure(officialUrl(section.source_url, term), `Invalid official source URL: ${row.code}`);
       const sourceParts = new URL(section.source_url).search.slice(1).split('/');
       ensure(`${sourceParts[2]} ${sourceParts[3]}`.toUpperCase() === row.code &&
         sourceParts[4].toUpperCase() === section.section.toUpperCase(),
@@ -75,30 +78,30 @@ function validateSnapshot(snapshot, options = {}) {
       sectionKeys.add(section.source_url);
       ensure(typeof section.units === 'number' && section.units >= 3 && section.units <= 100,
         `Unqualified source section: ${row.code}`);
-      ensure(validDate(section.source_fetched_at), `Invalid section timestamp: ${row.code}`);
-      ensure(Date.parse(section.source_fetched_at) <= Date.parse(snapshot.generated_at),
+      const sectionTime = canonicalTimestamp(section.source_fetched_at, `Invalid section timestamp: ${row.code}`);
+      ensure(Date.parse(sectionTime) <= Date.parse(generatedAt),
         `Section fetch is newer than the snapshot: ${row.code}`);
       // Preserve only the provenance needed to audit the imported offering.
       return { section: section.section, section_code: section.section_code ?? null,
         units: section.units, source_url: section.source_url,
-        source_fetched_at: section.source_fetched_at };
+        source_fetched_at: sectionTime };
     });
     ensure(row.units === Math.min(...sections.map((s) => s.units)),
       `Offering units do not match the minimum source section units: ${row.code}`);
-    ensure(Date.parse(row.source_fetched_at) === Math.min(...sections.map((s) => Date.parse(s.source_fetched_at))),
+    ensure(Date.parse(fetchedAt) === Math.min(...sections.map((s) => Date.parse(s.source_fetched_at))),
       `Offering timestamp does not match its source sections: ${row.code}`);
     return { code: row.code, title: row.title, campus_slug: row.campus_slug,
       units: row.units, degree_level: row.degree_level, delivery_mode: row.delivery_mode,
-      source_fetched_at: row.source_fetched_at, source_sections: sections };
+      source_fetched_at: fetchedAt, source_sections: sections };
   });
-  return { rows, complete, quarantined: snapshot.quarantine.length,
-    sourceErrors: snapshot.errors.length, generatedAt: snapshot.generated_at };
+  return { term, rows, complete, quarantined: snapshot.quarantine.length,
+    sourceErrors: snapshot.errors.length, generatedAt };
 }
 
 function makePlan(snapshot, options = {}) {
   const checked = validateSnapshot(snapshot, options);
+  const term = checked.term;
   const payload = JSON.stringify(checked.rows).replaceAll("'", "''");
-  const snapshotTime = new Date(checked.generatedAt).toISOString();
   // All source content enters SQL as one escaped JSON literal, never identifiers.
   const upsert = (nullable) => `
 insert into public.courses as existing
@@ -117,14 +120,15 @@ where (existing.title,existing.status,existing.units,existing.degree_level,exist
   is distinct from
       (excluded.title,excluded.status,excluded.units,excluded.degree_level,excluded.delivery_mode,
        excluded.source_fetched_at,excluded.source_sections);`;
-  return `-- CampusClutch Spring 2027 undergraduate catalog, >=3 units.
+  return `-- CampusClutch ${term.display_name} undergraduate catalog, >=3 units.
 -- Source snapshot ${checked.generatedAt}; verified rows ${checked.rows.length}.
 -- Source errors ${checked.sourceErrors}; quarantined ${checked.quarantined}.
 -- ${options.applyLocal ? 'LOCAL COMMIT' : 'DRY RUN: all writes roll back'}.
 begin;
+set local standard_conforming_strings=on;
 set local lock_timeout='5s';
 set local statement_timeout='60s';
-select pg_advisory_xact_lock(hashtextextended('campusclutch:sfu-catalog:2027-spring',0));
+select pg_advisory_xact_lock(hashtextextended('campusclutch:sfu-catalog:${term.code}',0));
 -- Reject fixtures/manual records that share an offering key; never silently adopt them.
 create temporary table catalog_raw on commit drop as
 select * from jsonb_to_recordset('${payload}'::jsonb) as r(
@@ -137,10 +141,10 @@ do $$ begin
  end if;
 end $$;
 insert into public.academic_terms(code,display_name,year,season,starts_on,ends_on,status)
-values('${TERM.code}','${TERM.name}',${TERM.year},'${TERM.season}',
- '${TERM.starts}','${TERM.ends}', case
- when (now() at time zone 'America/Vancouver')::date < date '${TERM.starts}' then 'upcoming'
- when (now() at time zone 'America/Vancouver')::date > date '${TERM.ends}' then 'past'
+values('${term.code}','${term.display_name}',${term.year},'${term.season}',
+ '${term.starts}','${term.ends}', case
+ when (now() at time zone 'America/Vancouver')::date < date '${term.starts}' then 'upcoming'
+ when (now() at time zone 'America/Vancouver')::date > date '${term.ends}' then 'past'
  else 'current' end)
 on conflict(code) do update set display_name=excluded.display_name,
  starts_on=excluded.starts_on,ends_on=excluded.ends_on,status=excluded.status
@@ -150,7 +154,7 @@ create temporary table catalog_incoming on commit drop as
 select r.*,t.id as term_id,c.id as campus_id
 from catalog_raw r cross join public.academic_terms t
 left join public.campuses c on c.slug=r.campus_slug
-where t.code='${TERM.code}';
+where t.code='${term.code}';
 do $$ begin
  if exists(select 1 from catalog_incoming i join public.courses c
    on c.code=i.code and c.term_id=i.term_id and c.campus_id is not distinct from i.campus_id
@@ -163,8 +167,8 @@ do $$ begin
    raise exception 'An older snapshot would overwrite newer course data.';
  end if;
  ${options.closeMissing ? `if exists(select 1 from public.courses c join public.academic_terms t on t.id=c.term_id
-   where t.code='${TERM.code}' and c.catalog_source='${SOURCE}' and c.status='active'
-   and c.source_fetched_at > timestamptz '${snapshotTime}'
+   where t.code='${term.code}' and c.catalog_source='${SOURCE}' and c.status='active'
+   and c.source_fetched_at > timestamptz '${checked.generatedAt}'
    and not exists(select 1 from catalog_incoming i where i.code=c.code and i.campus_id is not distinct from c.campus_id)) then
    raise exception 'An older snapshot would close newer course data.';
  end if;` : ''}
@@ -175,13 +179,13 @@ select jsonb_build_object('verified_rows',(select count(*) from catalog_incoming
  'existing_rows',(select count(*) from catalog_incoming i where exists(select 1 from public.courses c
    where c.code=i.code and c.term_id=i.term_id and c.campus_id is not distinct from i.campus_id)),
  'managed_rows_absent_from_snapshot',(select count(*) from public.courses c join public.academic_terms t on t.id=c.term_id
-   where t.code='${TERM.code}' and c.catalog_source='${SOURCE}' and c.status='active'
+   where t.code='${term.code}' and c.catalog_source='${SOURCE}' and c.status='active'
    and not exists(select 1 from catalog_incoming i where i.code=c.code and i.campus_id is not distinct from c.campus_id)),
  'close_missing',${options.closeMissing ? 'true' : 'false'},'commit',${options.applyLocal ? 'true' : 'false'});
 ${upsert(false)}
 ${upsert(true)}
 ${options.closeMissing ? `update public.courses c set status='closed'
-where c.term_id=(select id from public.academic_terms where code='${TERM.code}')
+where c.term_id=(select id from public.academic_terms where code='${term.code}')
  and c.catalog_source='${SOURCE}' and c.status='active'
  and not exists(select 1 from catalog_incoming i where i.code=c.code and i.campus_id is not distinct from c.campus_id);` : ''}
 ${options.applyLocal ? 'commit' : 'rollback'};

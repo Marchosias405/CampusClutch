@@ -4,9 +4,9 @@ SET search_path=public,extensions;
 SELECT no_plan();
 
 -- All fixtures, injected failures, wallet events and ratings roll back at EOF.
-INSERT INTO auth.users(id,email)
+INSERT INTO auth.users(id,email,email_confirmed_at)
 SELECT ('98989898-9898-4989-8989-'||lpad(i::text,12,'0'))::uuid,
- 'cancelled-ratings-'||i||'@test.local' FROM generate_series(1,8) i;
+ 'cancelled-ratings-'||i||'@test.local',now() FROM generate_series(1,8) i;
 CREATE FUNCTION pg_temp.uid(i integer) RETURNS uuid LANGUAGE sql AS $$
  SELECT ('98989898-9898-4989-8989-'||lpad(i::text,12,'0'))::uuid;
 $$;

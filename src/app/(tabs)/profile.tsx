@@ -1,10 +1,12 @@
+import LegalLinks from "@/components/LegalLinks";
+import { DeleteAccountButton } from "@/context/AccountDeletionProvider";
 import { useAuth } from "@/context/AuthContext";
 import { useProfile } from "@/context/ProfileContext";
 import { getProfileAvatarSignedUrl } from "@/lib/avatars";
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -14,8 +16,11 @@ import {
   View,
 } from "react-native";
 import ScreenHeader from "../../components/ScreenHeader";
+import ProfileInterests from "../../components/ProfileInterests";
 import PointsBalance from "../../components/PointsBalance";
 import RatingSummary from "../../components/RatingSummary";
+import ModerationEntry from "../../components/ModerationEntry";
+import ProfileActionRow from "../../components/ProfileActionRow";
 
 const COLORS = {
   primary: "#9B1C31",
@@ -23,7 +28,7 @@ const COLORS = {
   background: "#FFFFFF",
   cardWhite: "#FFFFFF",
   textDark: "#2B2525",
-  mutedText: "#8C8585",
+  mutedText: "#635C5C",
   border: "#EFE1E1",
   green: "#34A853",
   inactiveGray: "#A5AAB3",
@@ -89,17 +94,23 @@ export default function ProfileScreen() {
     };
   }, [profile?.avatarPath]);
 
+  const signingOut = useRef(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [signOutError, setSignOutError] = useState<string | null>(null);
 
   const handleSignOut = async () => {
+    if (signingOut.current) return;
+    signingOut.current = true;
     setIsSigningOut(true);
     setSignOutError(null);
 
-    const error = await signOut();
-
-    if (error) {
+    try {
+      const error = await signOut();
+      if (error) throw error;
+    } catch {
       setSignOutError("Unable to sign out. Please try again.");
+    } finally {
+      signingOut.current = false;
       setIsSigningOut(false);
     }
   };
@@ -110,6 +121,9 @@ export default function ProfileScreen() {
           <Text style={styles.headerTitle}>Profile</Text>
 
           <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Edit profile"
+            style={styles.headerIconButton}
             hitSlop={10}
             onPress={() => router.push("/profile/settings" as any)}
           >
@@ -154,29 +168,30 @@ export default function ProfileScreen() {
             </View>
           </View>
 
+          {user && <ProfileInterests key={`interests:${user.id}`} profileId={user.id} />}
+
           <PointsBalance key={`points:${user?.id}`} />
           {user && <RatingSummary key={`rating:${user.id}`} profileId={user.id} />}
 
-          {signOutError ? (
-            <Text style={styles.signOutError}>{signOutError}</Text>
-          ) : null}
+          <View style={styles.accountSection}>
+            <Text accessibilityRole="header" style={styles.accountHeading}>Your account</Text>
+            <View style={styles.accountActions}>
+              <ProfileActionRow label="Blocked students" icon="ban-outline"
+                onPress={() => router.push('/profile/blocked' as any)} />
+              <ProfileActionRow label="Account decisions & appeals" accessibilityLabel="Account decisions and appeals"
+                icon="document-text-outline" onPress={() => router.push('/profile/appeals' as any)} />
+              <DeleteAccountButton variant="profile" />
+              {signOutError ? (
+                <Text accessibilityLiveRegion="polite" style={styles.signOutError}>{signOutError}</Text>
+              ) : null}
+              <ProfileActionRow label="Log Out" icon="log-out-outline" chevron={false}
+                busy={isSigningOut} onPress={() => { void handleSignOut(); }} />
+            </View>
+          </View>
 
-          <Pressable
-            style={[
-              styles.logoutButton,
-              isSigningOut && styles.logoutButtonDisabled,
-            ]}
-            onPress={() => {
-              void handleSignOut();
-            }}
-            disabled={isSigningOut}
-          >
-            {isSigningOut ? (
-              <ActivityIndicator color={COLORS.primary} />
-            ) : (
-              <Text style={styles.logoutText}>Log Out</Text>
-            )}
-          </Pressable>
+          <LegalLinks variant="profile" />
+
+          {user && <ModerationEntry key={`moderation:${user.id}`} userId={user.id} />}
         </ScrollView>
       </View>
     </View>
@@ -184,6 +199,9 @@ export default function ProfileScreen() {
 }
 
 const styles = StyleSheet.create({
+  accountSection: { marginTop: 20 },
+  accountHeading: { color: COLORS.textDark, fontSize: 18, fontWeight: '800', marginBottom: 14 },
+  accountActions: { gap: 12 },
   safeArea: {
     flex: 1,
     backgroundColor: COLORS.background,
@@ -205,13 +223,13 @@ const styles = StyleSheet.create({
   },
 
   headerIconButton: {
-    width: 34,
-    height: 34,
+    minWidth: 48,
+    minHeight: 48,
     alignItems: "center",
     justifyContent: "center",
   },
 
-  headerTitle: { fontSize: 20, fontWeight: "900", color: "#FFFFFF" },
+  headerTitle: { flex: 1, minWidth: 0, fontSize: 20, fontWeight: "900", color: "#FFFFFF" },
 
   scrollView: {
     flex: 1,
@@ -224,6 +242,8 @@ const styles = StyleSheet.create({
   },
 
   profileSection: {
+    flexWrap: "wrap",
+    gap: 16,
     flexDirection: "row",
     alignItems: "center",
     marginBottom: 25,
@@ -262,8 +282,9 @@ const styles = StyleSheet.create({
   },
 
   profileInfo: {
-    marginLeft: 16,
-    flex: 1,
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: 240,
   },
 
   profileName: {
@@ -400,7 +421,7 @@ const styles = StyleSheet.create({
   seeAllText: {
     fontSize: 12,
     fontWeight: "800",
-    color: "#B45B67",
+    color: COLORS.primary,
   },
 
   activityRow: {
@@ -493,30 +514,11 @@ const styles = StyleSheet.create({
     color: "#6F6868",
   },
 
-  logoutButton: {
-    alignSelf: "center",
-    paddingHorizontal: 20,
-    paddingVertical: 13,
-  },
-
-  logoutText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#B45B67",
-  },
-
-  logoutButtonDisabled: {
-  opacity: 0.6,
-},
-
   signOutError: {
     marginBottom: 8,
     fontSize: 13,
     fontWeight: "700",
     color: COLORS.primary,
-    textAlign: "center",
+    textAlign: "left",
   },
-
-
-
 });

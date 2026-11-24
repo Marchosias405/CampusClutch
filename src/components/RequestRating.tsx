@@ -130,15 +130,16 @@ export default function RequestRating({ requestId, requestRevision = '', disable
       const canRate = ready && context.my_score === null;
       const actionError = saveFailure?.scope === scope && saveFailure.value.round === context.offer_round ? saveFailure.value.message : '';
       return <View key={`${userId}:${requestId}:${context.offer_round}:${context.counterparty_id}`} style={styles.assignment}>
-        <Text style={styles.label}>{context.outcome === 'cancelled' ? 'Cancelled assignment' : 'Completed assignment'} · Round {context.offer_round}</Text>
+        <Text style={styles.label}>{context.outcome === 'cancelled' ? 'Cancelled assignment' : 'Completed assignment'}</Text>
+        <Text style={styles.text}>Round {context.offer_round}</Text>
         <Text style={styles.text}>Your experience with {context.counterparty_display_name || `the ${context.counterparty_role}`}.</Text>
-        {context.outcome === 'cancelled' && <Text style={styles.text}>This accepted assignment ended without completion. You can still rate each other, even if the request has reopened or another helper is selected.</Text>}
+        {context.outcome === 'cancelled' && <Text style={styles.text}>You can still rate each other after a cancelled job.</Text>}
         {!!actionError && <Text accessibilityRole="alert" style={styles.error}>{actionError}</Text>}
         {context.my_score !== null ? <>
           <Text style={styles.label}>Your rating: {context.my_score} out of 5 stars</Text>
           {context.published && context.received_score !== null
-            ? <><Text style={styles.label}>Their rating of you: {context.received_score} out of 5 stars</Text><Text style={styles.text}>Both ratings are published and included in your reliability scores.</Text></>
-            : <Text style={styles.text}>Your rating is saved. Both scores stay private until the other person also rates this assignment.</Text>}
+            ? <><Text style={styles.label}>Their rating of you: {context.received_score} out of 5 stars</Text><Text style={styles.text}>Both ratings now count toward reliability.</Text></>
+            : <Text style={styles.text}>Rating saved. Both scores stay private until the other person rates.</Text>}
         </> : <>
           <Text style={styles.text}>Both scores stay private until you both submit. Your saved rating cannot be changed.</Text>
           <View style={styles.stars}>

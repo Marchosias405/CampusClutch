@@ -5,9 +5,9 @@ SELECT no_plan();
 
 -- Authentication fixtures and every message, assignment and injected failure
 -- are rolled back. Public workflows establish all ordinary authorization.
-INSERT INTO auth.users(id,email)
+INSERT INTO auth.users(id,email,email_confirmed_at)
 SELECT ('a010a010-a010-4010-8010-'||lpad(i::text,12,'0'))::uuid,
- 'messages-'||i||'@test.local' FROM generate_series(1,10) i;
+ 'messages-'||i||'@test.local',now() FROM generate_series(1,10) i;
 CREATE FUNCTION pg_temp.uid(i integer) RETURNS uuid LANGUAGE sql AS $$
  SELECT ('a010a010-a010-4010-8010-'||lpad(i::text,12,'0'))::uuid;
 $$;
@@ -67,7 +67,7 @@ SELECT is((SELECT profile_id FROM public.conversation_members WHERE conversation
 SELECT is(public.get_conversation_summary(pg_temp.fixture('ab'))->>'other_profile_id',pg_temp.uid(2)::text,'Summary identifies the authorized other participant');
 SELECT is(public.get_conversation_summary(pg_temp.fixture('ab'))->>'other_display_name','Message Tester 2','Summary exposes counterpart display name');
 SELECT is((SELECT array_agg(k ORDER BY k) FROM jsonb_object_keys(public.get_conversation_summary(pg_temp.fixture('ab'))) k),
- ARRAY['created_at','id','last_activity_at','last_message_at','last_message_body','last_message_sequence','last_read_sequence','other_display_name','other_profile_id','status','type','unread_count']::text[],
+ ARRAY['blocked_by_me','created_at','id','interaction_blocked','last_activity_at','last_message_at','last_message_body','last_message_sequence','last_read_sequence','other_display_name','other_profile_deleted','other_profile_id','status','type','unread_count']::text[],
  'Summary exposes the approved fields without peer read cursor, email or account metadata');
 SELECT is(public.get_conversation_summary(pg_temp.fixture('ab'))->>'type','direct','New conversation is direct');
 SELECT is(public.get_conversation_summary(pg_temp.fixture('ab'))->>'status','active','New conversation is active');

@@ -1,0 +1,17 @@
+:root { color-scheme: light; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color: #2b2525; background: #fff; }
+* { box-sizing: border-box; }
+body { margin: 0; }
+header { padding: 24px max(24px, calc((100vw - 520px) / 2)); color: white; background: #9b1c31; font-weight: 750; font-size: 24px; }
+main { max-width: 520px; margin: 40px auto; padding: 0 24px 40px; }
+h1 { font-size: clamp(26px, 6vw, 32px); line-height: 1.2; }
+p { line-height: 1.55; }
+.eyebrow { color: #9b1c31; font-weight: 650; }
+label { display: block; margin: 24px 0 10px; font-weight: 650; }
+input { width: 100%; font: inherit; font-size: 18px; padding: 16px; border: 1px solid #e8dddf; border-radius: 16px; background: #fbf8f8; }
+input:focus-visible, button:focus-visible { outline: 3px solid #9b1c31; outline-offset: 3px; }
+.hint, #help { color: #635c5c; }
+.hint { font-size: 14px; margin-top: 8px; }
+#error { color: #8f1428; font-weight: 600; }
+button { width: 100%; min-height: 54px; padding: 16px; border: 0; border-radius: 16px; font: inherit; font-weight: 700; color: white; background: #9b1c31; cursor: pointer; }
+button:disabled { opacity: .65; cursor: wait; }
+[hidden] { display: none !important; }

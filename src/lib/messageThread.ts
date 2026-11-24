@@ -1,4 +1,4 @@
-import type { ConversationMessage, ConversationSummary, MessagePage, SendMessageInput } from '../types/messaging';
+import type { ConversationMessage, ConversationSummary, MessagePage, MessageReadReceipt, SendMessageInput } from '../types/messaging';
 
 export type PendingMessage = { clientMessageId: string; body: string };
 type SavedDraft = { version: 1; draft: string; pending: PendingMessage | null };
@@ -16,6 +16,8 @@ export type ThreadState = {
   sendError: string;
   storageError: string;
   readError: string;
+  readReceipts: Record<string, MessageReadReceipt>;
+  receiptError: string;
 };
 type Dependencies = {
   namespace: string;
@@ -25,6 +27,7 @@ type Dependencies = {
   loadPage(userId: string, conversationId: string, options?: { beforeSequence?: string | null }): Promise<MessagePage>;
   send(userId: string, input: SendMessageInput): Promise<ConversationMessage>;
   markRead(userId: string, conversationId: string, sequence: string): Promise<string>;
+  loadReadReceipts(userId: string, conversationId: string, messageIds: string[]): Promise<MessageReadReceipt[]>;
   errorText(error: unknown): string;
 };
 
@@ -64,7 +67,7 @@ export function createMessageThread(userId: string, conversationId: string, deps
   let state: ThreadState = {
     summary: null, messages: [], loading: false, loadingOlder: false, hasMore: false,
     draft: '', pending: null, sending: false, restored: false,
-    error: '', sendError: '', storageError: '', readError: '',
+    error: '', sendError: '', storageError: '', readError: '', readReceipts: {}, receiptError: '',
   };
   const listeners = new Set<() => void>();
   let active = false, epoch = 0, generation = 0;
@@ -111,6 +114,25 @@ export function createMessageThread(userId: string, conversationId: string, deps
     } catch { emit({ storageError: STORAGE_ERROR }); }
   }
 
+  async function refreshReceipts(focus: number) {
+    if (!active || epoch !== focus || state.summary?.type !== 'direct') return;
+    // A receipt is immutable once known. Refresh all still-unread loaded rows,
+    // including older pages, without downloading their message bodies again.
+    const ids = state.messages.filter(row => row.sender_id === userId && !state.readReceipts[row.id]?.is_read).map(row => row.id);
+    try {
+      for (let offset = 0; offset < ids.length; offset += 50) {
+        const receipts = await deps.loadReadReceipts(userId, conversationId, ids.slice(offset, offset + 50));
+        if (!active || epoch !== focus || state.summary?.type !== 'direct') return;
+        const known = { ...state.readReceipts };
+        for (const receipt of receipts) if (receipt.is_read) known[receipt.message_id] = receipt;
+        emit({ readReceipts: known });
+      }
+      if (active && epoch === focus) emit({ receiptError: '' });
+    } catch {
+      if (active && epoch === focus) emit({ receiptError: 'Unable to refresh read receipts. Refresh the conversation to retry.' });
+    }
+  }
+
   async function refresh() {
     if (!active || state.loading || state.loadingOlder) return;
     const focus = epoch, ticket = ++generation;
@@ -135,11 +157,12 @@ export function createMessageThread(userId: string, conversationId: string, deps
       emit({ summary, messages: merged(state.messages, rows), hasMore: hadHistory ? state.hasMore : tail.hasMore, error: '' });
       await restore();
       if (valid(ticket, focus)) await reconcilePending(rows);
+      if (valid(ticket, focus)) await refreshReceipts(focus);
     } catch (error) {
       if (valid(ticket, focus)) {
         const denied = error && typeof error === 'object' && 'code' in error && ['42501', 'ACCOUNT_CHANGED'].includes(String(error.code));
         if (denied) { newestFetched = null; oldestCursor = null; }
-        emit({ error: deps.errorText(error), ...(denied ? { summary: null, messages: [], hasMore: false } : {}) });
+        emit({ error: deps.errorText(error), ...(denied ? { summary: null, messages: [], hasMore: false, readReceipts: {}, receiptError: '' } : {}) });
       }
     } finally {
       if (valid(ticket, focus)) {
@@ -159,6 +182,7 @@ export function createMessageThread(userId: string, conversationId: string, deps
       oldestCursor = page.nextCursor;
       emit({ messages: merged(state.messages, page.items), hasMore: page.hasMore });
       await reconcilePending(page.items);
+      if (valid(ticket, focus)) await refreshReceipts(focus);
     } catch (error) { if (valid(ticket, focus)) emit({ error: deps.errorText(error) }); }
     finally {
       if (valid(ticket, focus)) {
@@ -178,6 +202,7 @@ export function createMessageThread(userId: string, conversationId: string, deps
   async function send() {
     if (!active || sendBusy || !state.restored || !state.summary
       || (!state.pending && (state.summary.status !== 'active'
+        || (state.summary.type === 'direct' && state.summary.interaction_blocked)
         || (state.summary.type === 'group' && !state.summary.can_send)))) return;
     const body = state.pending?.body ?? state.draft.trim();
     if (!body || Array.from(body).length > 4000) {
@@ -203,6 +228,8 @@ export function createMessageThread(userId: string, conversationId: string, deps
       await mutateStorage(current => current.pending?.clientMessageId === pending.clientMessageId ? { ...EMPTY } : current);
       if (state.pending?.clientMessageId === pending.clientMessageId) {
         emit({ pending: null, draft: '', messages: merged(state.messages, [row]), sendError: '', storageError: '' });
+        // Receipt availability must not hold the composer after a confirmed send.
+        void refreshReceipts(focus);
       }
     } catch (error) {
       emit(persisted ? { sendError: deps.errorText(error) } : { storageError: STORAGE_ERROR });

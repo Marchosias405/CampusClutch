@@ -102,7 +102,7 @@ def financial_snapshot():
 
 try:
     for user in users:
-        sql(f"insert into auth.users(id,email) values('{user}','{user}@ratings-race.local'); "
+        sql(f"insert into auth.users(id,email,email_confirmed_at) values('{user}','{user}@ratings-race.local',now()); "
             f"update public.profiles set display_name='Ratings Race Tester',major='Testing',year_of_study=2,"
             f"campus_id=(select id from public.campuses where slug='burnaby') where id='{user}';")
 
@@ -163,7 +163,10 @@ try:
     assert len(ratings(request)) == 1 and not context(users[1], request)['published']
     print('PASS completion versus rating allows a score only after settlement and supports retry', flush=True)
 finally:
+    sql('delete from public.notifications where recipient_id in (' + ','.join(f"'{u}'" for u in users) + ')')
     sql('delete from public.requests where owner_id in (' + ','.join(f"'{u}'" for u in users) + ')')
     for user in users:
+        sql(f"delete from points_private.starter_grant_claims where email_fingerprint="
+            f"points_private.email_fingerprint('{user}@ratings-race.local')")
         sql(f"delete from auth.users where id='{user}'")
     print('Temporary ratings concurrency fixtures removed.', flush=True)

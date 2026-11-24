@@ -101,7 +101,7 @@ def ledger_count(request):
 
 try:
     for user in users:
-        sql(f"insert into auth.users(id,email) values('{user}','{user}@cancel-test.local'); "
+        sql(f"insert into auth.users(id,email,email_confirmed_at) values('{user}','{user}@cancel-test.local',now()); "
             f"update public.profiles set display_name='Cancel Race Tester',major='Testing',year_of_study=2,"
             f"campus_id=(select id from public.campuses where slug='burnaby') where id='{user}';")
 
@@ -153,7 +153,10 @@ try:
         assert value(f"select status from public.request_offers where id='{offer}'") == 'rejected'
     print('PASS open cancellation versus acceptance cannot silently cancel newly accepted work', flush=True)
 finally:
+    sql('delete from public.notifications where recipient_id in (' + ','.join(f"'{u}'" for u in users) + ')')
     sql('delete from public.requests where owner_id in (' + ','.join(f"'{u}'" for u in users) + ')')
     for user in users:
+        sql(f"delete from points_private.starter_grant_claims where email_fingerprint="
+            f"points_private.email_fingerprint('{user}@cancel-test.local')")
         sql(f"delete from auth.users where id='{user}'")
     print('Temporary cancellation concurrency fixtures removed.', flush=True)

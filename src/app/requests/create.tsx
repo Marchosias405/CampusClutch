@@ -1,32 +1,29 @@
+import { MotionPressable as Pressable } from '@/components/motion';
 import { FontAwesome5, Ionicons } from "@expo/vector-icons";
 import DateTimePicker, {
   DateTimePickerEvent,
 } from "@react-native-community/datetimepicker";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useLocalSearchParams, useNavigation, useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
   KeyboardAvoidingView,
   Platform,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { useAuth } from "../../context/AuthContext";
 import { loadRequest, requestError } from "../../lib/requests";
 import ScreenHeader from "../../components/ScreenHeader";
 import { useRequests } from "../../context/RequestsContext";
-import type {
-  CampusRequest,
-  RequestItemSize,
-} from "../../types";
-
-type RequestType = "Delivery" | "Event Help" | "Study Help" | "Pickup";
-
-
-type CampusName = "Burnaby" | "Surrey" | "Vancouver";
+import type { CampusRequest } from "../../types";
+import {
+  clearRequestDraft, emptyRequestForm, formFromRequest, readRequestDraft, requestDraftKey, saveRequestDraft,
+  type CampusName, type RequestFormValues, type RequestType,
+} from "../../lib/requestFormDraft";
 
 type SubmissionState = "idle" | "submitting" | "success";
 
@@ -68,9 +65,9 @@ const COLORS = {
   background: "#FFFFFF",
   cardWhite: "#FFFFFF",
   textDark: "#2B2525",
-  mutedText: "#8C8585",
+  mutedText: "#6E6565",
   border: "#EFE1E1",
-  inactiveGray: "#A5AAB3",
+  inactiveGray: "#68636B",
   safetyBox: "#FFF0F0",
   coinGold: "#F4A62A",
   softPink: "#FBECEC",
@@ -103,52 +100,47 @@ const requestTypes: {
   },
 ];
 
-const itemSizes: RequestItemSize[] = [
-  "Small",
-  "Medium",
-  "Large",
-];
 const weekDayLabels = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 export default function CreateRequestScreen() {
-  const router = useRouter();
-  const { addRequest } = useRequests();
   const { user } = useAuth();
   const { edit } = useLocalSearchParams<{ edit?: string }>();
   const editId = typeof edit === 'string' ? edit : undefined;
-  const [editReady, setEditReady] = useState(!editId);
+  if (!user) return null;
+  return <RequestForm key={requestDraftKey(user.id, editId)} userId={user.id} editId={editId} />;
+}
+
+function RequestForm({ userId, editId }: { userId: string; editId?: string }) {
+  const { fontScale } = useWindowDimensions();
+  const fieldColumn = [styles.columnField, { flexBasis: 160 * Math.max(1, fontScale) }];
+  const router = useRouter();
+  const { addRequest } = useRequests();
+  const navigation = useNavigation();
+  const storageKey = Platform.OS === 'android' ? requestDraftKey(userId, editId) : null;
+  const [editReady, setEditReady] = useState(!editId && !storageKey);
   const [editRetry, setEditRetry] = useState(0);
+  const [editLoadError, setEditLoadError] = useState("");
   const [urgent, setUrgent] = useState(false);
+  // Older request records and the save API still use a size. Preserve it when editing.
+  const originalItemSize = useRef<CampusRequest["itemSize"]>(undefined);
   const originalDeadline = useRef<string | undefined>(undefined);
-  const sessionUser = useRef(user?.id);
-  sessionUser.current = user?.id;
   const mounted = useRef(true);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
 
 
-  const [selectedRequestType, setSelectedRequestType] =
-    useState<RequestType>("Delivery");
-  const [requestTitle, setRequestTitle] = useState("");
-  const [campus, setCampus] = useState<CampusName>("Burnaby");
+  const [form, setForm] = useState(emptyRequestForm);
+  const { selectedRequestType, requestTitle, campus, roomLocation, pickupLocation, dropoffLocation,
+    eventName, eventTask, courseOrSubject, studyTopic, description, pointsOffered, deadlineAt } = form;
+  const deadlineDate = deadlineAt ? new Date(deadlineAt) : null;
+  const deadline = deadlineDate ? formatDeadlineDate(deadlineDate) : "";
+  const baseline = useRef(JSON.stringify(emptyRequestForm));
+  const lastForm = useRef(emptyRequestForm);
+  const leaving = useRef(false);
+  const [storageWarning, setStorageWarning] = useState(false);
   const [showCampusOptions, setShowCampusOptions] = useState(false);  
-  const [roomLocation, setRoomLocation] = useState("");
-  const [pickupLocation, setPickupLocation] = useState("");
-  const [dropoffLocation, setDropoffLocation] = useState("");
-
-  const [eventName, setEventName] = useState("");
-  const [eventTask, setEventTask] = useState("");
-  const [courseOrSubject, setCourseOrSubject] = useState("");
-  const [studyTopic, setStudyTopic] = useState("");
-
-  const [itemSize, setItemSize] =
-    useState<RequestItemSize>("Medium");
-  const [description, setDescription] = useState("");
-  const [deadline, setDeadline] = useState("");
-  const [deadlineDate, setDeadlineDate] = useState<Date | null>(null);
   const [showDeadlinePicker, setShowDeadlinePicker] = useState(false);
   const [showWebCalendar, setShowWebCalendar] = useState(false);
   const [calendarMonth, setCalendarMonth] = useState(new Date());
-  const [pointsOffered, setPointsOffered] = useState("");
   const [validationError, setValidationError] = useState("");
   const [invalidField, setInvalidField] = useState<ValidationField | null>(null);
 
@@ -168,25 +160,49 @@ export default function CreateRequestScreen() {
 
 
   useEffect(() => {
-    if (!editId) return;
+    if (!editId && !storageKey) return;
     let active = true;
     setEditReady(false);
-    loadRequest(editId).then(row => {
+    setEditLoadError("");
+    async function openForm() {
+      let initial = emptyRequestForm;
+      if (editId) {
+        const row = await loadRequest(editId);
+        if (!active) return;
+        if (!row || row.ownerId !== userId || row.status !== 'open') throw new Error('This request is no longer editable.');
+        initial = formFromRequest(row);
+        originalItemSize.current = row.itemSize;
+        originalDeadline.current = row.deadlineAt;
+        setUrgent(row.isUrgent ?? false);
+      }
+      baseline.current = JSON.stringify(initial);
+      const restored = storageKey ? await readRequestDraft(storageKey, baseline.current).catch(() => {
+        if (active) setStorageWarning(true);
+        return null;
+      }) : null;
       if (!active) return;
-      if (!row || row.ownerId !== user?.id || row.status !== 'open') throw new Error('This request is no longer editable.');
-      const labels = { DELIVERY: 'Delivery', PICKUP: 'Pickup', 'EVENT HELP': 'Event Help', 'STUDY HELP': 'Study Help' } as const;
-      setSelectedRequestType(labels[row.category]); setRequestTitle(row.title);
-      setCampus(row.campus as CampusName); setRoomLocation(row.roomLocation ?? '');
-      setPickupLocation(row.pickupLocation ?? ''); setDropoffLocation(row.dropoffLocation ?? '');
-      setEventName(row.eventName ?? ''); setEventTask(row.eventTask ?? '');
-      setCourseOrSubject(row.courseOrSubject ?? ''); setStudyTopic(row.studyTopic ?? '');
-      setItemSize(row.itemSize ?? 'Medium'); setDescription(row.description); setPointsOffered(String(row.points));
-      originalDeadline.current = row.deadlineAt;
-      const date = new Date(row.deadlineAt!); setDeadlineDate(date); setDeadline(date.toLocaleDateString('en-CA', {month:'short',day:'numeric',year:'numeric'}));
-      setUrgent(row.isUrgent ?? false); setEditReady(true);
-    }).catch(error => { if (active) setValidationError(requestError(error)); });
+      lastForm.current = restored ?? initial;
+      setForm(lastForm.current);
+      setEditReady(true);
+    }
+    void openForm().catch(error => { if (active) setEditLoadError(requestError(error)); });
     return () => { active = false; };
-  }, [editId, user?.id, editRetry]);
+  }, [editId, userId, storageKey, editRetry]);
+
+  useEffect(() => {
+    if (!storageKey || !editReady || leaving.current || lastForm.current === form) return;
+    lastForm.current = form;
+    const saved = JSON.stringify(form) === baseline.current
+      ? clearRequestDraft(storageKey)
+      : saveRequestDraft(storageKey, baseline.current, form);
+    void saved.catch(() => { if (mounted.current) setStorageWarning(true); });
+  }, [editReady, storageKey, form]);
+
+  useEffect(() => navigation.addListener('beforeRemove', event => {
+    if (!['GO_BACK', 'POP', 'POP_TO_TOP'].includes(event.data.action.type)) return;
+    leaving.current = true;
+    if (storageKey) void clearRequestDraft(storageKey).catch(() => undefined);
+  }), [navigation, storageKey]);
 
   const handleBack = () => {
     router.back();
@@ -208,10 +224,10 @@ export default function CreateRequestScreen() {
 
 
   const handleTextFieldChange = (
-    setter: React.Dispatch<React.SetStateAction<string>>,
+    field: keyof RequestFormValues,
     value: string
   ) => {
-    setter(value);
+    setForm(current => ({ ...current, [field]: value }));
     clearValidationError();
   };
 
@@ -224,32 +240,24 @@ export default function CreateRequestScreen() {
 
   const handleRequestTypeChange = (type: RequestType) => {
     if (editId) return;
-    setSelectedRequestType(type);
+    setForm(current => ({ ...current, selectedRequestType: type }));
     clearValidationError();
   };
-
-  const handleSizeChange = (size: RequestItemSize) => {
-    setItemSize(size);
-  };
-
-
 
   const handlePointsOfferedChange = (value: string) => {
-    const numbersOnly = value;
-
-    setPointsOffered(numbersOnly);
+    setForm(current => ({ ...current, pointsOffered: value }));
     clearValidationError();
   };
 
 
 
-  const formatDeadlineDate = (date: Date) => {
+  function formatDeadlineDate(date: Date) {
     return date.toLocaleDateString("en-CA", {
       month: "short",
       day: "numeric",
       year: "numeric",
     });
-  };
+  }
 
 
   useEffect(() => {
@@ -267,7 +275,7 @@ export default function CreateRequestScreen() {
 
   
   const handleCampusSelect = (selectedCampus: CampusName) => {
-    setCampus(selectedCampus);
+    setForm(current => ({ ...current, campus: selectedCampus }));
     setShowCampusOptions(false);
     clearValidationError();
   };  
@@ -332,8 +340,7 @@ const formatCalendarMonthLabel = (date: Date) => {
     };
 
     const handleSelectDeadlineDate = (date: Date) => {
-      setDeadlineDate(date);
-      setDeadline(formatDeadlineDate(date));
+      setForm(current => ({ ...current, deadlineAt: date.toISOString() }));
       setShowWebCalendar(false);
       setValidationError("");
       setInvalidField(null);
@@ -372,8 +379,7 @@ const formatCalendarMonthLabel = (date: Date) => {
       }
 
       if (selectedDate) {
-        setDeadlineDate(selectedDate);
-        setDeadline(formatDeadlineDate(selectedDate));
+        setForm(current => ({ ...current, deadlineAt: selectedDate.toISOString() }));
         setValidationError("");
         setInvalidField(null);
       }
@@ -411,7 +417,7 @@ const formatCalendarMonthLabel = (date: Date) => {
 
 
       const validateForm = (): ValidationResult => {
-        const pointsNumber = Number(pointsOffered.trim());
+        const pointsText = pointsOffered.trim();
 
         if (!requestTitle.trim() || requestTitle.trim().length > 120) {
           return {
@@ -512,17 +518,18 @@ const formatCalendarMonthLabel = (date: Date) => {
           };
         }
 
-        if (!pointsOffered.trim()) {
+        if (!pointsText) {
           return {
             field: "pointsOffered",
             message: "Please enter points offered.",
           };
         }
 
-        if (!Number.isInteger(pointsNumber) || pointsNumber <= 0 || pointsNumber > 2147483647) {
+        const pointsNumber = Number(pointsText);
+        if (!/^\d+$/.test(pointsText) || pointsNumber < 1 || pointsNumber > 2147483647) {
           return {
             field: "pointsOffered",
-            message: "Points offered must be a whole number greater than 0.",
+            message: "Enter a whole number from 1 to 2,147,483,647 using digits only.",
           };
         }
 
@@ -559,7 +566,6 @@ const formatCalendarMonthLabel = (date: Date) => {
       return;
     }
 
-    const submittingUser = user?.id;
     submitLockRef.current = true;
     setValidationError("");
     setInvalidField(null);
@@ -600,14 +606,14 @@ const formatCalendarMonthLabel = (date: Date) => {
         title: requestTitle.trim(),
         description: description.trim(),
 
-        location: `${campus.trim()} • ${roomLocation.trim()}`,
+        location: `${campus.trim()}, ${roomLocation.trim()}`,
         campus: campus.trim(),
         roomLocation: roomLocation.trim(),
 
         deadlineAt: expires.toISOString(),
         timeLabel: deadline.trim(),
         points: Number(pointsOffered.trim()),
-        itemSize,
+        itemSize: (editId && originalItemSize.current) || "Medium",
 
         status: "open",
         createdAt: new Date().toISOString(),
@@ -616,14 +622,19 @@ const formatCalendarMonthLabel = (date: Date) => {
         ...requestDetails,
       }, editId);
 
-      if (!mounted.current || sessionUser.current !== submittingUser) return;
+      leaving.current = true;
+      if (storageKey) {
+        const submitted = mounted.current ? undefined : { baseline: baseline.current, values: form };
+        await clearRequestDraft(storageKey, submitted).catch(() => { if (mounted.current) setStorageWarning(true); });
+      }
+      if (!mounted.current) return;
       setSubmissionState("success");
 
       navigationTimeoutRef.current = setTimeout(() => {
         router.replace({ pathname: "/requests/[id]", params: { id: newRequest } });
       }, 500);
     } catch (error) {
-      if (!mounted.current || sessionUser.current !== submittingUser) return;
+      if (!mounted.current) return;
 
       submitLockRef.current = false;
       setSubmissionState("idle");
@@ -640,6 +651,12 @@ const formatCalendarMonthLabel = (date: Date) => {
   const isSubmitting = submissionState === "submitting";
   const isSubmissionSuccessful = submissionState === "success";
   const isSubmitDisabled = submissionState !== "idle" || !editReady;
+  const isLoadingEdit = !editReady && !editLoadError;
+  const submitLabel = isSubmitting
+    ? (editId ? "Saving changes..." : "Posting...")
+    : isSubmissionSuccessful
+      ? (editId ? "Changes Saved" : "Request Posted")
+      : (editId ? "Save Changes" : "Post Request");
 
 
   
@@ -648,11 +665,18 @@ const formatCalendarMonthLabel = (date: Date) => {
     <View style={styles.safeArea}>
       <View style={styles.screen}>
         <ScreenHeader>
-          <Pressable hitSlop={10} onPress={handleBack} disabled={submissionState !== 'idle'}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Back"
+            accessibilityState={{ disabled: submissionState !== "idle" }}
+            disabled={submissionState !== "idle"}
+            onPress={handleBack}
+            style={styles.backButton}
+          >
             <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
           </Pressable>
 
-          <Text style={styles.headerTitle}>{editId ? "Edit Request" : "New Request"}</Text>
+          <Text accessibilityRole="header" style={styles.headerTitle}>{editId ? "Edit Request" : "New Request"}</Text>
 
           <View style={styles.headerSpacer} />
         </ScreenHeader>
@@ -671,10 +695,15 @@ const formatCalendarMonthLabel = (date: Date) => {
               Platform.OS === "ios" ? "interactive" : "on-drag"
             }
           >
+          <View pointerEvents={editReady && submissionState === "idle" ? "auto" : "none"}
+            importantForAccessibility={editReady ? "auto" : "no-hide-descendants"}
+            accessibilityElementsHidden={!editReady}>
           <Text style={styles.sectionTitle}>Request Type</Text>
 
           <ScrollView
             horizontal
+            accessibilityRole="radiogroup"
+            accessibilityLabel="Request type"
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.requestTypesRow}
           >
@@ -684,6 +713,11 @@ const formatCalendarMonthLabel = (date: Date) => {
               return (
                 <Pressable
                   key={type.id}
+                  accessibilityRole="radio"
+                  accessibilityLabel={type.label}
+                  aria-checked={isActive}
+                  disabled={Boolean(editId)}
+                  accessibilityState={{ disabled: Boolean(editId) }}
                   style={[
                     styles.requestTypeCard,
                     isActive && styles.activeRequestTypeCard,
@@ -713,10 +747,9 @@ const formatCalendarMonthLabel = (date: Date) => {
             <Text style={styles.inputLabel}>Request Title</Text>
             <TextInput
               value={requestTitle}
-              onChangeText={(value) =>
-                handleTextFieldChange(setRequestTitle, value)
-              }              
-              placeholder="e.g., Tim Hortons Coffee Delivery to Librar"
+              onChangeText={value => handleTextFieldChange("requestTitle", value)}
+              accessibilityLabel="Request title"
+              placeholder="e.g., Coffee delivery"
               placeholderTextColor={COLORS.inactiveGray}
               style={[
                 styles.textInput,
@@ -733,10 +766,13 @@ const formatCalendarMonthLabel = (date: Date) => {
 
 
 
-            <View style={styles.columnField}>
+            <View style={fieldColumn}>
               <Text style={styles.inputLabel}>Campus</Text>
 
               <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Campus, ${campus}`}
+                aria-expanded={showCampusOptions}
                 style={[
                   styles.selectorInput,
                   invalidField === "campus" && styles.invalidInput,
@@ -753,13 +789,16 @@ const formatCalendarMonthLabel = (date: Date) => {
               </Pressable>
 
               {showCampusOptions && (
-                <View style={styles.campusOptionsCard}>
+                <View accessibilityRole="radiogroup" accessibilityLabel="Campus options" style={styles.campusOptionsCard}>
                   {campusOptions.map((campusOption) => {
                     const isSelected = campus === campusOption;
 
                     return (
                       <Pressable
                         key={campusOption}
+                        accessibilityRole="radio"
+                        accessibilityLabel={campusOption}
+                        aria-checked={isSelected}
                         style={[
                           styles.campusOption,
                           isSelected && styles.selectedCampusOption,
@@ -799,15 +838,14 @@ const formatCalendarMonthLabel = (date: Date) => {
 
 
 
-            <View style={styles.columnField}>
+            <View style={fieldColumn}>
               <Text style={styles.inputLabel}>Room/Specific Location</Text>
 
               <TextInput
                 value={roomLocation}
-                onChangeText={(value) =>
-                  handleTextFieldChange(setRoomLocation, value)
-                }                
-                placeholder="e.g., Room 3002"
+                onChangeText={value => handleTextFieldChange("roomLocation", value)}
+                accessibilityLabel="Room or specific location"
+                placeholder="e.g., 3002"
                 placeholderTextColor={COLORS.inactiveGray}
                 style={[
                   styles.textInput,
@@ -855,10 +893,9 @@ const formatCalendarMonthLabel = (date: Date) => {
                   />
 
                   <TextInput
+                    accessibilityLabel="Pickup location"
                     value={pickupLocation}
-                    onChangeText={(value) =>
-                      handleTextFieldChange(setPickupLocation, value)
-                    }
+                    onChangeText={value => handleTextFieldChange("pickupLocation", value)}
                     placeholder={
                       selectedRequestType === "Delivery"
                         ? "e.g., AQ Tim Hortons"
@@ -891,10 +928,9 @@ const formatCalendarMonthLabel = (date: Date) => {
                   />
 
                   <TextInput
+                    accessibilityLabel={selectedRequestType === "Delivery" ? "Drop-off location" : "Destination"}
                     value={dropoffLocation}
-                    onChangeText={(value) =>
-                      handleTextFieldChange(setDropoffLocation, value)
-                    }
+                    onChangeText={value => handleTextFieldChange("dropoffLocation", value)}
                     placeholder={
                       selectedRequestType === "Delivery"
                         ? "e.g., WMC Study Area"
@@ -937,10 +973,9 @@ const formatCalendarMonthLabel = (date: Date) => {
                   />
 
                   <TextInput
+                    accessibilityLabel="Event name"
                     value={eventName}
-                    onChangeText={(value) =>
-                      handleTextFieldChange(setEventName, value)
-                    }
+                    onChangeText={value => handleTextFieldChange("eventName", value)}
                     placeholder="e.g., Student Union Gala"
                     placeholderTextColor={COLORS.inactiveGray}
                     style={styles.iconTextInput}
@@ -965,10 +1000,9 @@ const formatCalendarMonthLabel = (date: Date) => {
                   />
 
                   <TextInput
+                    accessibilityLabel="Help needed"
                     value={eventTask}
-                    onChangeText={(value) =>
-                      handleTextFieldChange(setEventTask, value)
-                    }
+                    onChangeText={value => handleTextFieldChange("eventTask", value)}
                     placeholder="e.g., Set up chairs and tables"
                     placeholderTextColor={COLORS.inactiveGray}
                     style={styles.iconTextInput}
@@ -1007,10 +1041,9 @@ const formatCalendarMonthLabel = (date: Date) => {
                   />
 
                   <TextInput
+                    accessibilityLabel="Course or subject"
                     value={courseOrSubject}
-                    onChangeText={(value) =>
-                      handleTextFieldChange(setCourseOrSubject, value)
-                    }
+                    onChangeText={value => handleTextFieldChange("courseOrSubject", value)}
                     placeholder="e.g., MATH 151"
                     placeholderTextColor={COLORS.inactiveGray}
                     style={styles.iconTextInput}
@@ -1035,10 +1068,9 @@ const formatCalendarMonthLabel = (date: Date) => {
                   />
 
                   <TextInput
+                    accessibilityLabel="Topic"
                     value={studyTopic}
-                    onChangeText={(value) =>
-                      handleTextFieldChange(setStudyTopic, value)
-                    }
+                    onChangeText={value => handleTextFieldChange("studyTopic", value)}
                     placeholder="e.g., Derivative rules"
                     placeholderTextColor={COLORS.inactiveGray}
                     style={styles.iconTextInput}
@@ -1055,40 +1087,12 @@ const formatCalendarMonthLabel = (date: Date) => {
 
 
           <View style={styles.formGroup}>
-            <Text style={styles.inputLabel}>Item/Task Size</Text>
-
-            <View style={styles.sizeRow}>
-              {itemSizes.map((size) => {
-                const isActive = itemSize === size;
-
-                return (
-                  <Pressable
-                    key={size}
-                    style={[styles.sizeButton, isActive && styles.activeSizeButton]}
-                    onPress={() => handleSizeChange(size)}
-                  >
-                    <Text
-                      style={[
-                        styles.sizeButtonText,
-                        isActive && styles.activeSizeButtonText,
-                      ]}
-                    >
-                      {size}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-          </View>
-
-          <View style={styles.formGroup}>
             <Text style={styles.inputLabel}>Description</Text>
 
             <TextInput
+              accessibilityLabel="Description"
               value={description}
-              onChangeText={(value) =>
-                handleTextFieldChange(setDescription, value)
-              }
+              onChangeText={value => handleTextFieldChange("description", value)}
               placeholder="Tell us more about what you need..."
               placeholderTextColor={COLORS.inactiveGray}
               style={[
@@ -1104,10 +1108,13 @@ const formatCalendarMonthLabel = (date: Date) => {
 
 
             
-            <View style={styles.columnField}>
+            <View style={[fieldColumn, showWebCalendar && styles.fullColumn]}>
               <Text style={styles.inputLabel}>Deadline (end of day)</Text>
 
               <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Deadline (end of day), ${deadline || "Pick date"}`}
+                aria-expanded={showWebCalendar || showDeadlinePicker}
                 style={[
                   styles.iconInputWrapSmall,
                   invalidField === "deadline" && styles.invalidInput,
@@ -1119,7 +1126,6 @@ const formatCalendarMonthLabel = (date: Date) => {
                     styles.deadlineText,
                     !deadline && styles.deadlinePlaceholderText,
                   ]}
-                  numberOfLines={1}
                 >
                   {deadline || "Pick date"}
                 </Text>
@@ -1137,6 +1143,8 @@ const formatCalendarMonthLabel = (date: Date) => {
                   <View style={styles.webCalendarHeader}>
                     <Pressable
                       style={styles.calendarNavButton}
+                      accessibilityRole="button"
+                      accessibilityLabel="Previous month"
                       onPress={handlePreviousCalendarMonth}
                     >
                       <Ionicons name="chevron-back" size={18} color={COLORS.primary} />
@@ -1148,6 +1156,8 @@ const formatCalendarMonthLabel = (date: Date) => {
 
                     <Pressable
                       style={styles.calendarNavButton}
+                      accessibilityRole="button"
+                      accessibilityLabel="Next month"
                       onPress={handleNextCalendarMonth}
                     >
                       <Ionicons name="chevron-forward" size={18} color={COLORS.primary} />
@@ -1177,6 +1187,9 @@ const formatCalendarMonthLabel = (date: Date) => {
                       return (
                         <Pressable
                           key={date.toISOString()}
+                          accessibilityRole="button"
+                          accessibilityLabel={formatDeadlineDate(date)}
+                          aria-selected={isSelected}
                           style={[
                             styles.calendarDayCell,
                             styles.calendarDayButton,
@@ -1214,6 +1227,7 @@ const formatCalendarMonthLabel = (date: Date) => {
 
               {showDeadlinePicker && Platform.OS === "ios" && (
                 <Pressable
+                  accessibilityRole="button"
                   style={styles.doneDateButton}
                   onPress={handleCloseDeadlinePicker}
                 >
@@ -1227,7 +1241,7 @@ const formatCalendarMonthLabel = (date: Date) => {
 
 
 
-            <View style={styles.columnField}>
+            <View style={fieldColumn}>
               <Text style={styles.inputLabel}>Points Offered</Text>
 
               <View
@@ -1244,6 +1258,7 @@ const formatCalendarMonthLabel = (date: Date) => {
                 />
 
                 <TextInput
+                  accessibilityLabel="Points offered"
                   value={pointsOffered}
                   onChangeText={handlePointsOfferedChange}
                   keyboardType="number-pad"
@@ -1287,13 +1302,27 @@ const formatCalendarMonthLabel = (date: Date) => {
 
 
 
-          {editId && !editReady && <Pressable onPress={() => setEditRetry(value => value + 1)}><Text style={styles.validationText}>{validationError || 'Loading request…'} Tap to retry.</Text></Pressable>}
-          {validationError ? (
-            <Text style={styles.validationText}>{validationError}</Text>
+          </View>
+          {storageWarning && <Text accessibilityRole="alert" style={styles.validationText}>Device storage is unavailable. Your draft may not be recovered correctly.</Text>}
+          {isLoadingEdit && <Text accessibilityLiveRegion="polite" style={styles.validationText}>{editId ? 'Loading request…' : 'Opening draft…'}</Text>}
+          {editLoadError || validationError ? (
+            <Text accessibilityRole="alert" accessibilityLiveRegion="assertive" style={styles.validationText}>
+              {editLoadError || validationError}
+            </Text>
           ) : null}
+          {!!editLoadError && (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Retry loading request"
+              style={styles.retryButton}
+              onPress={() => { setEditLoadError(""); setEditRetry(value => value + 1); }}
+            >
+              <Text style={styles.validationText}>Retry loading request</Text>
+            </Pressable>
+          )}
 
           {isSubmissionSuccessful ? (
-            <Text style={styles.successText}>
+            <Text accessibilityLiveRegion="polite" style={styles.successText}>
               {editId ? 'Changes saved successfully.' : 'Request posted successfully.'}
             </Text>
           ) : null}
@@ -1307,17 +1336,14 @@ const formatCalendarMonthLabel = (date: Date) => {
             onPress={handleSubmit}
             disabled={isSubmitDisabled}
             accessibilityRole="button"
+            accessibilityLabel={submitLabel}
             accessibilityState={{
               disabled: isSubmitDisabled,
-              busy: isSubmitting,
+              busy: isSubmitting || isLoadingEdit,
             }}
           >
             <Text style={styles.submitButtonText}>
-              {isSubmitting
-                ? "Posting..."
-                : isSubmissionSuccessful
-                  ? "Request Posted"
-                  : editId ? "Save Changes" : "Post Request"}
+              {submitLabel}
             </Text>
 
             <Ionicons
@@ -1344,6 +1370,16 @@ const formatCalendarMonthLabel = (date: Date) => {
 }
 
 const styles = StyleSheet.create({
+  backButton: {
+    width: 48,
+    height: 48,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  retryButton: {
+    minHeight: 48,
+    justifyContent: "center",
+  },
   invalidInput: {
   borderColor: COLORS.primary,
   borderWidth: 2,
@@ -1396,8 +1432,10 @@ const styles = StyleSheet.create({
   },
 
   requestTypeCard: {
-    width: 102,
-    height: 118,
+    minWidth: 102,
+    minHeight: 118,
+    paddingHorizontal: 10,
+    paddingVertical: 12,
     borderRadius: 12,
     borderWidth: 1.5,
     borderColor: COLORS.border,
@@ -1439,7 +1477,7 @@ const styles = StyleSheet.create({
   },
 
   textInput: {
-    height: 47,
+    minHeight: 48,
     borderRadius: 10,
     borderWidth: 1.5,
     borderColor: "#E8CFCF",
@@ -1452,12 +1490,18 @@ const styles = StyleSheet.create({
 
   twoColumnRow: {
     flexDirection: "row",
+    flexWrap: "wrap",
     gap: 12,
     marginBottom: 15,
   },
 
   columnField: {
-    flex: 1,
+    flexGrow: 1,
+    flexShrink: 1,
+    minWidth: 0,
+  },
+  fullColumn: {
+    flexBasis: "100%",
   },
 
 
@@ -1472,7 +1516,7 @@ const styles = StyleSheet.create({
   },
 
   campusOption: {
-    minHeight: 43,
+    minHeight: 48,
     paddingHorizontal: 14,
     flexDirection: "row",
     alignItems: "center",
@@ -1498,7 +1542,7 @@ const styles = StyleSheet.create({
 
 
   selectorInput: {
-    height: 47,
+    minHeight: 48,
     borderRadius: 10,
     borderWidth: 1.5,
     borderColor: "#E8CFCF",
@@ -1539,7 +1583,7 @@ const styles = StyleSheet.create({
   },
 
   iconInputWrap: {
-    height: 47,
+    minHeight: 48,
     borderRadius: 10,
     borderWidth: 1.5,
     borderColor: "#E8CFCF",
@@ -1555,39 +1599,10 @@ const styles = StyleSheet.create({
 
   iconTextInput: {
     flex: 1,
+    minHeight: 48,
     fontSize: 15,
     fontWeight: "600",
     color: COLORS.textDark,
-  },
-
-  sizeRow: {
-    flexDirection: "row",
-    gap: 10,
-  },
-
-  sizeButton: {
-    flex: 1,
-    height: 47,
-    borderRadius: 10,
-    borderWidth: 1.5,
-    borderColor: "#E8CFCF",
-    backgroundColor: COLORS.cardWhite,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  activeSizeButton: {
-    borderColor: COLORS.primary,
-  },
-
-  sizeButtonText: {
-    fontSize: 15,
-    fontWeight: "800",
-    color: COLORS.mutedText,
-  },
-
-  activeSizeButtonText: {
-    color: COLORS.primary,
   },
 
   descriptionInput: {
@@ -1604,7 +1619,7 @@ const styles = StyleSheet.create({
   },
 
   iconInputWrapSmall: {
-    height: 47,
+    minHeight: 48,
     borderRadius: 10,
     borderWidth: 1.5,
     borderColor: "#E8CFCF",
@@ -1634,7 +1649,7 @@ const styles = StyleSheet.create({
 
   doneDateButton: {
     marginTop: 8,
-    height: 34,
+    minHeight: 48,
     borderRadius: 8,
     backgroundColor: COLORS.primary,
     alignItems: "center",
@@ -1665,9 +1680,9 @@ const styles = StyleSheet.create({
   },
 
   calendarNavButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 48,
+    minHeight: 48,
+    borderRadius: 24,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#FFF0F0",
@@ -1699,7 +1714,7 @@ const styles = StyleSheet.create({
 
   calendarDayCell: {
     width: "14.28%",
-    height: 34,
+    minHeight: 48,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -1742,6 +1757,7 @@ const styles = StyleSheet.create({
 
   pointsInput: {
     flex: 1,
+    minHeight: 48,
     fontSize: 15,
     fontWeight: "800",
     color: COLORS.textDark,
@@ -1768,7 +1784,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     lineHeight: 15,
     fontWeight: "700",
-    color: "#8D6F6F",
+    color: COLORS.mutedText,
   },
   
   validationText: {
@@ -1806,7 +1822,7 @@ const styles = StyleSheet.create({
 
 
   submitButton: {
-    height: 55,
+    minHeight: 55,
     borderRadius: 10,
     backgroundColor: COLORS.primary,
     flexDirection: "row",

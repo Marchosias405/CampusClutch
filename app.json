@@ -15,6 +15,7 @@
     },
     "android": {
       "package": "com.marchosias405.campusclutch",
+      "allowBackup": false,
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./src/assets/images/android-icon-foreground.png",
@@ -30,6 +31,8 @@
     },
     "plugins": [
       "expo-router",
+      "expo-secure-store",
+      "expo-notifications",
       [
         "expo-splash-screen",
         {

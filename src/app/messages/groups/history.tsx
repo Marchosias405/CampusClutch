@@ -85,7 +85,7 @@ function AccountHistory({ userId }: { userId: string }) {
       renderItem={({ item }) => <Pressable accessibilityRole="button" accessibilityLabel={`Open read-only history for ${item.group_title}`} style={styles.row}
         onPress={() => router.push({ pathname: '/messages/[id]', params: { id: item.id } })}>
         <View style={styles.icon}><Ionicons name="people" size={23} color={COLORS.primary} /></View>
-        <View style={styles.body}><Text style={styles.name}>{item.group_title}</Text><Text style={styles.course}>{item.group_course_code} · Read-only history</Text>
+        <View style={styles.body}><Text style={styles.name}>{item.group_title}</Text><Text style={styles.course}>{item.group_course_code}</Text><Text style={styles.muted}>Read-only history</Text>
           <Text numberOfLines={2} style={styles.muted}>{item.last_message_body || 'No messages from your membership period'}</Text></View>
         <Ionicons name="chevron-forward" size={20} color={COLORS.muted} />
       </Pressable>}

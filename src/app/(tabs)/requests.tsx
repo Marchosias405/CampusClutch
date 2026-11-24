@@ -1,8 +1,8 @@
+import { LoadingSkeleton } from '@/components/LoadingState';
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useFocusEffect } from "expo-router";
 import React, { useCallback, useRef, useState } from "react";
 import {
-  ActivityIndicator,
   RefreshControl,
   Pressable,
   ScrollView,
@@ -11,6 +11,7 @@ import {
   View,
 } from "react-native";
 import ScreenHeader from "../../components/ScreenHeader";
+import NotificationBell from "../../components/NotificationBell";
 import { useAuth } from "../../context/AuthContext";
 import { loadRequests, requestError } from "../../lib/requests";
 import type { CampusRequest, RequestCategory } from "../../types";
@@ -25,7 +26,7 @@ const COLORS = {
   background: "#FFFFFF",
   cardWhite: "#FFFFFF",
   textDark: "#2B2525",
-  mutedText: "#8C8585",
+  mutedText: "#635C5C",
   border: "#ECE3E3",
   inactiveGray: "#A5AAB3",
   lightPillGray: "#F4F1F1",
@@ -50,41 +51,65 @@ const statusLabels: Record<NonNullable<CampusRequest["status"]>, string> = {
 };
 
 
-  export default function RequestsFeedScreen() {
-    const router = useRouter();
-    const { user } = useAuth();
-    const [selectedFilter, setSelectedFilter] = useState<RequestCategory>("ALL");
-    const [mine, setMine] = useState(false);
-    const [archived, setArchived] = useState(false);
-    const [requests, setRequests] = useState<CampusRequest[]>([]);
-    const [loadedFor, setLoadedFor] = useState<string>();
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState("");
-    const [hasMore, setHasMore] = useState(false);
-    const offset = useRef(0);
-    const generation = useRef(0);
-    const busy = useRef(false);
-    const fetchPage = useCallback(async (append = false) => {
-      if (!user || (append && busy.current)) return;
-      const ticket = ++generation.current;
-      busy.current = true;
-      setLoading(true); setError("");
-      if (!append) { setRequests([]); offset.current = 0; setHasMore(false); }
-      try {
-        const result = await loadRequests(selectedFilter, mine ? user.id : null, append ? offset.current : 0, archived);
-        if (ticket !== generation.current) return;
-        setLoadedFor(user.id);
-        setRequests(previous => append ? [...previous, ...result.items.filter(item => !previous.some(old => old.id === item.id))] : result.items);
-        offset.current = result.nextOffset; setHasMore(result.hasMore);
-      } catch (failure) { if (ticket === generation.current) setError(requestError(failure)); }
-      finally { if (ticket === generation.current) { setLoading(false); busy.current = false; } }
-    }, [user, selectedFilter, mine, archived]);
-    useFocusEffect(useCallback(() => {
-      void fetchPage();
-      const timer = setInterval(() => { void fetchPage(); }, 60000);
-      return () => { clearInterval(timer); ++generation.current; busy.current = false; setRequests([]); };
-    }, [fetchPage]));
-    const visibleRequests = user?.id === loadedFor ? requests : [];
+export default function RequestsFeedScreen() {
+  const router = useRouter();
+  const { user } = useAuth();
+  const userId = user?.id;
+  const [selectedFilter, setSelectedFilter] = useState<RequestCategory>("ALL");
+  const [mine, setMine] = useState(false);
+  const [archived, setArchived] = useState(false);
+  const scope = JSON.stringify([userId, selectedFilter, mine, archived]);
+  const [requests, setRequests] = useState<CampusRequest[]>([]);
+  const [loadedFor, setLoadedFor] = useState<string>();
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [hasMore, setHasMore] = useState(false);
+  const offset = useRef(0);
+  const generation = useRef(0);
+  const busy = useRef(false);
+  const activeScope = useRef(scope);
+  const expanded = useRef(false);
+  const fetchPage = useCallback(async (append = false) => {
+    if (!userId || busy.current) return;
+    const ticket = ++generation.current;
+    busy.current = true;
+    setLoading(true);
+    setError("");
+    try {
+      const result = await loadRequests(selectedFilter, mine ? userId : null, append ? offset.current : 0, archived);
+      if (ticket !== generation.current) return;
+      setLoadedFor(scope);
+      setRequests(previous => append ? [...previous, ...result.items.filter(item => !previous.some(old => old.id === item.id))] : result.items);
+      offset.current = result.nextOffset;
+      expanded.current = append;
+      setHasMore(result.hasMore);
+    } catch (failure) {
+      if (ticket === generation.current) setError(requestError(failure));
+    } finally {
+      if (ticket === generation.current) {
+        setLoading(false);
+        busy.current = false;
+      }
+    }
+  }, [userId, selectedFilter, mine, archived, scope]);
+  useFocusEffect(useCallback(() => {
+    if (activeScope.current !== scope) {
+      activeScope.current = scope;
+      setRequests([]);
+      offset.current = 0;
+      expanded.current = false;
+      setHasMore(false);
+    }
+    void fetchPage();
+    // Keep older loaded pages in place until the student explicitly refreshes.
+    const timer = setInterval(() => { if (!expanded.current) void fetchPage(); }, 60000);
+    return () => {
+      clearInterval(timer);
+      ++generation.current;
+      busy.current = false;
+    };
+  }, [fetchPage, scope]));
+  const visibleRequests = loadedFor === scope ? requests : [];
 
   const handleFilterChange = (filter: RequestCategory) => {
     setSelectedFilter(filter);
@@ -114,12 +139,7 @@ const statusLabels: Record<NonNullable<CampusRequest["status"]>, string> = {
         <ScreenHeader>
           <Text style={styles.headerTitle}>Requests</Text>
 
-          <Pressable
-            hitSlop={10}
-            onPress={() => router.push("/notifications" as any)}
-          >
-            <Ionicons name="notifications-outline" size={22} color="#FFFFFF" />
-          </Pressable>
+          <NotificationBell />
         </ScreenHeader>
 
         <ScrollView
@@ -164,8 +184,7 @@ const statusLabels: Record<NonNullable<CampusRequest["status"]>, string> = {
           <Pressable accessibilityRole="button" style={[styles.filterPill, styles.feedToggle]} onPress={() => router.push('/requests/offers')}>
             <Text style={styles.filterText}>My offers</Text>
           </Pressable>
-          {loading && <View style={styles.refreshStatus}><ActivityIndicator color={COLORS.primary} /><Text>Refreshing requests…</Text></View>}
-          {!!error && <Pressable onPress={() => { void fetchPage(); }}><Text accessibilityRole="alert">{error} Tap to retry.</Text></Pressable>}
+          {!!error && <Pressable accessibilityRole="button" accessibilityLabel="Retry requests" style={styles.retryButton} onPress={() => { void fetchPage(); }}><Text accessibilityRole="alert" style={styles.retryText}>{error} Tap to retry.</Text></Pressable>}
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -178,6 +197,8 @@ const statusLabels: Record<NonNullable<CampusRequest["status"]>, string> = {
               return (
                 <Pressable
                   key={filter}
+                  accessibilityRole="tab"
+                  accessibilityState={{ selected: isActive }}
                   style={[
                     styles.filterPill,
                     isActive && styles.activeFilterPill,
@@ -201,6 +222,7 @@ const statusLabels: Record<NonNullable<CampusRequest["status"]>, string> = {
 
 
           <View style={styles.requestList}>
+            {loading && visibleRequests.length === 0 && !error && <LoadingSkeleton variant="requests" label="Loading requests…" />}
             {visibleRequests.length === 0 && !loading && !error ? (
               <View style={styles.emptyState}>
                 <View style={styles.emptyStateIcon}>
@@ -341,7 +363,7 @@ const statusLabels: Record<NonNullable<CampusRequest["status"]>, string> = {
           {hasMore && <Pressable disabled={loading} style={styles.emptyStateButton} onPress={() => { void fetchPage(true); }}><Text style={styles.emptyStateButtonText}>Load more</Text></Pressable>}
         </ScrollView>
 
-        <Pressable style={styles.fab} onPress={handleCreateRequest}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Post a request" style={styles.fab} onPress={handleCreateRequest}>
           <Ionicons name="add" size={28} color={COLORS.cardWhite} />
         </Pressable>
       </View>
@@ -373,7 +395,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 18,
     paddingTop: 18,
-    paddingBottom: 32,
+    paddingBottom: 106,
   },
 
   balanceBar: {
@@ -448,7 +470,8 @@ const styles = StyleSheet.create({
 
   feedTab: {
     flex: 1,
-    minHeight: 42,
+    minHeight: 48,
+    minWidth: 0,
     paddingHorizontal: 12,
     paddingVertical: 10,
     borderRadius: 21,
@@ -467,8 +490,9 @@ const styles = StyleSheet.create({
   },
 
   filterPill: {
-    height: 35,
+    minHeight: 48,
     paddingHorizontal: 18,
+    paddingVertical: 10,
     borderRadius: 18,
     backgroundColor: COLORS.cardWhite,
     borderWidth: 1,
@@ -484,9 +508,23 @@ const styles = StyleSheet.create({
   },
 
   filterText: {
+    maxWidth: "100%",
     fontSize: 13,
     fontWeight: "700",
     color: COLORS.mutedText,
+    textAlign: "center",
+  },
+
+  retryButton: {
+    minHeight: 48,
+    justifyContent: "center",
+    paddingVertical: 12,
+    marginBottom: 12,
+  },
+
+  retryText: {
+    color: COLORS.primary,
+    fontSize: 15,
   },
 
   activeFilterText: {
@@ -516,20 +554,27 @@ const styles = StyleSheet.create({
 
   cardTopRow: {
     flexDirection: "row",
+    flexWrap: "wrap",
     alignItems: "center",
     justifyContent: "space-between",
+    gap: 8,
     marginBottom: 11,
   },
 
   badgesRow: {
     flexDirection: "row",
     alignItems: "center",
-    flex: 1,
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: 150,
+    minWidth: 0,
+    maxWidth: "100%",
     flexWrap: "wrap",
     gap: 7,
   },
 
   categoryBadge: {
+    maxWidth: "100%",
     backgroundColor: COLORS.softPink,
     borderRadius: 7,
     paddingHorizontal: 10,
@@ -539,11 +584,12 @@ const styles = StyleSheet.create({
   categoryBadgeText: {
     fontSize: 11,
     fontWeight: "900",
-    color: "#C2606B",
+    color: COLORS.primary,
     letterSpacing: 0.2,
   },
 
   statusBadge: {
+    maxWidth: "100%",
     backgroundColor: COLORS.lightPillGray,
     borderRadius: 7,
     paddingHorizontal: 10,
@@ -560,7 +606,8 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "900",
     color: COLORS.primary,
-    marginLeft: 8,
+    maxWidth: "100%",
+    flexShrink: 1,
     backgroundColor: COLORS.softPink,
     overflow: "hidden",
     borderRadius: 9,
@@ -607,8 +654,10 @@ const styles = StyleSheet.create({
 
   offerButton: {
     alignSelf: "flex-end",
-    height: 38,
+    maxWidth: "100%",
+    minHeight: 48,
     paddingHorizontal: 20,
+    paddingVertical: 12,
     borderRadius: 19,
     backgroundColor: COLORS.primary,
     alignItems: "center",
@@ -616,6 +665,8 @@ const styles = StyleSheet.create({
   },
 
   offerButtonText: {
+    flexShrink: 1,
+    textAlign: "center",
     fontSize: 14,
     fontWeight: "700",
     color: COLORS.cardWhite,
@@ -684,17 +735,21 @@ const styles = StyleSheet.create({
   },
 
   emptyStateButton: {
-    height: 42,
+    minHeight: 48,
+    maxWidth: "100%",
     borderRadius: 21,
     backgroundColor: COLORS.primary,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 20,
+    paddingVertical: 12,
     gap: 7,
   },
 
   emptyStateButtonText: {
+    flexShrink: 1,
+    textAlign: "center",
     fontSize: 14,
     fontWeight: "800",
     color: COLORS.cardWhite,

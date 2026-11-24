@@ -22,7 +22,7 @@ const COLORS = {
   primary: "#9B1C31",
   background: "#FFFFFF",
   textDark: "#2B2525",
-  mutedText: "#8C8585",
+  mutedText: "#635C5C",
   border: "#E8DDDF",
   inputBackground: "#FBF8F8",
   errorBackground: "#FDECEE",
@@ -66,16 +66,7 @@ export default function ResetPasswordScreen() {
       const code = queryParameters.get("code");
       const errorDescription = queryParameters.get("error_description");
 
-      if (errorDescription) {
-        if (!isCancelled) {
-          setErrorMessage(errorDescription);
-          setIsPreparing(false);
-        }
-
-        return;
-      }
-
-      if (!code) {
+      if (errorDescription || !code || code.length > 2048) {
         if (!isCancelled) {
           setErrorMessage(
             "The password reset link is invalid or has expired."
@@ -151,18 +142,18 @@ export default function ResetPasswordScreen() {
 
   if (isPreparing) {
     return (
-      <View style={styles.centeredScreen}>
+      <ScrollView style={styles.screen} contentContainerStyle={[styles.centeredScreen, { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 24 }]}>
         <ActivityIndicator size="large" color={COLORS.primary} />
         <Text style={styles.loadingText}>
           Verifying your reset link...
         </Text>
-      </View>
+      </ScrollView>
     );
   }
 
   if (errorMessage && !password && !confirmPassword) {
     return (
-      <View style={styles.centeredScreen}>
+      <ScrollView style={styles.screen} contentContainerStyle={[styles.centeredScreen, { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 24 }]}>
         <View style={styles.brandIcon}>
           <Ionicons name="alert-outline" size={34} color="#FFFFFF" />
         </View>
@@ -174,6 +165,7 @@ export default function ResetPasswordScreen() {
         </View>
 
         <Pressable
+          accessibilityRole="button"
           style={styles.primaryButton}
           onPress={() => router.replace("/forgot-password" as never)}
         >
@@ -183,6 +175,7 @@ export default function ResetPasswordScreen() {
         </Pressable>
 
         <Pressable
+          accessibilityRole="button"
           style={styles.secondaryButton}
           onPress={() => router.replace("/sign-in" as never)}
         >
@@ -190,7 +183,7 @@ export default function ResetPasswordScreen() {
             Return to Sign In
           </Text>
         </Pressable>
-      </View>
+      </ScrollView>
     );
   }
 
@@ -306,7 +299,7 @@ const styles = StyleSheet.create({
   },
 
   centeredScreen: {
-    flex: 1,
+    flexGrow: 1,
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 24,
@@ -365,7 +358,8 @@ const styles = StyleSheet.create({
   },
 
   input: {
-    height: 54,
+    minHeight: 54,
+    paddingVertical: 12,
     borderWidth: 1,
     borderColor: COLORS.border,
     borderRadius: 12,
@@ -376,7 +370,7 @@ const styles = StyleSheet.create({
   },
 
   passwordInputContainer: {
-    height: 54,
+    minHeight: 54,
     flexDirection: "row",
     alignItems: "center",
     borderWidth: 1,
@@ -387,15 +381,18 @@ const styles = StyleSheet.create({
 
   passwordInput: {
     flex: 1,
-    height: "100%",
+    minHeight: 54,
+    paddingVertical: 12,
     paddingLeft: 16,
     fontSize: 16,
     color: COLORS.textDark,
   },
 
   visibilityButton: {
+    alignSelf: "stretch",
     width: 52,
-    height: "100%",
+    minHeight: 54,
+    paddingVertical: 12,
     alignItems: "center",
     justifyContent: "center",
   },

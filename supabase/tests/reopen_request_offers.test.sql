@@ -4,9 +4,9 @@ SET search_path=public,extensions;
 SELECT no_plan();
 
 -- Everything, including profiles, events and audit history, rolls back at EOF.
-INSERT INTO auth.users(id,email)
+INSERT INTO auth.users(id,email,email_confirmed_at)
 SELECT ('91919191-9191-4919-8919-'||lpad(i::text,12,'0'))::uuid,
-  'reopen-'||i||'@test.local' FROM generate_series(1,6) i;
+  'reopen-'||i||'@test.local',now() FROM generate_series(1,6) i;
 UPDATE public.profiles SET display_name='Reopen Tester',major='Computing Science',year_of_study=2,
   campus_id=(SELECT id FROM public.campuses WHERE slug='burnaby')
 WHERE id IN (SELECT ('91919191-9191-4919-8919-'||lpad(i::text,12,'0'))::uuid FROM generate_series(1,5) i);

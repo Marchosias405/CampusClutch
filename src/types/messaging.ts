@@ -24,6 +24,10 @@ export type DirectConversationSummary = ConversationSummaryBase & {
   type: 'direct';
   other_profile_id: string;
   other_display_name: string | null;
+  /** Optional for compatibility with summaries loaded before blocking was deployed. */
+  interaction_blocked?: boolean;
+  other_profile_deleted?: boolean;
+  blocked_by_me?: boolean;
 };
 
 export type GroupConversationSummary = ConversationSummaryBase & {
@@ -52,6 +56,13 @@ export type ConversationMessage = {
   sequence: MessageSequence;
   body: string;
   created_at: string;
+};
+
+export type MessageReadReceipt = {
+  message_id: string;
+  is_read: boolean;
+  /** Null for unread messages and legacy reads whose first read time was not recorded. */
+  read_at: string | null;
 };
 
 export type ConversationCursor = { activityAt: string; id: string };

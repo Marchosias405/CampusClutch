@@ -1,6 +1,7 @@
+import { LoadingSkeleton, LoadingNotice } from '@/components/LoadingState';
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
-import { useRouter } from "expo-router";
+import { useRouter, type Href } from "expo-router";
 import React, {
   useCallback,
   useMemo,
@@ -18,6 +19,7 @@ import {
 } from "react-native";
 
 import ScreenHeader from "../../components/ScreenHeader";
+import NotificationBell from "../../components/NotificationBell";
 import { useAuth } from "@/context/AuthContext";
 
 import {
@@ -38,9 +40,9 @@ const COLORS = {
   background: "#FFFFFF",
   cardWhite: "#FFFFFF",
   textDark: "#2B2525",
-  mutedText: "#8C8585",
+  mutedText: "#635C5C",
   border: "#ECE3E3",
-  inactiveGray: "#A5AAB3",
+  inactiveGray: "#635C5C",
   tagGray: "#F4F1F1",
   softPink: "#FBECEC",
 };
@@ -73,6 +75,7 @@ function CoursesIndexScreen({ userId }: { userId: string }) {
   const active = useRef(false);
   const scrollView = useRef<ScrollView>(null);
   const loadEpoch = useRef(0);
+  const loadBusy = useRef(false);
   const leaveEpoch = useRef(0);
   const leaveBusy = useRef(false);
   const [pendingRemoval, setPendingRemoval] = useState<MyCourse | null>(null);
@@ -92,6 +95,8 @@ function CoursesIndexScreen({ userId }: { userId: string }) {
     useState<string | null>(null);
 
   const loadCourses = useCallback(async () => {
+    if (!active.current || loadBusy.current) return;
+    loadBusy.current = true;
     const ticket = ++loadEpoch.current;
     setIsLoading(true);
     setErrorMessage(null);
@@ -107,7 +112,10 @@ function CoursesIndexScreen({ userId }: { userId: string }) {
         "We couldn't load your courses. Please try again."
       );
     } finally {
-      if (active.current && ticket === loadEpoch.current) setIsLoading(false);
+      if (active.current && ticket === loadEpoch.current) {
+        loadBusy.current = false;
+        setIsLoading(false);
+      }
     }
   }, [userId]);
 
@@ -121,6 +129,7 @@ function CoursesIndexScreen({ userId }: { userId: string }) {
       void loadCourses();
       return () => {
         active.current = false;
+        loadBusy.current = false;
         loadEpoch.current += 1;
         leaveEpoch.current += 1;
       };
@@ -180,6 +189,11 @@ function CoursesIndexScreen({ userId }: { userId: string }) {
     } as any);
   };
 
+  const handleOpenReviews = (course: MyCourse) => {
+    if (!active.current || leaveBusy.current) return;
+    router.push({ pathname: "/courses/reviews", params: { code: course.code } } as any);
+  };
+
   const performLeaveCourse = async (
     course: MyCourse
   ) => {
@@ -193,6 +207,9 @@ function CoursesIndexScreen({ userId }: { userId: string }) {
       await leaveCourse(course.id, userId);
       if (!active.current || ticket !== leaveEpoch.current) return;
       setPendingRemoval(null);
+      setCourses((current) => current.filter((item) => item.id !== course.id));
+      loadEpoch.current += 1;
+      loadBusy.current = false;
       await loadCourses();
     } catch {
       if (!active.current || ticket !== leaveEpoch.current) return;
@@ -227,6 +244,9 @@ function CoursesIndexScreen({ userId }: { userId: string }) {
 
           <View style={styles.headerActions}>
             <Pressable
+              style={styles.iconButton}
+              accessibilityRole="button"
+              accessibilityLabel="Add a course"
               hitSlop={10}
               onPress={() =>
                 router.push("/courses/add" as any)
@@ -239,18 +259,7 @@ function CoursesIndexScreen({ userId }: { userId: string }) {
               />
             </Pressable>
 
-            <Pressable
-              hitSlop={10}
-              onPress={() =>
-                router.push("/notifications" as any)
-              }
-            >
-              <Ionicons
-                name="notifications-outline"
-                size={22}
-                color="#FFFFFF"
-              />
-            </Pressable>
+            <NotificationBell />
           </View>
         </ScreenHeader>
 
@@ -261,6 +270,12 @@ function CoursesIndexScreen({ userId }: { userId: string }) {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
+          <Pressable accessibilityRole="button" accessibilityLabel="Browse course reviews"
+            style={styles.directoryLink} onPress={() => router.push("/courses/review-directory" as Href)}>
+            <Ionicons name="chatbubbles-outline" size={22} color={COLORS.primary} />
+            <Text style={styles.directoryLabel}>Browse course reviews</Text>
+            <Ionicons name="chevron-forward" size={18} color={COLORS.primary} />
+          </Pressable>
           <View style={styles.searchBar}>
             <Ionicons
               name="search"
@@ -269,9 +284,10 @@ function CoursesIndexScreen({ userId }: { userId: string }) {
             />
 
             <TextInput
+              accessibilityLabel="Search your courses"
               value={search}
               onChangeText={setSearch}
-              placeholder="Search courses"
+              placeholder="Search your courses"
               placeholderTextColor={COLORS.inactiveGray}
               style={styles.searchInput}
               returnKeyType="search"
@@ -280,6 +296,9 @@ function CoursesIndexScreen({ userId }: { userId: string }) {
 
             {search.length > 0 && (
               <Pressable
+                style={styles.iconButton}
+                accessibilityRole="button"
+                accessibilityLabel="Clear course search"
                 hitSlop={10}
                 onPress={() => setSearch("")}
               >
@@ -305,6 +324,8 @@ function CoursesIndexScreen({ userId }: { userId: string }) {
               return (
                 <Pressable
                   key={filter.id}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: isActive }}
                   style={[
                     styles.filterPill,
                     isActive &&
@@ -332,28 +353,20 @@ function CoursesIndexScreen({ userId }: { userId: string }) {
             <Text style={styles.courseTitle}>Remove {pendingRemoval.code} ({pendingRemoval.term.displayName}) from your CampusClutch courses?</Text>
             {removeError && <Text style={styles.removalError}>{removeError}</Text>}
             <View style={styles.removalActions}>
-              <Pressable disabled={leavingCourseId !== null} onPress={() => setPendingRemoval(null)} style={styles.confirmRemove}>
+              <Pressable accessibilityRole="button" disabled={leavingCourseId !== null} onPress={() => setPendingRemoval(null)} style={styles.confirmRemove}>
                 <Text style={styles.classmatesText}>Keep course</Text>
               </Pressable>
-              <Pressable disabled={leavingCourseId !== null} onPress={() => void performLeaveCourse(pendingRemoval)} style={styles.confirmRemove}>
+              <Pressable accessibilityRole="button" disabled={leavingCourseId !== null} onPress={() => void performLeaveCourse(pendingRemoval)} style={styles.confirmRemove}>
                 {leavingCourseId ? <ActivityIndicator color={COLORS.primary} /> : <Text style={styles.classmatesText}>Remove course</Text>}
               </Pressable>
             </View>
           </View>}
 
-          {isLoading ? (
-            <View style={styles.stateContainer}>
-              <ActivityIndicator
-                size="small"
-                color={COLORS.primary}
-              />
-
-              <Text style={styles.stateText}>
-                Loading your courses...
-              </Text>
-            </View>
-          ) : errorMessage ? (
-            <View style={styles.stateContainer}>
+          {isLoading && !errorMessage && (courses.length === 0
+            ? <LoadingSkeleton variant="courses" label="Loading your courses…" />
+            : <LoadingNotice label="Refreshing your courses…" />)}
+          {errorMessage && (
+            <View style={styles.stateContainer} accessibilityLiveRegion="polite">
               <Ionicons
                 name="alert-circle-outline"
                 size={28}
@@ -365,6 +378,9 @@ function CoursesIndexScreen({ userId }: { userId: string }) {
               </Text>
 
               <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Retry loading your courses"
+                disabled={isLoading}
                 style={styles.retryButton}
                 onPress={() => void loadCourses()}
               >
@@ -373,7 +389,8 @@ function CoursesIndexScreen({ userId }: { userId: string }) {
                 </Text>
               </Pressable>
             </View>
-          ) : (
+          )}
+          {(courses.length > 0 || (!isLoading && !errorMessage)) && (
             <>
               <View style={styles.sectionHeader}>
                 <Text style={styles.sectionTitle}>
@@ -404,27 +421,33 @@ function CoursesIndexScreen({ userId }: { userId: string }) {
                       key={course.id}
                       style={styles.courseCard}
                     >
-                      <View style={styles.courseInfo}>
+                      <Pressable style={styles.courseInfo}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Read reviews for ${course.code}, ${course.term.displayName}`}
+                        onPress={() => handleOpenReviews(course)}>
                         <Text style={styles.courseCode}>
                           {course.code}
                         </Text>
 
                         <Text
                           style={styles.courseTitle}
-                          numberOfLines={1}
                         >
                           {course.title}
                         </Text>
                         <Text style={styles.courseTitle}>{course.term.displayName}</Text>
-                        {!!courseDetailsLabel(course) && <Text style={styles.courseTitle}>{courseDetailsLabel(course)}</Text>}
-                      </View>
+                        {!!courseDetailsLabel(course) && <Text style={styles.courseTitle}>{courseDetailsLabel(course, "\n")}</Text>}
+                        <Text style={styles.reviewLink}>Course reviews ›</Text>
+                      </Pressable>
 
                       <View style={styles.courseActions}>
                         {isCurrentCourse(course) && <Pressable
+                          accessibilityRole="button"
+                          accessibilityLabel={`Find classmates in ${course.code}`}
                           style={styles.classmatesButton}
-                          onPress={() =>
-                            handleOpenClassmates(course)
-                          }
+                          onPress={(event) => {
+                            event?.stopPropagation();
+                            handleOpenClassmates(course);
+                          }}
                         >
                           <Text style={styles.classmatesText}>
                             Classmates
@@ -438,15 +461,17 @@ function CoursesIndexScreen({ userId }: { userId: string }) {
                         </Pressable>}
 
                         <Pressable
+                          accessibilityRole="button"
                           style={styles.removeButton}
                           hitSlop={6}
                           accessibilityLabel={`Remove ${course.code}`}
                           disabled={
                             leavingCourseId === course.id
                           }
-                          onPress={() =>
-                            handleRemoveCourse(course)
-                          }
+                          onPress={(event) => {
+                            event?.stopPropagation();
+                            handleRemoveCourse(course);
+                          }}
                         >
                           {leavingCourseId === course.id ? (
                             <ActivityIndicator
@@ -472,7 +497,10 @@ function CoursesIndexScreen({ userId }: { userId: string }) {
                       key={course.id}
                       style={styles.previousCard}
                     >
-                      <View style={styles.previousInfo}>
+                      <Pressable style={styles.previousInfo}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Read reviews for ${course.code}, ${course.term.displayName}`}
+                        onPress={() => handleOpenReviews(course)}>
                         <Text style={styles.previousCode}>
                           {course.code}
                         </Text>
@@ -480,7 +508,8 @@ function CoursesIndexScreen({ userId }: { userId: string }) {
                         <Text style={styles.previousTerm}>
                           {course.term.displayName}
                         </Text>
-                      </View>
+                        <Text style={styles.reviewLink}>Course reviews ›</Text>
+                      </Pressable>
 
                       <View style={styles.archivedRow}>
                         <Text style={styles.archivedText}>
@@ -493,6 +522,8 @@ function CoursesIndexScreen({ userId }: { userId: string }) {
                         {course.membershipStatus !==
                           "completed" && (
                           <Pressable
+                            accessibilityRole="button"
+                            accessibilityLabel={`Remove ${course.code}`}
                             style={
                               styles.previousRemoveButton
                             }
@@ -501,9 +532,10 @@ function CoursesIndexScreen({ userId }: { userId: string }) {
                               leavingCourseId ===
                               course.id
                             }
-                            onPress={() =>
-                              handleRemoveCourse(course)
-                            }
+                            onPress={(event) => {
+                              event?.stopPropagation();
+                              handleRemoveCourse(course);
+                            }}
                           >
                             {leavingCourseId ===
                             course.id ? (
@@ -535,9 +567,14 @@ function CoursesIndexScreen({ userId }: { userId: string }) {
 }
 
 const styles = StyleSheet.create({
+  directoryLink: { flexDirection: "row", alignItems: "center", minHeight: 48, gap: 12,
+    backgroundColor: COLORS.softPink, borderRadius: 13, paddingHorizontal: 14, paddingVertical: 12, marginBottom: 16 },
+  directoryLabel: { flex: 1, color: COLORS.primary, fontWeight: "700", fontSize: 15 },
+  reviewLink: { color: COLORS.primary, fontSize: 12, fontWeight: "800", marginTop: 8 },
   removalBox: { borderRadius: 14, padding: 14, backgroundColor: COLORS.softPink, marginBottom: 16 },
-  removalActions: { flexDirection: "row", gap: 16, marginTop: 10 },
-  confirmRemove: { paddingVertical: 12, paddingHorizontal: 10 },
+  removalActions: { flexDirection: "row", flexWrap: "wrap", gap: 12, marginTop: 10 },
+  confirmRemove: { minHeight: 48, justifyContent: "center", paddingVertical: 12, paddingHorizontal: 10 },
+  iconButton: { minWidth: 48, minHeight: 48, alignItems: "center", justifyContent: "center" },
   removalError: { color: COLORS.primary, marginTop: 8 },
   upcomingNote: { fontSize: 13, lineHeight: 19, color: COLORS.mutedText, marginBottom: 14 },
   safeArea: {
@@ -551,6 +588,8 @@ const styles = StyleSheet.create({
   },
 
   headerTitle: {
+    flex: 1,
+    minWidth: 0,
     fontSize: 20,
     fontWeight: "900",
     color: "#FFFFFF",
@@ -559,7 +598,7 @@ const styles = StyleSheet.create({
   headerActions: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 18,
+    gap: 4,
   },
 
   scrollView: {
@@ -573,7 +612,7 @@ const styles = StyleSheet.create({
   },
 
   searchBar: {
-    height: 47,
+    minHeight: 52,
     borderRadius: 13,
     backgroundColor: COLORS.cardWhite,
     borderWidth: 1,
@@ -587,6 +626,8 @@ const styles = StyleSheet.create({
 
   searchInput: {
     flex: 1,
+    minWidth: 0,
+    paddingVertical: 12,
     fontSize: 14,
     color: COLORS.textDark,
     fontWeight: "600",
@@ -597,7 +638,8 @@ const styles = StyleSheet.create({
   },
 
   filterPill: {
-    height: 34,
+    minHeight: 48,
+    paddingVertical: 10,
     paddingHorizontal: 17,
     borderRadius: 17,
     backgroundColor: COLORS.tagGray,
@@ -624,6 +666,8 @@ const styles = StyleSheet.create({
 
   sectionHeader: {
     flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
     alignItems: "center",
     justifyContent: "space-between",
     marginBottom: 14,
@@ -659,7 +703,8 @@ const styles = StyleSheet.create({
 
   retryButton: {
     marginTop: 14,
-    minHeight: 38,
+    minHeight: 48,
+    paddingVertical: 10,
     paddingHorizontal: 18,
     borderRadius: 19,
     backgroundColor: COLORS.primary,
@@ -690,8 +735,8 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.cardWhite,
     borderWidth: 1,
     borderColor: COLORS.border,
-    flexDirection: "row",
-    alignItems: "center",
+    alignItems: "stretch",
+    gap: 12,
     paddingHorizontal: 14,
     paddingVertical: 12,
     shadowColor: "#000",
@@ -705,8 +750,7 @@ const styles = StyleSheet.create({
   },
 
   courseInfo: {
-    flex: 1,
-    marginRight: 8,
+    minHeight: 48,
   },
 
   courseCode: {
@@ -724,26 +768,31 @@ const styles = StyleSheet.create({
 
   courseActions: {
     flexDirection: "row",
+    flexWrap: "wrap",
     alignItems: "center",
     gap: 8,
   },
 
   classmatesButton: {
+    minHeight: 48,
+    paddingVertical: 10,
+    flexShrink: 1,
     flexDirection: "row",
     alignItems: "center",
     gap: 3,
   },
 
   classmatesText: {
+    flexShrink: 1,
     fontSize: 11,
     fontWeight: "800",
     color: COLORS.primary,
   },
 
   removeButton: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    width: 48,
+    height: 48,
+    borderRadius: 22,
     backgroundColor: COLORS.softPink,
     alignItems: "center",
     justifyContent: "center",
@@ -760,14 +809,14 @@ const styles = StyleSheet.create({
     borderColor: COLORS.border,
     backgroundColor: COLORS.cardWhite,
     paddingHorizontal: 16,
-    flexDirection: "row",
-    alignItems: "center",
+    paddingVertical: 12,
+    alignItems: "stretch",
+    gap: 12,
     justifyContent: "space-between",
   },
 
   previousInfo: {
-    flex: 1,
-    marginRight: 12,
+    minHeight: 48,
   },
 
   previousCode: {
@@ -785,6 +834,7 @@ const styles = StyleSheet.create({
 
   archivedRow: {
     flexDirection: "row",
+    flexWrap: "wrap",
     alignItems: "center",
     gap: 10,
   },
@@ -796,9 +846,9 @@ const styles = StyleSheet.create({
   },
 
   previousRemoveButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 48,
+    height: 48,
+    borderRadius: 22,
     backgroundColor: COLORS.softPink,
     alignItems: "center",
     justifyContent: "center",

@@ -41,6 +41,7 @@ function fixture() {
     randomUUID: () => `70000000-0000-4000-8000-${String(++state.uuids).padStart(12, '0')}`,
     loadSummary: async () => state.summary,
     loadPage: async () => state.page,
+    loadReadReceipts: async () => [],
     send: async (user, input) => { state.calls.push(plain(input)); return row(1, { sender_id: user, client_message_id: input.clientMessageId, body: input.body }); },
     markRead: async (_user, _chat, sequence) => { state.reads.push(sequence); return sequence; },
     errorText: () => 'Unable to confirm. Retry the same message.',
@@ -52,6 +53,95 @@ async function ready(model) { model.setActive(true); await until(() => model.get
 async function test(name, run) { await run(); count++; console.log('PASS ' + name); }
 
 (async () => {
+  await test('live block invalidation preserves history and draft, stops new sends, and unblock restores composing', async () => {
+    const f = fixture(); f.state.page.items = [row(1)];
+    const model = f.create(); await ready(model); model.setDraft('Keep my unsent text');
+    f.state.summary = { ...summary, interaction_blocked: true, blocked_by_me: false };
+    model.invalidate(); await until(() => model.getSnapshot().summary.interaction_blocked);
+    await model.send(); assert.equal(f.state.calls.length, 0);
+    assert.equal(model.getSnapshot().draft, 'Keep my unsent text');
+    assert.equal(model.getSnapshot().messages.length, 1);
+    f.state.summary = { ...summary, interaction_blocked: false, blocked_by_me: false };
+    await model.refresh(); await model.send(); assert.equal(f.state.calls.length, 1);
+    model.setActive(false);
+  });
+  await test('a saved ambiguous send may reconcile after blocking without creating a fresh attempt', async () => {
+    const f = fixture(); let first = true;
+    const send = f.deps.send;
+    f.deps.send = async (...args) => { if (first) { first = false; throw Error('response lost'); } return send(...args); };
+    const model = f.create(); await ready(model); model.setDraft('Possibly committed'); await model.send();
+    const attempt = plain(model.getSnapshot().pending); assert.ok(attempt);
+    f.state.summary = { ...summary, interaction_blocked: true, blocked_by_me: true };
+    await model.refresh(); await model.send();
+    assert.equal(f.state.calls.length, 1); assert.equal(f.state.calls[0].clientMessageId, attempt.clientMessageId);
+    assert.equal(f.state.uuids, 1); assert.equal(model.getSnapshot().pending, null);
+    model.setActive(false);
+  });
+  await test('live receipt refresh updates outgoing rows without changing messages or drafts', async () => {
+    const f = fixture(); let read = false; let calls = 0;
+    const own = row(1, { sender_id: A });
+    f.state.page = { items: [row(2), own], hasMore: false, nextCursor: null };
+    f.deps.loadReadReceipts = async (actor, chat, ids) => {
+      assert.equal(actor, A); assert.equal(chat, C); assert.deepEqual(plain(ids), [own.id]); calls++;
+      return [{ message_id: own.id, is_read: read, read_at: read ? TIME : null }];
+    };
+    const model = f.create(); await ready(model); model.setDraft('Keep this draft');
+    assert.deepEqual(plain(model.getSnapshot().readReceipts), {});
+    read = true; model.invalidate(); await until(() => !!model.getSnapshot().readReceipts[own.id]);
+    assert.equal(model.getSnapshot().readReceipts[own.id].read_at, TIME);
+    assert.equal(model.getSnapshot().draft, 'Keep this draft');
+    assert.equal(model.getSnapshot().messages.length, 2);
+    await until(() => !model.getSnapshot().loading);
+    await model.refresh(); assert.equal(calls, 2, 'confirmed immutable receipts need no further query');
+    model.setActive(false);
+  });
+  await test('receipt refresh batches all loaded outgoing history, including pages older than newest fetch', async () => {
+    const f = fixture(); const all = Array.from({ length: 65 }, (_, i) => row(65-i, { sender_id: A }));
+    f.state.page = { items: all.slice(0,30), hasMore: true, nextCursor: '36' };
+    const batches = []; let read = false;
+    f.deps.loadReadReceipts = async (_a, _c, ids) => { batches.push(plain(ids)); return ids.map(id => ({ message_id: id, is_read: read, read_at: read ? TIME : null })); };
+    const model = f.create(); await ready(model);
+    f.state.page = { items: all.slice(30), hasMore: false, nextCursor: null }; await model.loadOlder();
+    assert.ok(batches.every(ids => ids.length <= 50));
+    read = true; f.state.page = { items: all.slice(0,30), hasMore: true, nextCursor: '36' }; await model.refresh();
+    assert.equal(Object.keys(model.getSnapshot().readReceipts).length, 65);
+    assert.equal(model.getSnapshot().messages.length, 65); model.setActive(false);
+  });
+  await test('receipt failures preserve history and known receipts; reconnect retries without inventing reads', async () => {
+    const f = fixture(); const first = row(1, { sender_id: A }), second = row(2, { sender_id: A }); let fail = false;
+    f.state.page = { items: [first], hasMore: false, nextCursor: null };
+    f.deps.loadReadReceipts = async (_a, _c, ids) => {
+      if (fail) throw Error('offline');
+      return ids.map(id => ({ message_id: id, is_read: true, read_at: id === first.id ? null : TIME }));
+    };
+    const model = f.create(); await ready(model);
+    fail = true; f.state.page.items = [second, first]; await model.refresh();
+    assert.equal(model.getSnapshot().messages.length, 2);
+    assert.equal(model.getSnapshot().readReceipts[first.id].read_at, null);
+    assert.equal(model.getSnapshot().readReceipts[second.id], undefined);
+    assert.ok(model.getSnapshot().receiptError);
+    fail = false; await model.refresh();
+    assert.equal(model.getSnapshot().readReceipts[second.id].read_at, TIME);
+    assert.equal(model.getSnapshot().receiptError, ''); model.setActive(false);
+  });
+  await test('a late receipt response after blur cannot populate another account or focus', async () => {
+    const f = fixture(), delayed = defer(), own = row(1, { sender_id: A });
+    f.state.page.items = [own]; f.deps.loadReadReceipts = () => delayed.promise;
+    const old = f.create(); old.setActive(true); await until(() => old.getSnapshot().messages.length === 1);
+    old.setActive(false);
+    f.deps.loadReadReceipts = async () => []; const next = f.create(B); await ready(next);
+    delayed.resolve([{ message_id: own.id, is_read: true, read_at: TIME }]); await tick();
+    assert.deepEqual(plain(old.getSnapshot().readReceipts), {});
+    assert.deepEqual(plain(next.getSnapshot().readReceipts), {}); next.setActive(false);
+  });
+  await test('immediate send confirmation queries the new row even if the peer read before refresh', async () => {
+    const f = fixture();
+    f.deps.loadReadReceipts = async (_a, _c, ids) => ids.map(id => ({ message_id: id, is_read: true, read_at: TIME }));
+    const model = f.create(); await ready(model); model.setDraft('Already read'); await model.send();
+    await until(() => !!model.getSnapshot().readReceipts[model.getSnapshot().messages[0].id]);
+    assert.equal(model.getSnapshot().readReceipts[model.getSnapshot().messages[0].id].read_at, TIME);
+    assert.equal(model.getSnapshot().pending, null); model.setActive(false);
+  });
   await test('loads real rows but marks only an observed incoming message while active', async () => {
     const { create, state } = fixture();
     state.page = { items: [row(3, { sender_id: A }), row(2), row(1)], hasMore: false, nextCursor: null };

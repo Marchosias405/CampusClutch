@@ -10,6 +10,8 @@ For the full architecture, see `docs/backend-plan.md`.
 
 ## Current Environment Structure
 
+The [Preview deployment guide](preview-deployment.md) covers the GitHub Actions release workflow and its setup.
+
 | Environment | Supabase backend | EAS environment |
 |---|---|---|
 | Local | Local Supabase through Docker | Local `.env.local` |

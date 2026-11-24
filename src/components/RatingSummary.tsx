@@ -1,7 +1,8 @@
+import { LoadingSkeleton, LoadingNotice } from '@/components/LoadingState';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from 'expo-router';
 import React, { useCallback, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useAuth } from '../context/AuthContext';
 import { loadProfileRatingSummary, type ProfileRatingSummary } from '../lib/ratings';
 
@@ -50,16 +51,17 @@ export default function RatingSummary({ profileId, requestId }: Props) {
   const loading = loadingScope === scope;
   return <View style={styles.section}>
     <Text style={styles.heading}>Reliability</Text>
-    {loading && <ActivityIndicator color="#9B1C31" accessibilityLabel="Loading reliability rating" />}
+    {loading && !error && (visible ? <LoadingNotice label="Refreshing reliability rating" /> : <LoadingSkeleton variant="details" rows={1} label="Loading reliability rating" />)}
     {error ? <>
       <Text accessibilityRole="alert" style={styles.text}>Unable to load the reliability rating. Check your connection and try again.</Text>
       <Pressable accessibilityRole="button" disabled={loading} style={styles.retry} onPress={() => { void refresh(); }}><Text style={styles.retryText}>Retry rating</Text></Pressable>
     </> : visible && <>
       {visible.rating_count > 0 && visible.average_score !== null ? <View style={styles.scoreRow}>
         <Ionicons name="star" size={20} color="#9B1C31" />
-        <Text style={styles.score}>{Number(visible.average_score).toFixed(1)} / 5 · {visible.rating_count} {visible.rating_count === 1 ? 'rating' : 'ratings'}</Text>
+        <Text style={styles.score}>{Number(visible.average_score).toFixed(1)} / 5</Text>
+        <Text style={styles.text}>Based on {visible.rating_count} {visible.rating_count === 1 ? 'rating' : 'ratings'}</Text>
       </View> : <Text style={styles.text}>No published ratings yet.</Text>}
-      <Text style={styles.text}>Completed and cancelled accepted assignments count toward this score once both people have rated.</Text>
+      <Text style={styles.text}>Ratings appear after both people rate a completed or cancelled job.</Text>
     </>}
   </View>;
 }
@@ -68,5 +70,5 @@ const styles = StyleSheet.create({
   section: { gap: 8, paddingVertical: 12 }, heading: { fontSize: 16, fontWeight: '800', color: '#2B2525' },
   text: { fontSize: 14, lineHeight: 20, color: '#635C5C' }, scoreRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
   score: { fontSize: 15, fontWeight: '700', lineHeight: 22, color: '#2B2525', flexShrink: 1 },
-  retry: { minHeight: 44, padding: 12, borderWidth: 1, borderColor: '#9B1C31', borderRadius: 14, alignItems: 'center' }, retryText: { color: '#9B1C31', fontWeight: '700', fontSize: 15 },
+  retry: { minHeight: 48, padding: 12, borderWidth: 1, borderColor: '#9B1C31', borderRadius: 14, alignItems: 'flex-start' }, retryText: { color: '#9B1C31', fontWeight: '700', fontSize: 15 },
 });

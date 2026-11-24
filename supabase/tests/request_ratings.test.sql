@@ -4,9 +4,9 @@ SET search_path=public,extensions;
 SELECT no_plan();
 
 -- Fixtures, injected publication failures and financial state all roll back.
-INSERT INTO auth.users(id,email)
+INSERT INTO auth.users(id,email,email_confirmed_at)
 SELECT ('97979797-9797-4979-8979-'||lpad(i::text,12,'0'))::uuid,
- 'ratings-'||i||'@test.local' FROM generate_series(1,7) i;
+ 'ratings-'||i||'@test.local',now() FROM generate_series(1,7) i;
 CREATE FUNCTION pg_temp.uid(i integer) RETURNS uuid LANGUAGE sql AS $$
  SELECT ('97979797-9797-4979-8979-'||lpad(i::text,12,'0'))::uuid;
 $$;

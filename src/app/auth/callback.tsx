@@ -7,10 +7,13 @@ import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   View,
 } from "react-native";
+
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
@@ -19,13 +22,14 @@ const COLORS = {
   primary: "#9B1C31",
   background: "#FFFFFF",
   textDark: "#2B2525",
-  mutedText: "#8C8585",
+  mutedText: "#635C5C",
   errorBackground: "#FDECEE",
   errorText: "#8F1428",
 };
 
 export default function AuthCallbackScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
 
   const {
     code,
@@ -46,8 +50,8 @@ export default function AuthCallbackScreen() {
       return;
     }
 
-    if (errorDescription) {
-      setErrorMessage(errorDescription);
+    if (errorDescription || (code !== undefined && (typeof code !== "string" || code.length > 2048))) {
+      setErrorMessage("This verification link is invalid or has expired.");
       return;
     }
 
@@ -94,7 +98,7 @@ export default function AuthCallbackScreen() {
   ]);
 
   return (
-    <View style={styles.screen}>
+    <ScrollView style={{ flex: 1, backgroundColor: COLORS.background }} contentContainerStyle={[styles.screen, { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 24 }]}>
       <View style={styles.brandIcon}>
         <Ionicons
           name={
@@ -122,6 +126,7 @@ export default function AuthCallbackScreen() {
           </View>
 
           <Pressable
+            accessibilityRole="button"
             style={styles.button}
             onPress={() =>
               router.replace("/sign-in" as never)
@@ -146,13 +151,13 @@ export default function AuthCallbackScreen() {
           </Text>
         </>
       )}
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   screen: {
-    flex: 1,
+    flexGrow: 1,
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 24,

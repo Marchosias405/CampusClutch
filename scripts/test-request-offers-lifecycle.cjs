@@ -89,7 +89,7 @@ function harness() {
   const exports = {};
   const modules = {
     react,
-    'react-native': { ActivityIndicator: 'ActivityIndicator', Pressable: 'Pressable', Text: 'Text', TextInput: 'TextInput', View: 'View',
+    'react-native': { Platform: { OS: 'android' }, ActivityIndicator: 'ActivityIndicator', Pressable: 'Pressable', Text: 'Text', TextInput: 'TextInput', View: 'View',
       StyleSheet: { create: value => value }, Alert: { alert: (title, message, buttons) => alerts.push({ title, message, buttons }) } },
     'expo-router': { useFocusEffect, useRouter: () => ({ push: () => blur() }) },
     '../context/AuthContext': { useAuth: () => ({ user: { id: userId } }) },

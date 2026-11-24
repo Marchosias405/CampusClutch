@@ -1,0 +1,434 @@
+[
+  {
+    "id": "active",
+    "label": "Sports & outdoors",
+    "interests": [
+      {
+        "slug": "gym",
+        "displayName": "Gym"
+      },
+      {
+        "slug": "hiking",
+        "displayName": "Hiking"
+      },
+      {
+        "slug": "soccer",
+        "displayName": "Soccer"
+      },
+      {
+        "slug": "basketball",
+        "displayName": "Basketball"
+      },
+      {
+        "slug": "badminton",
+        "displayName": "Badminton"
+      },
+      {
+        "slug": "volleyball",
+        "displayName": "Volleyball"
+      },
+      {
+        "slug": "running",
+        "displayName": "Running"
+      },
+      {
+        "slug": "cycling",
+        "displayName": "Cycling"
+      },
+      {
+        "slug": "swimming",
+        "displayName": "Swimming"
+      },
+      {
+        "slug": "climbing",
+        "displayName": "Climbing"
+      },
+      {
+        "slug": "yoga",
+        "displayName": "Yoga"
+      },
+      {
+        "slug": "skiing-snowboarding",
+        "displayName": "Skiing & Snowboarding"
+      }
+    ]
+  },
+  {
+    "id": "creative",
+    "label": "Arts & making",
+    "interests": [
+      {
+        "slug": "photography",
+        "displayName": "Photography"
+      },
+      {
+        "slug": "drawing",
+        "displayName": "Drawing"
+      },
+      {
+        "slug": "painting",
+        "displayName": "Painting"
+      },
+      {
+        "slug": "digital-art",
+        "displayName": "Digital Art"
+      },
+      {
+        "slug": "ceramics",
+        "displayName": "Ceramics"
+      },
+      {
+        "slug": "crafting",
+        "displayName": "Crafting"
+      },
+      {
+        "slug": "sewing-knitting",
+        "displayName": "Sewing & Knitting"
+      },
+      {
+        "slug": "creative-writing",
+        "displayName": "Creative Writing"
+      },
+      {
+        "slug": "dance",
+        "displayName": "Dance"
+      },
+      {
+        "slug": "filmmaking",
+        "displayName": "Filmmaking"
+      },
+      {
+        "slug": "theatre",
+        "displayName": "Theatre"
+      },
+      {
+        "slug": "design",
+        "displayName": "Design"
+      }
+    ]
+  },
+  {
+    "id": "entertainment",
+    "label": "Games & entertainment",
+    "interests": [
+      {
+        "slug": "anime",
+        "displayName": "Anime"
+      },
+      {
+        "slug": "gaming",
+        "displayName": "Gaming"
+      },
+      {
+        "slug": "board-games",
+        "displayName": "Board Games"
+      },
+      {
+        "slug": "tabletop-rpgs",
+        "displayName": "Tabletop RPGs"
+      },
+      {
+        "slug": "esports",
+        "displayName": "Esports"
+      },
+      {
+        "slug": "puzzles",
+        "displayName": "Puzzles"
+      },
+      {
+        "slug": "movies",
+        "displayName": "Movies"
+      },
+      {
+        "slug": "tv-shows",
+        "displayName": "TV Shows"
+      },
+      {
+        "slug": "comics",
+        "displayName": "Comics"
+      },
+      {
+        "slug": "cosplay",
+        "displayName": "Cosplay"
+      },
+      {
+        "slug": "trivia",
+        "displayName": "Trivia"
+      },
+      {
+        "slug": "karaoke",
+        "displayName": "Karaoke"
+      }
+    ]
+  },
+  {
+    "id": "music",
+    "label": "Music",
+    "interests": [
+      {
+        "slug": "live-music",
+        "displayName": "Live Music"
+      },
+      {
+        "slug": "playing-instruments",
+        "displayName": "Playing Instruments"
+      },
+      {
+        "slug": "singing",
+        "displayName": "Singing"
+      },
+      {
+        "slug": "music-production",
+        "displayName": "Music Production"
+      },
+      {
+        "slug": "pop",
+        "displayName": "Pop"
+      },
+      {
+        "slug": "hip-hop",
+        "displayName": "Hip-Hop"
+      },
+      {
+        "slug": "r-b",
+        "displayName": "R&B"
+      },
+      {
+        "slug": "rock",
+        "displayName": "Rock"
+      },
+      {
+        "slug": "indie",
+        "displayName": "Indie"
+      },
+      {
+        "slug": "electronic-music",
+        "displayName": "Electronic Music"
+      },
+      {
+        "slug": "jazz",
+        "displayName": "Jazz"
+      },
+      {
+        "slug": "classical-music",
+        "displayName": "Classical Music"
+      }
+    ]
+  },
+  {
+    "id": "food",
+    "label": "Food & hangouts",
+    "interests": [
+      {
+        "slug": "coffee",
+        "displayName": "Coffee"
+      },
+      {
+        "slug": "bubble-tea",
+        "displayName": "Bubble Tea"
+      },
+      {
+        "slug": "cooking",
+        "displayName": "Cooking"
+      },
+      {
+        "slug": "baking",
+        "displayName": "Baking"
+      },
+      {
+        "slug": "food-adventures",
+        "displayName": "Food Adventures"
+      },
+      {
+        "slug": "tea",
+        "displayName": "Tea"
+      },
+      {
+        "slug": "brunch",
+        "displayName": "Brunch"
+      },
+      {
+        "slug": "picnics",
+        "displayName": "Picnics"
+      },
+      {
+        "slug": "vegetarian-food",
+        "displayName": "Vegetarian Food"
+      },
+      {
+        "slug": "vegan-food",
+        "displayName": "Vegan Food"
+      },
+      {
+        "slug": "spicy-food",
+        "displayName": "Spicy Food"
+      },
+      {
+        "slug": "desserts",
+        "displayName": "Desserts"
+      }
+    ]
+  },
+  {
+    "id": "tech",
+    "label": "Tech & ideas",
+    "interests": [
+      {
+        "slug": "coding",
+        "displayName": "Coding"
+      },
+      {
+        "slug": "ui-design",
+        "displayName": "UI Design"
+      },
+      {
+        "slug": "game-development",
+        "displayName": "Game Development"
+      },
+      {
+        "slug": "robotics",
+        "displayName": "Robotics"
+      },
+      {
+        "slug": "ai-machine-learning",
+        "displayName": "AI & Machine Learning"
+      },
+      {
+        "slug": "data-science",
+        "displayName": "Data Science"
+      },
+      {
+        "slug": "cybersecurity",
+        "displayName": "Cybersecurity"
+      },
+      {
+        "slug": "hackathons",
+        "displayName": "Hackathons"
+      },
+      {
+        "slug": "entrepreneurship",
+        "displayName": "Entrepreneurship"
+      },
+      {
+        "slug": "science",
+        "displayName": "Science"
+      },
+      {
+        "slug": "space-astronomy",
+        "displayName": "Space & Astronomy"
+      },
+      {
+        "slug": "language-learning",
+        "displayName": "Language Learning"
+      }
+    ]
+  },
+  {
+    "id": "campus",
+    "label": "Student life",
+    "interests": [
+      {
+        "slug": "study-groups",
+        "displayName": "Study Groups"
+      },
+      {
+        "slug": "clubs-societies",
+        "displayName": "Clubs & Societies"
+      },
+      {
+        "slug": "volunteering",
+        "displayName": "Volunteering"
+      },
+      {
+        "slug": "peer-tutoring",
+        "displayName": "Peer Tutoring"
+      },
+      {
+        "slug": "student-events",
+        "displayName": "Student Events"
+      },
+      {
+        "slug": "debate",
+        "displayName": "Debate"
+      },
+      {
+        "slug": "public-speaking",
+        "displayName": "Public Speaking"
+      },
+      {
+        "slug": "research",
+        "displayName": "Research"
+      },
+      {
+        "slug": "co-op-careers",
+        "displayName": "Co-op & Careers"
+      },
+      {
+        "slug": "sustainability",
+        "displayName": "Sustainability"
+      },
+      {
+        "slug": "student-journalism",
+        "displayName": "Student Journalism"
+      },
+      {
+        "slug": "mentoring",
+        "displayName": "Mentoring"
+      }
+    ]
+  },
+  {
+    "id": "everyday",
+    "label": "Everyday interests",
+    "interests": [
+      {
+        "slug": "reading",
+        "displayName": "Reading"
+      },
+      {
+        "slug": "book-clubs",
+        "displayName": "Book Clubs"
+      },
+      {
+        "slug": "travel",
+        "displayName": "Travel"
+      },
+      {
+        "slug": "local-exploring",
+        "displayName": "Local Exploring"
+      },
+      {
+        "slug": "thrifting",
+        "displayName": "Thrifting"
+      },
+      {
+        "slug": "fashion",
+        "displayName": "Fashion"
+      },
+      {
+        "slug": "meditation",
+        "displayName": "Meditation"
+      },
+      {
+        "slug": "pets",
+        "displayName": "Pets"
+      },
+      {
+        "slug": "gardening",
+        "displayName": "Gardening"
+      },
+      {
+        "slug": "history",
+        "displayName": "History"
+      },
+      {
+        "slug": "museums",
+        "displayName": "Museums"
+      },
+      {
+        "slug": "podcasts",
+        "displayName": "Podcasts"
+      }
+    ]
+  }
+]
