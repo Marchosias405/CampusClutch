@@ -79,7 +79,7 @@ async function main() {
   if (command === 'gate') {
     const [eventFile, repository, mainSha, jobsFile] = args;
     const run = JSON.parse(fs.readFileSync(eventFile)).workflow_run;
-    const jobs = JSON.parse(fs.readFileSync(jobsFile)).flat();
+    const jobs = JSON.parse(fs.readFileSync(jobsFile)).flatMap(page => page.jobs);
     console.log('eligible=' + eligible(run, repository, mainSha, jobs));
   } else if (command === 'prepare') {
     prepare(process.cwd(), args[0]);
