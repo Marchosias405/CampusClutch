@@ -32,7 +32,8 @@ export const MotionPressable = forwardRef<View, PressableProps>(function MotionP
     if (disabled) setPressed(false);
     return () => scale.stopAnimation();
   }, [allowed, disabled, scale]);
-  const resolvedStyle = typeof style === 'function' ? style({ pressed: pressed && !disabled, hovered: hovered && !disabled }) : style;
+  const interaction = { pressed: pressed && !disabled, hovered: hovered && !disabled };
+  const resolvedStyle = typeof style === 'function' ? style(interaction) : style;
   const transform = StyleSheet.flatten(resolvedStyle)?.transform;
   return <AnimatedPressable {...props} ref={ref} disabled={disabled}
     style={[resolvedStyle, { transform: [...(Array.isArray(transform) ? transform : []), { scale }] }]}
