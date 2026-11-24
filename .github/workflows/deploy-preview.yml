@@ -33,7 +33,7 @@ jobs:
           CI_ID: ${{ github.event.workflow_run.id }}
         run: |
           main=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq .object.sha)
-          gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/actions/runs/$CI_ID/jobs?filter=all&per_page=100" --jq 'map(.jobs)' > "$RUNNER_TEMP/jobs.json"
+          gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/actions/runs/$CI_ID/jobs?filter=all&per_page=100" > "$RUNNER_TEMP/jobs.json"
           result=$(node scripts/release/preview.cjs gate "$GITHUB_EVENT_PATH" "$GITHUB_REPOSITORY" "$main" "$RUNNER_TEMP/jobs.json")
           echo "$result" >> "$GITHUB_OUTPUT"
           if [[ "$result" != eligible=true ]]; then echo "Skipped Preview. The commit was superseded or required CI jobs did not pass." >> "$GITHUB_STEP_SUMMARY"; fi

@@ -1,6 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { Buffer } = require('node:buffer');
+const { execFileSync } = require('node:child_process');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
@@ -31,6 +32,23 @@ test('a partial rerun retains earlier passing jobs and uses the latest result fo
   assert.ok(eligible(rerun, repository, sha, [fixed, jobs[0], failed]));
   assert.equal(eligible(run, repository, sha, [jobs[0], failed, fixed]), false);
   assert.equal(eligible(rerun, repository, sha, [...jobs, { ...failed, run_attempt: 2 }]), false);
+});
+
+test('release command reads required jobs from separate GitHub API pages', t => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'preview-gate-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const eventPath = path.join(dir, 'event.json');
+  const jobsPath = path.join(dir, 'jobs.json');
+  fs.writeFileSync(eventPath, JSON.stringify({ workflow_run: run }));
+  const pages = jobs.map(job => ({ total_count: jobs.length, jobs: [job] }));
+  function check(pagesToRead) {
+    fs.writeFileSync(jobsPath, JSON.stringify(pagesToRead));
+    return execFileSync(process.execPath, [
+      require.resolve('./preview.cjs'), 'gate', eventPath, repository, sha, jobsPath,
+    ], { encoding: 'utf8' }).trim();
+  }
+  assert.equal(check(pages), 'eligible=true');
+  assert.equal(check(pages.slice(0, 1)), 'eligible=false');
 });
 
 test('Preview rejects a missing key, private key, wrong project, or wrong app environment', () => {
