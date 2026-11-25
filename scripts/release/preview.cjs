@@ -40,7 +40,7 @@ function eligible(run, repository, main, jobs) {
 
 function target(env) {
   assert.ok(env.EXPO_PUBLIC_APP_ENV === 'preview' && env.EXPO_PUBLIC_SUPABASE_URL === origin,
-    'Preview must use the pinned CampusClutch Preview origin and environment');
+    'Preview must use the pinned Clu Preview origin and environment');
   const key = env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY || '';
   if (/^sb_publishable_[A-Za-z0-9_-]+$/.test(key)) return;
   let claims;
@@ -93,7 +93,7 @@ async function main() {
     assert.ok(response.ok && (await response.json()).external?.email === true, 'Preview email Auth check failed');
     if (command === 'smoke') {
       const callback = await fetch(origin + '/functions/v1/email-verified', { redirect: 'error', signal: AbortSignal.timeout(20000) });
-      assert.ok(callback.ok && (await callback.text()).startsWith('CampusClutch\n'), 'Preview email callback check failed');
+      assert.ok(callback.ok && (await callback.text()).startsWith('Clu\n'), 'Preview email callback check failed');
     }
   } else throw Error('Unknown Preview release command');
 }

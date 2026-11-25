@@ -1,4 +1,4 @@
-# CampusClutch Backend Architecture Plan
+# Clu Backend Architecture Plan
 
 **Status:** Ready for review
 **Selected backend:** Supabase
@@ -7,12 +7,12 @@
 
 ## 1. Purpose
 
-This document defines the planned backend architecture for CampusClutch before any backend SDK, hosted project, database schema, authentication flow, or production service is added.
+This document defines the planned backend architecture for Clu before any backend SDK, hosted project, database schema, authentication flow, or production service is added.
 
 The plan is intended to:
 
 - Replace mock and in-memory data gradually.
-- Preserve the existing Expo Router navigation and CampusClutch UI.
+- Preserve the existing Expo Router navigation and Clu UI.
 - Keep the application buildable during each migration stage.
 - Define data ownership and authorization before implementing features.
 - Avoid one large backend pull request.
@@ -20,7 +20,7 @@ The plan is intended to:
 
 ## 2. Current Application State
 
-CampusClutch currently uses shared mock data and in-memory React state.
+Clu currently uses shared mock data and in-memory React state.
 
 The application already includes working UI flows for:
 
@@ -116,7 +116,7 @@ The architecture must support:
 
 ## 4. Backend Decision Criteria
 
-The backend was evaluated against CampusClutch-specific requirements:
+The backend was evaluated against Clu-specific requirements:
 
 - Expo React Native compatibility
 - TypeScript support
@@ -147,13 +147,13 @@ The backend was evaluated against CampusClutch-specific requirements:
 
 ### 5.1 Selected platform
 
-CampusClutch will use **Supabase** as its planned backend platform.
+Clu will use **Supabase** as its planned backend platform.
 
 This decision approves the architecture direction only. It does not authorize creating a Supabase project or installing packages during Task 3.
 
-### 5.2 Why Supabase fits CampusClutch
+### 5.2 Why Supabase fits Clu
 
-CampusClutch contains strongly related data:
+Clu contains strongly related data:
 
 - A user can belong to multiple courses.
 - A course can contain multiple users.
@@ -206,7 +206,7 @@ The final policies will be designed and reviewed after the schema section is app
 
 Supabase supports SQL migration files that can be stored in Git.
 
-This matches the existing CampusClutch workflow:
+This matches the existing Clu workflow:
 
 - Focused branch
 - Focused change
@@ -233,7 +233,7 @@ Selecting Supabase introduces responsibilities that must be planned carefully:
 - Development, preview, and production environments require deliberate configuration.
 - Administrative operations must never be exposed through the mobile client.
 
-These trade-offs are accepted because relational integrity and authorization clarity are higher priorities for CampusClutch.
+These trade-offs are accepted because relational integrity and authorization clarity are higher priorities for Clu.
 
 ## 6. High-Level Architecture
 
@@ -445,7 +445,7 @@ Supabase Auth will be the source of truth for account identity.
 
 Each authenticated account will receive a Supabase Auth user ID.
 
-That ID will be used as the stable foreign key connecting the account to CampusClutch application records such as:
+That ID will be used as the stable foreign key connecting the account to Clu application records such as:
 
 - Profile
 - Course memberships
@@ -465,7 +465,7 @@ The planned sign-up flow is:
 2. The client performs basic input validation.
 3. Supabase Auth creates the authentication identity.
 4. The user receives an email-verification message.
-5. CampusClutch displays a verification-pending state.
+5. Clu displays a verification-pending state.
 6. After verification, the user signs in or the verified session is restored.
 7. The application confirms that a corresponding public profile exists.
 8. The user completes any required profile fields.
@@ -494,7 +494,7 @@ The application must clearly explain:
 - How to return and change the email address
 - What to do when the link is expired or invalid
 
-Verification links must return users to CampusClutch through an approved deep-link or universal-link configuration.
+Verification links must return users to Clu through an approved deep-link or universal-link configuration.
 
 Local development may use environment-specific authentication settings for repeatable testing, but production behavior must require verified email ownership.
 
@@ -537,7 +537,7 @@ Repeated failed sign-in attempts and Supabase rate-limit responses must produce 
 
 ### 9.7 Session persistence and restoration
 
-CampusClutch must persist the Supabase session using an Expo and React Native compatible storage adapter.
+Clu must persist the Supabase session using an Expo and React Native compatible storage adapter.
 
 The implementation must:
 
@@ -591,10 +591,10 @@ Password reset will use Supabase Auth email recovery.
 The planned flow is:
 
 1. The user enters their email.
-2. CampusClutch requests a password-reset email.
+2. Clu requests a password-reset email.
 3. The application shows a generic confirmation message.
 4. The user opens the recovery link.
-5. The link returns to CampusClutch.
+5. The link returns to Clu.
 6. The application validates the recovery session.
 7. The user enters and confirms a new password.
 8. The password is updated.
@@ -628,16 +628,16 @@ A failed sign-out request must not leave the UI pretending that sign-out succeed
 
 ### 9.11 Authentication users and public profiles
 
-Authentication records and CampusClutch profiles will be separate.
+Authentication records and Clu profiles will be separate.
 
 Supabase-managed authentication information remains in the protected Auth schema.
 
-CampusClutch will use a public application table for profile data that screens need to query.
+Clu will use a public application table for profile data that screens need to query.
 
 The planned relationship is:
 
 - One Supabase Auth user
-- One CampusClutch public profile
+- One Clu public profile
 - The same UUID used as the profile primary key
 - A foreign-key reference to the Auth user
 - Cascading profile cleanup when the Auth user is deleted
@@ -770,12 +770,12 @@ The authentication milestone must eventually test:
 
 ### 10.1 Profile architecture
 
-Supabase Auth users and CampusClutch profiles will remain separate records.
+Supabase Auth users and Clu profiles will remain separate records.
 
 The planned relationship is:
 
 - `auth.users` stores account identity and authentication information.
-- `public.profiles` stores student information used by CampusClutch screens.
+- `public.profiles` stores student information used by Clu screens.
 - `profiles.id` uses the same UUID as the corresponding Auth user.
 - `profiles.id` is the primary key.
 - `profiles.id` references the Auth user's primary key.
@@ -791,7 +791,7 @@ The initial `profiles` model should include:
 | Field | Planned type | Required | Purpose |
 |---|---|---:|---|
 | `id` | UUID | Yes | Primary key and reference to the Auth user |
-| `display_name` | Text | After onboarding | Name displayed throughout CampusClutch |
+| `display_name` | Text | After onboarding | Name displayed throughout Clu |
 | `major` | Text | No | Student's program or major |
 | `year_of_study` | Small integer | No | Student's current year of study |
 | `campus_id` | Foreign key | No | Student's primary campus |
@@ -835,7 +835,7 @@ The implementation must:
 - Avoid assuming that every user has separate first and last names.
 - Avoid using the email address as the permanent display name.
 
-CampusClutch may temporarily show a neutral onboarding placeholder before the user completes their profile, but incomplete profiles must not appear as normal classmates.
+Clu may temporarily show a neutral onboarding placeholder before the user completes their profile, but incomplete profiles must not appear as normal classmates.
 
 ### 10.4 Major and year of study
 
@@ -919,13 +919,13 @@ Any future match score must have documented inputs and privacy rules before impl
 
 ### 10.8 Profile visibility
 
-CampusClutch profiles are not intended to be anonymously searchable on the public internet.
+Clu profiles are not intended to be anonymously searchable on the public internet.
 
 The initial visibility direction is:
 
 - Signed-out users cannot query student profiles.
 - Authenticated users can always read their own profile.
-- Authenticated users can read discoverable profile fields needed by approved CampusClutch features.
+- Authenticated users can read discoverable profile fields needed by approved Clu features.
 - Profiles with `is_discoverable = false` do not appear in general classmate or discovery results.
 - A user may still need limited access to another non-discoverable profile when they share an existing conversation, request interaction, or other approved relationship.
 - Administrative or moderation access requires trusted backend authorization.
@@ -942,7 +942,7 @@ Relationship-specific visibility will be finalized with course, request, and con
 
 ### 10.9 Public and private fields
 
-Fields suitable for authenticated CampusClutch discovery may include:
+Fields suitable for authenticated Clu discovery may include:
 
 - User ID
 - Display name
@@ -1233,11 +1233,11 @@ Normal mobile clients must not mark terms as current or past.
 
 The system must prevent multiple contradictory current terms for the same institution or academic scope once institution support is defined.
 
-Initially, CampusClutch may manage term status manually through trusted administration rather than adding automated scheduling prematurely.
+Initially, Clu may manage term status manually through trusted administration rather than adding automated scheduling prematurely.
 
 ### 11.5 Courses
 
-A `courses` row represents a CampusClutch course offering for a specific academic term.
+A `courses` row represents a Clu course offering for a specific academic term.
 
 The proposed fields are:
 
@@ -1336,11 +1336,11 @@ The exact unique constraint must account for nullable campus values correctly.
 
 The final schema must decide whether two sections of the same course are:
 
-- One shared CampusClutch course
+- One shared Clu course
 - Separate course records
 - One course with separate section records
 
-CampusClutch should initially avoid section-level complexity unless the product requires separate classmate groups.
+Clu should initially avoid section-level complexity unless the product requires separate classmate groups.
 
 ### 11.9 Course memberships
 
@@ -1618,7 +1618,7 @@ The initial policy direction is:
 
 ### 11.18 Course administration
 
-The initial CampusClutch app will not expose course-catalog administration through the normal mobile client.
+The initial Clu app will not expose course-catalog administration through the normal mobile client.
 
 Trusted administration is responsible for:
 
@@ -1932,7 +1932,7 @@ The product may later replace this with category-specific effort fields, but the
 
 ### 12.9 Points
 
-Request points are CampusClutch application points, not money.
+Request points are Clu application points, not money.
 
 The initial backend rule is:
 
@@ -2138,7 +2138,7 @@ A future version may reference an existing course record where appropriate.
 
 The initial design keeps `course_or_subject` as text because Study Help may cover:
 
-- A course the user has not joined in CampusClutch
+- A course the user has not joined in Clu
 - General subjects
 - Admission or prerequisite material
 - Non-course study topics
@@ -2738,7 +2738,7 @@ The final implementation should:
 
 The product must decide whether phone numbers, personal email addresses, or off-platform contact details are permitted.
 
-Until that policy is approved, the UI should encourage communication through CampusClutch messaging.
+Until that policy is approved, the UI should encourage communication through Clu messaging.
 
 ### 13.9 Offer creation workflow
 
@@ -4959,7 +4959,7 @@ The application should not request notification permission immediately without c
 
 A preferred flow is:
 
-1. Explain why CampusClutch notifications are useful.
+1. Explain why Clu notifications are useful.
 2. Describe examples such as accepted offers and new messages.
 3. Allow the user to continue without push permission.
 4. Request operating-system permission after user intent.
@@ -5529,7 +5529,7 @@ The notification milestone must eventually test:
 
 ### 16.1 Security goals
 
-The CampusClutch backend must protect:
+The Clu backend must protect:
 
 - User accounts
 - Public and private profile information
@@ -5552,7 +5552,7 @@ Client-side validation, hidden buttons, disabled controls, route guards, and UI 
 
 ### 16.2 Security model
 
-CampusClutch will use several security layers:
+Clu will use several security layers:
 
 1. Supabase Auth verifies user identity.
 2. PostgreSQL constraints protect data integrity.
@@ -5571,7 +5571,7 @@ No single layer should be treated as sufficient by itself.
 
 Supabase manages the security of its hosted platform and infrastructure.
 
-The CampusClutch team remains responsible for:
+The Clu team remains responsible for:
 
 - Database schema design
 - RLS policies
@@ -5590,7 +5590,7 @@ The CampusClutch team remains responsible for:
 - Monitoring
 - Incident response
 
-Using a managed backend does not automatically make CampusClutch secure or production-ready.
+Using a managed backend does not automatically make Clu secure or production-ready.
 
 ### 16.4 Default-deny approach
 
@@ -5632,7 +5632,7 @@ When inserting user-owned data, the resulting owner ID must match the authentica
 
 ### 16.6 Anonymous access
 
-The initial CampusClutch architecture does not require anonymous database access.
+The initial Clu architecture does not require anonymous database access.
 
 The `anon` role should not receive access to:
 
@@ -5907,7 +5907,7 @@ Every Edge Function must define its caller model.
 
 Possible caller types include:
 
-- Signed-in CampusClutch user
+- Signed-in Clu user
 - Trusted scheduled process
 - Database webhook
 - Internal administrative operation
@@ -6121,7 +6121,7 @@ When dynamic SQL is necessary:
 - Test injection attempts.
 - Log only safe operational details.
 
-Most CampusClutch operations should use static SQL.
+Most Clu operations should use static SQL.
 
 ### 16.32 Database constraints
 
@@ -6485,7 +6485,7 @@ Moderation decisions require trusted administrative authorization and audit logg
 
 ### 16.48 Data minimization
 
-CampusClutch should store only information required for approved features.
+Clu should store only information required for approved features.
 
 The initial backend should avoid collecting:
 
@@ -6679,7 +6679,7 @@ Alerts must avoid including private message or request content.
 
 ### 16.58 Incident response
 
-Before production, CampusClutch should document:
+Before production, Clu should document:
 
 1. How a security issue is reported.
 2. Who receives the report.
@@ -6696,7 +6696,7 @@ An incident-response owner and backup contact must be defined.
 
 ### 16.59 Production security gate
 
-CampusClutch must not be described as production-ready until at least:
+Clu must not be described as production-ready until at least:
 
 - RLS exists on all exposed application tables.
 - RLS and function tests pass.
@@ -6738,7 +6738,7 @@ The recommended order is:
 
 ### 17.1 Goals
 
-The CampusClutch environment strategy must:
+The Clu environment strategy must:
 
 - Separate local, development, preview, and production data.
 - Prevent preview builds from connecting to production accidentally.
@@ -6757,7 +6757,7 @@ Environment setup will begin during Task 4, not during Task 3.
 
 ### 17.2 Planned environments
 
-CampusClutch should use four environment levels:
+Clu should use four environment levels:
 
 1. Local developer environment
 2. Shared development environment
@@ -6903,7 +6903,7 @@ The team must review cost, limitations, seed behavior, Auth behavior, and cleanu
 
 ### 17.9 Environment names
 
-CampusClutch should use consistent environment names:
+Clu should use consistent environment names:
 
 - `local`
 - `development`
@@ -6935,7 +6935,7 @@ The publishable key is not a replacement for user authentication.
 
 ### 17.11 Supabase key decision
 
-New CampusClutch client configuration should prefer the Supabase publishable key.
+New Clu client configuration should prefer the Supabase publishable key.
 
 The planned client variable is:
 
@@ -7048,7 +7048,7 @@ The documentation must explain which file takes priority when multiple files exi
 
 ### 17.16 Backend selection
 
-CampusClutch should not rely on manually changing `NODE_ENV` to select a Supabase project.
+Clu should not rely on manually changing `NODE_ENV` to select a Supabase project.
 
 Build tools may set `NODE_ENV` automatically.
 
@@ -7114,7 +7114,7 @@ Connecting to the wrong environment is more dangerous than an explicit startup f
 
 ### 17.20 EAS environment mapping
 
-CampusClutch should map its existing EAS build profiles to EAS environments:
+Clu should map its existing EAS build profiles to EAS environments:
 
 * `development` profile uses development variables.
 * `preview` profile uses preview variables.
@@ -7126,7 +7126,7 @@ No existing EAS build behavior should be modified without review.
 
 ### 17.21 EAS variable scope
 
-CampusClutch variables should normally be project-scoped rather than account-wide.
+Clu variables should normally be project-scoped rather than account-wide.
 
 Project-scoped variables reduce accidental reuse by unrelated Expo projects.
 
@@ -7548,7 +7548,7 @@ The environment milestone must eventually test:
 
 ### 18.1 Goals
 
-The CampusClutch Storage architecture must:
+The Clu Storage architecture must:
 
 * Support profile avatars securely.
 * Keep file ownership tied to authenticated users.
@@ -7566,9 +7566,9 @@ Request attachments, message attachments, documents, videos, and other uploads r
 
 ### 18.2 Avatar bucket
 
-CampusClutch should create a dedicated avatar bucket.
+Clu should create a dedicated avatar bucket.
 
-The preferred initial direction is a private bucket because student profiles are intended for authenticated CampusClutch users rather than unrestricted public internet access.
+The preferred initial direction is a private bucket because student profiles are intended for authenticated Clu users rather than unrestricted public internet access.
 
 The bucket should define:
 
@@ -8141,7 +8141,7 @@ Examples include:
 * No messages
 * No notifications
 
-Empty states should preserve the current CampusClutch visual design.
+Empty states should preserve the current Clu visual design.
 
 ### 20.4 Error states
 
@@ -8209,7 +8209,7 @@ Riskier operations should wait for backend confirmation:
 
 ### 20.8 Offline behavior
 
-CampusClutch is not initially designed as a fully offline-first application.
+Clu is not initially designed as a fully offline-first application.
 
 The initial offline direction is:
 
@@ -8843,7 +8843,7 @@ Task 3 is complete when:
 
 ### 22.16 Approved architecture decision
 
-CampusClutch will use Supabase as the planned backend because:
+Clu will use Supabase as the planned backend because:
 
 * PostgreSQL fits the application's relational data.
 * Foreign keys and unique constraints protect memberships and ownership relationships.
@@ -8854,13 +8854,13 @@ CampusClutch will use Supabase as the planned backend because:
 * SQL migrations fit the existing Git and pull-request workflow.
 * Local development supports repeatable schema and security testing.
 
-This approval does not make CampusClutch production-ready.
+This approval does not make Clu production-ready.
 
 Implementation remains divided into focused tasks and pull requests.
 
 ### 22.17 Production warning
 
-CampusClutch must not be described as fully production-ready until it has:
+Clu must not be described as fully production-ready until it has:
 
 * Real authentication
 * Permanent backend storage

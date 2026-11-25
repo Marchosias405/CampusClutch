@@ -18,7 +18,7 @@ export async function processBatch(rpc, expo) {
     try {
       if (sending) {
         results = await expo('send', batch.map(job => ({
-          to:job.expo_token, title:'CampusClutch',
+          to:job.expo_token, title:'Clu',
           body:job.category === 'messages' ? 'You have a new direct message.' : 'You have a request update.',
           channelId:job.category === 'messages' ? 'messages' : 'requests',
           data:{ notificationId:job.notification_id }, ttl:3600,

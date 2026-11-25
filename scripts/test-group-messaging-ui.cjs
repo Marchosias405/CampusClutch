@@ -204,7 +204,7 @@ test('message labels use You, each group sender, and the direct counterpart', ()
   assert.equal(production.getMessageSenderLabel(message(USER), USER, group()), 'You');
   assert.equal(production.getMessageSenderLabel(message(OTHER, 'Morgan Lee'), USER, group()), 'Morgan Lee');
   assert.equal(production.getMessageSenderLabel(message(OTHER, 'Different API Name'), USER, direct()), 'Taylor Student');
-  assert.equal(production.getMessageSenderLabel(message(OTHER, ''), USER, group()), 'CampusClutch member');
+  assert.equal(production.getMessageSenderLabel(message(OTHER, ''), USER, group()), 'Clu member');
 });
 
 test('owner, administrator, member and former-member management permissions match the backend', () => {

@@ -39,7 +39,7 @@ function harness(restored=null, options={}) {
 }
 (async()=>{
  const h=harness();
- assert.equal(nodes(h.tree()).find(n=>n.type==='LoadingState')?.props.title,'Opening CampusClutch');
+ assert.equal(nodes(h.tree()).find(n=>n.type==='LoadingState')?.props.title,'Opening Clu');
  assert.doesNotMatch(h.text(),/Delete your account|Permanently delete account/);
  assert.equal(h.button('Permanently delete account'),undefined);
  assert.equal(h.calls.length,0,'Loading a saved receipt never starts deletion');
@@ -74,10 +74,10 @@ function harness(restored=null, options={}) {
    assert.deepEqual(absent.calls,['finish','finish','clear','clear'],'Discard clears only local receipt state');
  }
  const failedRead=harness(null,{readError:true});await failedRead.settle();
- assert.match(failedRead.text(),/Unable to open CampusClutch/);assert.match(failedRead.text(),/Unable to load your saved account deletion/);
+ assert.match(failedRead.text(),/Unable to open Clu/);assert.match(failedRead.text(),/Unable to load your saved account deletion/);
  assert.ok(!nodes(failedRead.tree()).some(n=>n.type==='LoadingState'));assert.ok(failedRead.button('Retry'));
  assert.doesNotMatch(failedRead.text(),/Delete your account/);assert.equal(failedRead.calls.length,0);
- failedRead.state.readError=false;failedRead.press('Retry');assert.equal(nodes(failedRead.tree()).find(n=>n.type==='LoadingState')?.props.title,'Opening CampusClutch');
+ failedRead.state.readError=false;failedRead.press('Retry');assert.equal(nodes(failedRead.tree()).find(n=>n.type==='LoadingState')?.props.title,'Opening Clu');
  await failedRead.settle();assert.match(failedRead.text(),/Normal app/);assert.equal(failedRead.reads(),2);
  console.log('PASS deletion screen: explicit confirmation, blocked jobs, pending recovery, disabled duplicate submit, restart recovery and completed sign-out');
 })().catch(e=>{console.error(e);process.exitCode=1;});

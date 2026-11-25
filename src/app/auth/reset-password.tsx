@@ -88,7 +88,7 @@ export default function ResetPasswordScreen() {
       if (error) {
         endPasswordRecovery();
         setErrorMessage(
-          "CampusClutch could not verify this password reset link."
+          "Clu could not verify this password reset link."
         );
         setIsPreparing(false);
         return;
@@ -210,7 +210,7 @@ export default function ResetPasswordScreen() {
         <Text style={styles.title}>Choose a new password</Text>
 
         <Text style={styles.subtitle}>
-          Enter a new password for your CampusClutch account.
+          Enter a new password for your Clu account.
         </Text>
 
         <Text style={styles.label}>New password</Text>

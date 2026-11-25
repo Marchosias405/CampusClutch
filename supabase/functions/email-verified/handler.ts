@@ -15,10 +15,10 @@ export function handleEmailVerified(request: Request): Response {
   const params = new URL(request.url).searchParams;
   const failed = params.has("error") || params.has("error_code") || params.has("error_description");
   const message = failed
-    ? "This email link could not be used. It may have expired or already been opened.\n\nReturn to CampusClutch and try signing in. If your email still needs verification, tap Verify email on the sign-in screen to request a new link."
+    ? "This email link could not be used. It may have expired or already been opened.\n\nReturn to Clu and try signing in. If your email still needs verification, open Create Account and request a new verification email."
     : params.get("code")
-      ? "Email verification complete.\n\nReturn to CampusClutch on your phone and sign in with your email and password. You can close this tab."
-      : "Return to CampusClutch and sign in with your email and password.\n\nIf your email still needs verification, tap Verify email on the sign-in screen to request a new link.";
+      ? "Email verification complete.\n\nReturn to Clu on your phone and sign in with your email and password. You can close this tab."
+      : "Return to Clu and sign in with your email and password.\n\nIf your email still needs verification, open Create Account and request a new verification email.";
   // Do not reflect codes, email addresses, provider errors or redirect URLs.
-  return new Response(request.method === "HEAD" ? null : `CampusClutch\n\n${message}\n`, { status: 200, headers });
+  return new Response(request.method === "HEAD" ? null : `Clu\n\n${message}\n`, { status: 200, headers });
 }

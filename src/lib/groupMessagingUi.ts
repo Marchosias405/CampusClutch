@@ -60,7 +60,7 @@ export type GroupCreationValidation = {
 };
 
 function displayName(value: string | null | undefined): string {
-  return value?.trim() || 'CampusClutch member';
+  return value?.trim() || 'Clu member';
 }
 
 function memberWord(count: number): string {

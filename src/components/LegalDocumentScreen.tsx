@@ -24,7 +24,7 @@ export default function LegalDocumentScreen({ documentId, onClose, onDocument }:
     setMailError(false);
     try {
       const [recipient, domain] = privacyEmail.split('@');
-      await Linking.openURL(`mailto:${encodeURIComponent(recipient)}@${domain}?subject=CampusClutch%20privacy%20request`);
+      await Linking.openURL(`mailto:${encodeURIComponent(recipient)}@${domain}?subject=Clu%20privacy%20request`);
     } catch {
       setMailError(true);
     }

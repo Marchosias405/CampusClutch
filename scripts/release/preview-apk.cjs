@@ -3,6 +3,7 @@ const { execFileSync } = require('node:child_process');
 const fs = require('node:fs');
 const { setTimeout: delay } = require('node:timers/promises');
 const { expoProject } = require('./preview.cjs');
+const { owner, slug } = require('../../app.json').expo;
 
 const unfinished = new Set(['NEW', 'PENDING_UPLOAD', 'IN_QUEUE', 'IN_PROGRESS']);
 function usable(build) {
@@ -29,7 +30,7 @@ async function ensureApk(sha, eas, pause = delay) {
   for (let attempt = 0; attempt < 180; attempt++) {
     build = eas(['build:view', id, '--json']);
     assert.ok(build.id === id && matches(build), 'Expo returned a different project, commit or build profile');
-    if (usable(build)) return 'https://expo.dev/accounts/marchosias405/projects/CampusClutch/builds/' + id;
+    if (usable(build)) return `https://expo.dev/accounts/${owner}/projects/${slug}/builds/${id}`;
     assert.ok(unfinished.has(build.status), 'Preview APK did not finish successfully: ' + build.status);
     await pause(30000);
   }

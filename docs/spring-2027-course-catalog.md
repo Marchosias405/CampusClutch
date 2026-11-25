@@ -1,11 +1,11 @@
 # Spring 2027 SFU course catalog — local and hosted checkpoints
 
-This catalog checkpoint is complete and merged through [PR #31](https://github.com/Marchosias405/CampusClutch/pull/31) at `0fcbc8c` on October 22, 2026. Tasks 1–10 remain complete. Task 11 notifications is next; group messaging and creator-made quests remain deferred.
+This catalog checkpoint is complete and merged through [PR #31](https://github.com/Marchosias405/Clu/pull/31) at `0fcbc8c` on October 22, 2026. Tasks 1–10 remain complete. Task 11 notifications is next; group messaging and creator-made quests remain deferred.
 
 ## Scope
 
 - Published **Spring 2027** SFU enrollment sections with an explicit undergraduate degree level and **at least 3 units**.
-- One CampusClutch offering per course, term and campus. Multiple qualifying sections at the same campus share one offering. Different campuses and explicitly online offerings remain separate.
+- One Clu offering per course, term and campus. Multiple qualifying sections at the same campus share one offering. Different campuses and explicitly online offerings remain separate.
 - Units shown are the minimum across the included qualifying enrollment sections. Non-enrollment tutorials/labs are not separate courses; legitimate enrollment labs worth at least 3 units remain eligible.
 - Graduate, below-three-unit and explicitly cancelled sections are excluded. Unknown degree level, variable/invalid units, unresolved campus, identity mismatch and conflicting titles are reported for review, never guessed.
 - Existing course IDs, memberships and historical records are preserved. Importing does not register anyone with SFU or indicate seat availability.
@@ -126,7 +126,7 @@ Allow a few seconds for the gateway to start, then retry Add. Confirm exactly on
 
 The local reset-email inbox remains http://127.0.0.1:54324/.
 
-The six local, six standalone catalog and both later banner-removal phone checks are complete. Final review and required GitHub CI passed; [PR #31](https://github.com/Marchosias405/CampusClutch/pull/31) merged at `0fcbc8c`. Task 11 is next.
+The six local, six standalone catalog and both later banner-removal phone checks are complete. Final review and required GitHub CI passed; [PR #31](https://github.com/Marchosias405/Clu/pull/31) merged at `0fcbc8c`. Task 11 is next.
 
 ## Hosted Development and Preview checkpoint — October 22, 2026
 
@@ -140,7 +140,7 @@ Both hosted environments have 25 migrations through `20261022111506` and 990 ver
 - Before/after deployment fingerprints preserved all 31 Development and 31 Preview baseline relations, including existing courses, memberships, Auth users/identities and Storage objects. Live API fixture cleanup also preserved complete fingerprints including the newly imported catalog.
 - Both hosted environments retain the same eight baseline advisor warnings, with no new findings. These existing findings remain tracked for launch.
 - The 66 SQL assertions cover metadata constraints, RLS, literal search and stable paging. The 25 imported-data assertions compare every reviewed value/source section, campus totals and real catalog pagination. The 12 live Auth/PostgREST groups use the production typed course client, test both account identities, persist/remove/rejoin memberships, enforce session-switch guards, and verify access denials.
-- [Standalone Preview build `2fd64d08`](https://expo.dev/accounts/marchosias405/projects/CampusClutch/builds/2fd64d08-8255-4907-ad06-b7506ae3d0ae) completed from source `5bf8320`, the same app code that passed the six local phone checks. Later source-snapshot/reference-data updates do not change its app code. All 16 artifact checks pass: release/non-debuggable package, embedded Hermes bundle, hosted Preview only, no local backend/development launcher, current messaging APIs, catalog search and cursors, scope/coverage notices, Upcoming courses, retry and pagination.
+- [Standalone Preview build `2fd64d08`](https://expo.dev/accounts/marchosias405/projects/clu/builds/2fd64d08-8255-4907-ad06-b7506ae3d0ae) completed from source `5bf8320`, the same app code that passed the six local phone checks. Later source-snapshot/reference-data updates do not change its app code. All 16 artifact checks pass: release/non-debuggable package, embedded Hermes bundle, hosted Preview only, no local backend/development launcher, current messaging APIs, catalog search and cursors, scope/coverage notices, Upcoming courses, retry and pagination.
 - APK size: 154,210,018 bytes. SHA-256: `caed2a94978362b3aea32e3bbf5ee72b51d909e2137c7845fa1bbdf2e5531f0a`. Use the stable Expo build page above to obtain a current download; do not reuse old temporary signed APK links.
 
 ## Standalone Preview phone checklist
@@ -154,11 +154,11 @@ Both hosted environments have 25 migrations through `20261022111506` and 990 ver
 5. Switch to another hosted Preview account. Courses must stay isolated; both accounts may independently add the same offering. Confirm existing current-course/classmate direct-message entry still works.
 6. Select a course not already added, then turn off **both Wi-Fi and mobile data**. Add must show a failure while retaining selection. Reconnect and retry; confirm one saved entry after reopening. Repeat the offline/reconnect sequence with a changed search and **Retry course search**. Finish online.
 
-The six-check standalone catalog phone gate and both later banner-removal visual checks are complete. Final review and required CI passed before the [PR #31](https://github.com/Marchosias405/CampusClutch/pull/31) merge. **Task 11 — Notifications** is next. Groups and creator-made quests remain deferred.
+The six-check standalone catalog phone gate and both later banner-removal visual checks are complete. Final review and required CI passed before the [PR #31](https://github.com/Marchosias405/Clu/pull/31) merge. **Task 11 — Notifications** is next. Groups and creator-made quests remain deferred.
 
 ## Banner-removal Preview checkpoint
 
-**PASSED — both visual phone checks, confirmed by the user on October 22, 2026: the banner is gone and Classmates still works.** [Preview build `b39cde7e`](https://expo.dev/accounts/marchosias405/projects/CampusClutch/builds/b39cde7e-7549-4785-bfd5-c6336bb51f62) completed on October 22, 2026 from app source `70875ef`. It removes the redundant Find Classmates / Courses banner while retaining each current course’s Classmates button. No backend changes were made for this rebuild.
+**PASSED — both visual phone checks, confirmed by the user on October 22, 2026: the banner is gone and Classmates still works.** [Preview build `b39cde7e`](https://expo.dev/accounts/marchosias405/projects/clu/builds/b39cde7e-7549-4785-bfd5-c6336bb51f62) completed on October 22, 2026 from app source `70875ef`. It removes the redundant Find Classmates / Courses banner while retaining each current course’s Classmates button. No backend changes were made for this rebuild.
 
 Lint/typecheck and all 16 existing catalog UI runtime checks passed after the banner removal. The finished APK passes all 18 artifact checks: the prior 16 standalone/catalog checks plus absence of the redundant banner text and presence of the classmates route. The new checks were calibrated against build `2fd64d08`, which correctly fails only the banner-absence check.
 
@@ -172,7 +172,7 @@ The six passed catalog phone checks remain recorded against build `2fd64d08`; th
 
 Independent backend/importer and UI/client/source reviews found no actionable issues. Final local validation passed: lint/typecheck, 326 JavaScript checks (including 76 catalog checks), 98 SQL assertions and 12 Auth/PostgREST checks. The local-only importer transaction check skipped by ordinary CI passed separately. Temporary fixtures were cleaned up and existing application-data fingerprints remained unchanged.
 
-Required GitHub CI passed on Node 22 for PR head `acea051ff29b58a4daac4648b52041e34f2170f3`. [PR #31](https://github.com/Marchosias405/CampusClutch/pull/31) merged at `0fcbc8c5f81bf034dd2c70153794be6b324a17c3` after confirming the PR head, required checks and conflict-free merge state. This closure changes documentation only; the phone-tested app code remains source `70875ef`, delivered in Preview `b39cde7e`.
+Required GitHub CI passed on Node 22 for PR head `acea051ff29b58a4daac4648b52041e34f2170f3`. [PR #31](https://github.com/Marchosias405/Clu/pull/31) merged at `0fcbc8c5f81bf034dd2c70153794be6b324a17c3` after confirming the PR head, required checks and conflict-free merge state. This closure changes documentation only; the phone-tested app code remains source `70875ef`, delivered in Preview `b39cde7e`.
 
 ## Spring 2027 launch requirement
 

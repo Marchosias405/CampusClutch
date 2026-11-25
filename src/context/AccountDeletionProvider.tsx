@@ -77,10 +77,10 @@ export function AccountDeletionProvider({ children }: { children: React.ReactNod
       <ScrollView style={{ flex: 1 }} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" contentContainerStyle={[styles.content, { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 24 }, !loaded && { flexGrow: 1, justifyContent: 'center' }]}>
         {loaded && <Text accessibilityRole="header" style={styles.heading}>{done ? 'Account deleted' : recovery === 'unavailable' ? 'Deletion status unavailable' : receipt ? 'Finishing account deletion' : 'Delete your account?'}</Text>}
         {!loaded ? error ? <>
-          <Text accessibilityRole="header" style={styles.heading}>Unable to open CampusClutch</Text>
+          <Text accessibilityRole="header" style={styles.heading}>Unable to open Clu</Text>
           <Text accessibilityLiveRegion="polite" style={styles.error}>{error}</Text>
           <ModerationButton title="Retry" onPress={() => { void load(); }} />
-        </> : <LoadingState title="Opening CampusClutch" /> : done ? <>
+        </> : <LoadingState title="Opening Clu" /> : done ? <>
           <Text style={styles.body}>Your account and photo have been removed. Past messages remain as “Deleted student”.</Text>
           <ModerationButton title="Return to sign in" primary onPress={() => { setOpen(false); setDone(false); }} />
         </> : <>

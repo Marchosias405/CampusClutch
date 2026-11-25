@@ -9,7 +9,7 @@ const { eligible, target, prepare, project, expoProject, deferred } = require('.
 const { ensureApk } = require('./preview-apk.cjs');
 
 const sha = 'a'.repeat(40);
-const repository = 'Marchosias405/CampusClutch';
+const repository = 'Marchosias405/Clu';
 const run = { head_sha:sha, head_branch:'main', head_repository:{full_name:repository}, conclusion:'success', event:'push', run_attempt:1 };
 const jobs = ['Lint and typecheck','Database migrations and pgTAP'].map(name=>({name,conclusion:'success',run_attempt:1}));
 const env = { EXPO_PUBLIC_APP_ENV:'preview', EXPO_PUBLIC_SUPABASE_URL:'https://' + project + '.supabase.co',

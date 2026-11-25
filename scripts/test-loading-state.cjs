@@ -92,10 +92,10 @@ test('Reduce Motion, hidden screens, background and Android notification shade p
   h.close(); assert.equal(h.listeners(), 0);
 });
 test('unknown app state and reduced motion start static; startup buffers work outside a navigator', () => {
-  const h = harness('LoadingState', { title: 'Opening CampusClutch', fullScreen: true }, { outsideNavigator: true, appState: null });
+  const h = harness('LoadingState', { title: 'Opening Clu', fullScreen: true }, { outsideNavigator: true, appState: null });
   assert.equal(h.activeLoops(), 0); assert.equal(h.values[0].value, 0.5);
   h.state('active'); assert.equal(h.activeLoops(), 1);
-  h.reduce(true); assert.equal(h.activeLoops(), 0); assert.match(text(h.tree()), /Opening CampusClutch/); h.close();
+  h.reduce(true); assert.equal(h.activeLoops(), 0); assert.match(text(h.tree()), /Opening Clu/); h.close();
   const staticLoader = harness('LoadingNotice', { label: 'Refreshing courses' }, { allowed: false });
   assert.equal(staticLoader.activeLoops(), 0); assert.equal(staticLoader.values[0].value, 0.5); staticLoader.close();
 });

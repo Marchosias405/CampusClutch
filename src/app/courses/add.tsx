@@ -165,7 +165,7 @@ function AddCourseScreen({ userId }: { userId: string }) {
         { ...course, membershipStatus: "enrolled", joinedAt: new Date().toISOString(), endedAt: null },
       ]);
       setSubmitMessage(result === "already_enrolled"
-        ? "This course is already in your CampusClutch courses."
+        ? "This course is already in your Clu courses."
         : course.term.status === "upcoming"
           ? "Added under Upcoming in My Courses. Classmates open when the term starts."
           : "Course added to My Courses.");
@@ -219,7 +219,7 @@ function AddCourseScreen({ userId }: { userId: string }) {
             <Text style={styles.messageText}>Spring 2027 undergraduate courses with 3+ units</Text>
             <Text style={styles.messageText}>Some details are pending. Check SFU for registration and schedule updates.</Text>
           </View>}
-          <Text style={styles.catalogHint}>Tap a course to read reviews. Adding it saves it to CampusClutch, not your SFU registration.</Text>
+          <Text style={styles.catalogHint}>Tap a course to read reviews. Adding it saves it to Clu, not your SFU registration.</Text>
           <Text style={styles.smallLabel}>RESULTS</Text>
           {courses.length === 0 && !isSearching && !searchError && <Text style={styles.emptyText}>
             {query.trim() ? `No courses match "${query.trim()}".` : selectedTerm

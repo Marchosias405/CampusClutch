@@ -91,7 +91,7 @@ After Android validation, deploy and verify the migration in Development and Pre
 
 ## Stage 3: hosted database validation (2026-09-07)
 
-The request migration is deployed to CampusClutch Development (`ayisjsajufjkebvbzpdr`) and CampusClutch Preview (`udbijakeasbvoycjyghe`). Both were ACTIVE_HEALTHY before deployment. Each passed 61 request assertions and 13 course regression assertions through rollback transactions. No test users or requests remain. Existing user/course data was not reset.
+The request migration is deployed to Clu Development (`ayisjsajufjkebvbzpdr`) and Clu Preview (`udbijakeasbvoycjyghe`). Both were ACTIVE_HEALTHY before deployment. Each passed 61 request assertions and 13 course regression assertions through rollback transactions. No test users or requests remain. Existing user/course data was not reset.
 
 Migration history in both environments matches repository version `20260907204626`. The connector assigned deployment-time versions (`20260908033155` in Development and `20260908033253` in Preview); those exact history records were aligned to the repository version after successful application to prevent a future CLI push from applying the same schema twice.
 
@@ -103,7 +103,7 @@ Hosted security advisors did not flag Task 8 request objects. They reported warn
 
 The EAS `preview` environment was verified as `EXPO_PUBLIC_APP_ENV=preview` and `EXPO_PUBLIC_SUPABASE_URL=https://udbijakeasbvoycjyghe.supabase.co`. Local environment files are Git-ignored and local configuration remains unchanged. TypeScript and ESLint passed before build packaging.
 
-On September 8 the user explicitly authorized uploading the current source to Expo/EAS. Upload succeeded and standalone Android Preview build `bb1edd72-ab02-4d24-8372-2f4540112157` was submitted using the existing signing key. [Build status](https://expo.dev/accounts/marchosias405/projects/CampusClutch/builds/bb1edd72-ab02-4d24-8372-2f4540112157).
+On September 8 the user explicitly authorized uploading the current source to Expo/EAS. Upload succeeded and standalone Android Preview build `bb1edd72-ab02-4d24-8372-2f4540112157` was submitted using the existing signing key. [Build status](https://expo.dev/accounts/marchosias405/projects/clu/builds/bb1edd72-ab02-4d24-8372-2f4540112157).
 
 Build status: **FINISHED**. [Download the standalone Preview APK](https://expo.dev/artifacts/eas/86g_Kk2Eal1kXnxdIS2pSdFZLZ5DqpQrb-19xq2wBQk.apk).
 

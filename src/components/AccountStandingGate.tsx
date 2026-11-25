@@ -47,7 +47,7 @@ function SignedInStanding({ userId, signOut, children }: {
   return <View style={styles.screen}><ScrollView contentContainerStyle={[styles.content, { paddingTop: 64 }]}>
     {!standing ? <Text style={styles.heading}>Unable to check your account</Text> : <>
       <Text style={styles.heading}>{standing.suspended ? 'Account temporarily suspended' : 'Account notice'}</Text>
-      {standing.suspended && <Text style={styles.body}>Your CampusClutch access resumes after {new Date(standing.suspended_until!).toLocaleString()}. Your points and request history are preserved.</Text>}
+      {standing.suspended && <Text style={styles.body}>Your Clu access resumes after {new Date(standing.suspended_until!).toLocaleString()}. Your points and request history are preserved.</Text>}
       <Text style={styles.body}>{standing.warning_count} formal warnings</Text>
       <Text style={styles.body}>{standing.warning_count % 3}/3 warnings this cycle</Text>
       <Text style={styles.body}>Every third warning results in a 7-day suspension.</Text>

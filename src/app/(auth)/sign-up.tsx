@@ -5,6 +5,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Image,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -190,7 +191,7 @@ export default function SignUpScreen() {
         <Text style={styles.title}>Check your email</Text>
 
         <Text style={styles.subtitle}>
-          Open the verification link on any device. Then return to CampusClutch and sign in.
+          Open the verification link on any device. Then return to Clu and sign in.
         </Text>
         <Text style={styles.label}>Email address</Text>
         <TextInput
@@ -298,11 +299,9 @@ export default function SignUpScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.brandIcon}>
-          <Ionicons name="school" size={34} color="#FFFFFF" />
-        </View>
+        <Image source={require("@/assets/images/splash-icon.png")} style={styles.brandLogo} resizeMode="contain" accessible={false} />
 
-        <Text style={styles.brandName}>CampusClutch</Text>
+        <Text style={styles.brandName}>Clu</Text>
         <Text style={styles.title}>Create your account</Text>
         <Text style={styles.subtitle}>
           {requiresSfuEmail
@@ -446,6 +445,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
 
+  brandLogo: { width: 68, height: 68, alignSelf: "center", marginBottom: 16 },
   brandIcon: {
     width: 68,
     height: 68,

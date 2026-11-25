@@ -42,11 +42,12 @@ function screen(params = {}) {
     useRef(initial) { return state[cursor++] ??= { current: initial }; },
   };
   const mocks = {
+    '@/assets/images/splash-icon.png': 1,
     '@/components/motion': require('./motion-test-mock.cjs'),
     '@/components/LegalLinks': { default: 'LegalLinks', __esModule: true },
     '@/context/LegalDocumentsProvider': { LegalDocumentsProvider: 'LegalDocumentsProvider' },
     react,
-    'react-native': {
+    'react-native': { Image: 'Image',
       ...Object.fromEntries(['ActivityIndicator', 'Pressable', 'TextInput', 'Text', 'View', 'ScrollView', 'KeyboardAvoidingView'].map(type => [type, type])),
       StyleSheet: { create: styles => styles }, Platform: { OS: 'android' },
     },
@@ -105,7 +106,7 @@ test('showing a password and opening recovery or registration do not submit cred
   app.press('Hide password');
   assert.equal(app.input(passwordPlaceholder).secureTextEntry, true);
   app.press('Forgot password?');
-  app.press('New to CampusClutch? Create Account');
+  app.press('New to Clu? Create Account');
   assert.deepEqual(app.routes, ['/forgot-password', '/sign-up']);
   assert.equal(app.calls.length, 0);
 });
@@ -143,7 +144,7 @@ test('keyboard submit and a button tap before redraw start only one attempt', as
   assert.deepEqual(app.calls[0].args, [email.trim(), password]);
   assert.equal(app.input(passwordPlaceholder).editable, false);
   assert.equal(app.button('Forgot password?').disabled, true);
-  assert.equal(app.button('New to CampusClutch? Create Account').disabled, true);
+  assert.equal(app.button('New to Clu? Create Account').disabled, true);
   app.calls[0].resolve(null);
   await app.settle();
   assert.ok(app.busy());

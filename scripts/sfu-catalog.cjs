@@ -154,7 +154,7 @@ class ApiCache {
       if (this.networkRequests >= this.maxRequests) throw new Error(`Request safety limit (${this.maxRequests}) reached`);
       this.networkRequests += 1;
       try {
-        const response = await fetch(apiUrl(query), { headers: { Accept: "application/json", "User-Agent": "CampusClutch-CourseCatalog/1.0 (public academic catalog, low-rate cached GET)" }, signal: AbortSignal.timeout(20000) });
+        const response = await fetch(apiUrl(query), { headers: { Accept: "application/json", "User-Agent": "Clu-CourseCatalog/1.0 (public academic catalog, low-rate cached GET)" }, signal: AbortSignal.timeout(20000) });
         if (!response.ok) {
           if (response.status === 429 || response.status >= 500) {
             const retryAfter = Number(response.headers.get("retry-after"));

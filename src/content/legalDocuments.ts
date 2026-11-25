@@ -19,10 +19,10 @@ export const privacyEmail = mailbox && mailboxPattern.test(mailbox) ? mailbox : 
 export const legalDocuments: Record<LegalDocumentId, LegalDocument> = {
   privacy: {
     title: 'Privacy Policy',
-    introduction: 'How CampusClutch uses your information and the choices you have.',
+    introduction: 'How Clu uses your information and the choices you have.',
     sections: [
-      { title: 'About CampusClutch', paragraphs: [
-        'CampusClutch helps students find classmates, read course reviews, arrange campus help and message each other.',
+      { title: 'About Clu', paragraphs: [
+        'Clu helps students find classmates, read course reviews, arrange campus help and message each other.',
         'The public operator name is being confirmed. An SFU email requirement does not mean SFU operates or endorses this app.',
       ] },
       { title: 'Request your information', showPrivacyContact: true, paragraphs: privacyEmail ? [
@@ -90,7 +90,7 @@ export const legalDocuments: Record<LegalDocumentId, LegalDocument> = {
       ] },
       { title: 'Respect and safety', paragraphs: [
         'Do not harass, threaten, discriminate, reveal private information without permission, send spam or scam others. Do not arrange unlawful or dangerous work, or use requests to cheat on coursework or assessments.',
-        'Use blocking and reporting when needed. Reports are not an emergency service and do not guarantee an immediate response. CampusClutch cannot guarantee another student’s conduct or the availability of help.',
+        'Use blocking and reporting when needed. Reports are not an emergency service and do not guarantee an immediate response. Clu cannot guarantee another student’s conduct or the availability of help.',
       ] },
       { title: 'Moderation and appeals', paragraphs: [
         'Assigned admins can remove requests, hide reviews, issue warnings or suspend accounts with a recorded reason. The affected student receives the reason in the bell inbox and Account decisions & appeals.',

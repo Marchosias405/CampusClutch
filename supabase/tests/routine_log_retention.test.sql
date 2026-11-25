@@ -113,7 +113,7 @@ select is(safety_private.erase_expired_routine_logs(),1,'Only the verified retir
 select ok(not pg_temp.has_run(31) and pg_temp.has_run(32),'Unknown command on a retired ID survives');
 
 -- Model an ID reuse after an extension restore by recording an earlier
--- CampusClutch signature for the existing foreign schedule's numeric ID.
+-- Clu signature for the existing foreign schedule's numeric ID.
 -- Application owners cannot insert records directly into the managed cron.job.
 insert into safety_private.routine_log_job_identities(database_name,run_as,jobid,job_name,command_hash)
   select h.database_name,h.run_as,j.id,h.job_name,h.command_hash

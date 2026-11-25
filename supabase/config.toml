@@ -162,9 +162,9 @@ site_url = "http://127.0.0.1:3000"
 # A list of *exact* URLs that auth providers are permitted to redirect to post authentication.
 additional_redirect_urls = [
   "https://127.0.0.1:3000",
-  "campusclutch://auth/callback", "http://127.0.0.1:54731/reset-password.html",
+  "clu://auth/callback", "campusclutch://auth/callback", "http://127.0.0.1:54731/reset-password.html",
   "http://127.0.0.1:54321/functions/v1/email-verified",
-  "campusclutch://auth/reset-password",
+  "clu://auth/reset-password", "campusclutch://auth/reset-password",
 ]
 # How long tokens are valid for, in seconds. Defaults to 3600 (1 hour), maximum 604,800 (1 week).
 jwt_expiry = 3600
