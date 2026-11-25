@@ -6,6 +6,8 @@ Clu helps SFU students find classmates, review courses, message each other, and 
 
 The core app has passed Android Preview testing. The GitHub repository and Expo display name are now **Clu**. The app and Expo dashboard use the new graduation badge. Expo keeps `CampusClutch` as the permanent URL slug of the existing project. [Expo project](https://expo.dev/accounts/marchosias405/projects/CampusClutch)
 
+The locally built `Clu-Branding-Preview.apk` is ready for the branding phone check below. Its signing certificate matches the previous Preview, and the APK points to the Preview backend.
+
 ## ✅ Complete
 
 | Area | What works |
