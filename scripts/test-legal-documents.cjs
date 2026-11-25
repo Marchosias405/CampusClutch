@@ -30,6 +30,7 @@ function harness(screen = 'sign-up', params = {}, { privacyEmail, mailAppAvailab
     if (!mailAppAvailable) throw new Error('No mail app');
   } };
   const stubs = {
+    '@/assets/images/splash-icon.png': 1,
     react, 'react/jsx-runtime': { jsx: element, jsxs: element, Fragment: 'Fragment' }, 'react-native': native,
     '@expo/vector-icons': { Ionicons: 'Icon' }, 'expo-status-bar': { StatusBar: 'StatusBar' },
     'react-native-safe-area-context': { useSafeAreaInsets: () => ({ top: 24, bottom: 24 }) },
@@ -150,7 +151,7 @@ test('privacy contact opens a draft from sign-in or Profile with only the config
     assert.ok(nodes(h.modal()).some(n => n.props?.selectable && text(n) === 'privacy+preview@example.test'));
     assert.deepEqual(h.calls, []);
     await h.button('Email the privacy team').onPress();
-    assert.deepEqual(h.calls, [['openURL', 'mailto:privacy%2Bpreview@example.test?subject=CampusClutch%20privacy%20request']]);
+    assert.deepEqual(h.calls, [['openURL', 'mailto:privacy%2Bpreview@example.test?subject=Clu%20privacy%20request']]);
     h.press('Read Terms');
     assert.doesNotMatch(text(h.modal()), /Email the privacy team/);
   }

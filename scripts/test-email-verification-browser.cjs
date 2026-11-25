@@ -17,13 +17,13 @@ async function run() {
     browser = await chromium.launch({ channel: 'chrome', headless: true });
     const phone = await browser.newContext({ viewport: { width: 390, height: 844 } });
     let page = await phone.newPage(); await page.goto(origin);
-    await page.getByText('New to CampusClutch? Create Account', { exact: true }).click();
+    await page.getByText('New to Clu? Create Account', { exact: true }).click();
     await page.getByRole('textbox', { name: 'student@example.com', exact: true }).fill(student.email);
     await page.getByPlaceholder('At least 8 characters').fill(student.password);
     await page.getByPlaceholder('Enter your password again').fill(student.password);
     await page.getByText('Create Account', { exact: true }).click();
     await page.getByLabel('Verification email address', { exact: true }).waitFor();
-    await page.getByText('Open the verification link on any device. Then return to CampusClutch and sign in.', { exact: true }).waitFor();
+    await page.getByText('Open the verification link on any device. Then return to Clu and sign in.', { exact: true }).waitFor();
     await page.screenshot({ path: '.expo/email-verification-screen.png', fullPage: true });
     await page.setViewportSize({ width: 320, height: 360 });
     for (const control of [page.getByLabel('Verification email address', { exact: true }), page.getByRole('button', { name: 'Return to Sign In', exact: true }), page.getByText('Resend Verification Email', { exact: true })]) {

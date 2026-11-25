@@ -25,12 +25,13 @@ function harness(params = {}, appEnvironment = 'preview') {
     },
   };
   const mocks = {
+    '@/assets/images/splash-icon.png': 1,
     '@/lib/env': { env: { appEnvironment } },
     '@/components/motion': require('./motion-test-mock.cjs'),
     '@/components/LegalLinks': { default: 'LegalLinks', __esModule: true },
     '@/context/LegalDocumentsProvider': { LegalDocumentsProvider: 'LegalDocumentsProvider' },
     react,
-    'react-native': { ActivityIndicator: 'ActivityIndicator', Pressable: 'Pressable', ScrollView: 'ScrollView',
+    'react-native': { Image: 'Image', ActivityIndicator: 'ActivityIndicator', Pressable: 'Pressable', ScrollView: 'ScrollView',
       Text: 'Text', TextInput: 'TextInput', View: 'View', KeyboardAvoidingView: 'KeyboardAvoidingView',
       Platform: { OS: 'android' }, StyleSheet: { create: value => value } },
     '@expo/vector-icons': { Ionicons: 'Ionicons' },

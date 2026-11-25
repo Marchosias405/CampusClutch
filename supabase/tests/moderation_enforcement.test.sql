@@ -223,7 +223,7 @@ on conflict(profile_id) do update set suspended_until=excluded.suspended_until;
 set local role authenticated;
 select pg_temp.login(4);
 select throws_ok(format('select public.%I(%s)',p.proname,c.args),'PT403',
- 'Your CampusClutch account is temporarily suspended.','Suspended admin is refused: '||p.proname)
+ 'Your Clu account is temporarily suspended.','Suspended admin is refused: '||p.proname)
 from delegated_guard_calls c join pg_proc p on p.oid=c.routine;
 reset role;
 select ok(p.prosrc like '%safety_private.check_account_access()%','Guarded RPC: '||p.proname)

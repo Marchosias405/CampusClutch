@@ -12,7 +12,7 @@ const { localClientConfig, createStudentFixture, cleanupStudentFixtures } = requ
 
 async function register(page, origin, credentials, name) {
   await page.goto(origin);
-  await page.getByText('New to CampusClutch? Create Account', { exact: true }).click();
+  await page.getByText('New to Clu? Create Account', { exact: true }).click();
   await page.getByRole('textbox', { name: 'student@example.com', exact: true }).fill(credentials.email);
   await page.getByPlaceholder('At least 8 characters').fill(credentials.password);
   await page.getByPlaceholder('Enter your password again').fill(credentials.password);

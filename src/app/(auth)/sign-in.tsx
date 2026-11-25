@@ -5,6 +5,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Image,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -93,11 +94,9 @@ export default function SignInScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.brandIcon}>
-          <Ionicons name="school" size={34} color="#FFFFFF" />
-        </View>
+        <Image source={require("@/assets/images/splash-icon.png")} style={styles.brandLogo} resizeMode="contain" accessible={false} />
 
-        <Text style={styles.brandName}>CampusClutch</Text>
+        <Text style={styles.brandName}>Clu</Text>
         <Text style={styles.title}>Welcome back</Text>
         <Text style={styles.subtitle}>
           Sign in to connect with classmates and campus opportunities.
@@ -208,7 +207,7 @@ export default function SignInScreen() {
             disabled={isSubmitting}
           >
             <Text style={styles.secondaryButtonText}>
-              New to CampusClutch? Create Account
+              New to Clu? Create Account
             </Text>
           </Pressable>
           <LegalLinks disabled={isSubmitting} />
@@ -230,16 +229,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
   },
 
-  brandIcon: {
-    width: 68,
-    height: 68,
-    borderRadius: 20,
-    alignSelf: "center",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: COLORS.primary,
-    marginBottom: 16,
-  },
+  brandLogo: { width: 68, height: 68, alignSelf: "center", marginBottom: 16 },
 
   brandName: {
     alignSelf: "center",

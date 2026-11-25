@@ -30,7 +30,7 @@ def main():
     parser.add_argument("--schedule-unclaimed", action="store_true",
                         help="Remove old unclaimed postings on this local database")
     parser.add_argument("--schedule-routine-logs", action="store_true",
-                        help="Enable cleanup of completed CampusClutch scheduler logs on this local database")
+                        help="Enable cleanup of completed Clu scheduler logs on this local database")
     args = parser.parse_args()
     if not re.fullmatch(r"supabase_db_[A-Za-z0-9_-]+", args.container):
         parser.error("Specify a local Supabase database container name.")

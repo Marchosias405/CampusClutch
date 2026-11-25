@@ -122,7 +122,7 @@ export default function HomeDashboardScreen() {
     <View style={styles.screen}>
       <ScreenHeader>
         <Text style={styles.brandText}>
-          CampusClutch
+          Clu
         </Text>
 
         <NotificationBell />

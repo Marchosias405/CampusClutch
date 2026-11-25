@@ -350,7 +350,7 @@ function CoursesIndexScreen({ userId }: { userId: string }) {
           </ScrollView>
 
           {pendingRemoval && <View style={styles.removalBox}>
-            <Text style={styles.courseTitle}>Remove {pendingRemoval.code} ({pendingRemoval.term.displayName}) from your CampusClutch courses?</Text>
+            <Text style={styles.courseTitle}>Remove {pendingRemoval.code} ({pendingRemoval.term.displayName}) from your Clu courses?</Text>
             {removeError && <Text style={styles.removalError}>{removeError}</Text>}
             <View style={styles.removalActions}>
               <Pressable accessibilityRole="button" disabled={leavingCourseId !== null} onPress={() => setPendingRemoval(null)} style={styles.confirmRemove}>

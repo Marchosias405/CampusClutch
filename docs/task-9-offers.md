@@ -1,6 +1,6 @@
 # Task 9 — Request Offers
 
-**Current status (September 26, 2026):** All Task 9 local, hosted and manual phone gates passed. All ten migrations through `20260926085648` are applied in Development and Preview, with 770 SQL assertions passing in each and existing data preserved. The user confirmed the cancelled-assignment phone tests on Preview build `016bd2fd`, plus the earlier offline refresh/save test and fresh password-reset link. Final review and required GitHub CI passed on head `861efb1`; [PR #27](https://github.com/Marchosias405/CampusClutch/pull/27) merged into `main` at `2b3c081` on September 26. Task 9 is complete. Earlier sections retain historical checkpoint results.
+**Current status (September 26, 2026):** All Task 9 local, hosted and manual phone gates passed. All ten migrations through `20260926085648` are applied in Development and Preview, with 770 SQL assertions passing in each and existing data preserved. The user confirmed the cancelled-assignment phone tests on Preview build `016bd2fd`, plus the earlier offline refresh/save test and fresh password-reset link. Final review and required GitHub CI passed on head `861efb1`; [PR #27](https://github.com/Marchosias405/Clu/pull/27) merged into `main` at `2b3c081` on September 26. Task 9 is complete. Earlier sections retain historical checkpoint results.
 
 ## Checkpoint 1: local backend (2026-09-11, America/Vancouver)
 
@@ -99,7 +99,7 @@ adb reverse tcp:54321 tcp:54321
 npx expo start --dev-client --localhost
 ```
 
-Open CampusClutch's development launcher and connect to `http://localhost:8081`. Use local accounts; hosted Preview accounts and data are separate. The local migrations are already applied.
+Open Clu's development launcher and connect to `http://localhost:8081`. Use local accounts; hosted Preview accounts and data are separate. The local migrations are already applied.
 
 ### Checkpoint 2 phone checklist (passed; historical)
 
@@ -479,7 +479,7 @@ Final review found that leaving My offers during a slow withdrawal or renewal co
 
 ## Task 9 closure (September 26, 2026, America/Vancouver)
 
-- [PR #27](https://github.com/Marchosias405/CampusClutch/pull/27) merged into `main` at `2b3c081c9c755740d46e15afebabe62490307e6d`.
+- [PR #27](https://github.com/Marchosias405/Clu/pull/27) merged into `main` at `2b3c081c9c755740d46e15afebabe62490307e6d`.
 - The required **Lint and typecheck** GitHub check passed on reviewed head `861efb13aa0e39bf14352f2df21f3bf502767e16`, including all nine offer-action lifecycle regression checks.
 - Independent backend review found no actionable issue. The frontend review finding above was corrected and verified before merge.
 - The final local database run passed 770 assertions across 12 files. Hosted validation, typed API checks, concurrency suites and all user-reported phone gates are recorded above.

@@ -120,7 +120,7 @@ where (existing.title,existing.status,existing.units,existing.degree_level,exist
   is distinct from
       (excluded.title,excluded.status,excluded.units,excluded.degree_level,excluded.delivery_mode,
        excluded.source_fetched_at,excluded.source_sections);`;
-  return `-- CampusClutch ${term.display_name} undergraduate catalog, >=3 units.
+  return `-- Clu ${term.display_name} undergraduate catalog, >=3 units.
 -- Source snapshot ${checked.generatedAt}; verified rows ${checked.rows.length}.
 -- Source errors ${checked.sourceErrors}; quarantined ${checked.quarantined}.
 -- ${options.applyLocal ? 'LOCAL COMMIT' : 'DRY RUN: all writes roll back'}.

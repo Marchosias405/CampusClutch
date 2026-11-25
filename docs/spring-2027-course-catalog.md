@@ -1,11 +1,11 @@
 # Spring 2027 SFU course catalog — local and hosted checkpoints
 
-This catalog checkpoint is complete and merged through [PR #31](https://github.com/Marchosias405/CampusClutch/pull/31) at `0fcbc8c` on October 22, 2026. Tasks 1–10 remain complete. Task 11 notifications is next; group messaging and creator-made quests remain deferred.
+This catalog checkpoint is complete and merged through [PR #31](https://github.com/Marchosias405/Clu/pull/31) at `0fcbc8c` on October 22, 2026. Tasks 1–10 remain complete. Task 11 notifications is next; group messaging and creator-made quests remain deferred.
 
 ## Scope
 
 - Published **Spring 2027** SFU enrollment sections with an explicit undergraduate degree level and **at least 3 units**.
-- One CampusClutch offering per course, term and campus. Multiple qualifying sections at the same campus share one offering. Different campuses and explicitly online offerings remain separate.
+- One Clu offering per course, term and campus. Multiple qualifying sections at the same campus share one offering. Different campuses and explicitly online offerings remain separate.
 - Units shown are the minimum across the included qualifying enrollment sections. Non-enrollment tutorials/labs are not separate courses; legitimate enrollment labs worth at least 3 units remain eligible.
 - Graduate, below-three-unit and explicitly cancelled sections are excluded. Unknown degree level, variable/invalid units, unresolved campus, identity mismatch and conflicting titles are reported for review, never guessed.
 - Existing course IDs, memberships and historical records are preserved. Importing does not register anyone with SFU or indicate seat availability.
@@ -126,7 +126,7 @@ Allow a few seconds for the gateway to start, then retry Add. Confirm exactly on
 
 The local reset-email inbox remains http://127.0.0.1:54324/.
 
-The six local, six standalone catalog and both later banner-removal phone checks are complete. Final review and required GitHub CI passed; [PR #31](https://github.com/Marchosias405/CampusClutch/pull/31) merged at `0fcbc8c`. Task 11 is next.
+The six local, six standalone catalog and both later banner-removal phone checks are complete. Final review and required GitHub CI passed; [PR #31](https://github.com/Marchosias405/Clu/pull/31) merged at `0fcbc8c`. Task 11 is next.
 
 ## Hosted Development and Preview checkpoint — October 22, 2026
 
@@ -154,7 +154,7 @@ Both hosted environments have 25 migrations through `20261022111506` and 990 ver
 5. Switch to another hosted Preview account. Courses must stay isolated; both accounts may independently add the same offering. Confirm existing current-course/classmate direct-message entry still works.
 6. Select a course not already added, then turn off **both Wi-Fi and mobile data**. Add must show a failure while retaining selection. Reconnect and retry; confirm one saved entry after reopening. Repeat the offline/reconnect sequence with a changed search and **Retry course search**. Finish online.
 
-The six-check standalone catalog phone gate and both later banner-removal visual checks are complete. Final review and required CI passed before the [PR #31](https://github.com/Marchosias405/CampusClutch/pull/31) merge. **Task 11 — Notifications** is next. Groups and creator-made quests remain deferred.
+The six-check standalone catalog phone gate and both later banner-removal visual checks are complete. Final review and required CI passed before the [PR #31](https://github.com/Marchosias405/Clu/pull/31) merge. **Task 11 — Notifications** is next. Groups and creator-made quests remain deferred.
 
 ## Banner-removal Preview checkpoint
 
@@ -172,7 +172,7 @@ The six passed catalog phone checks remain recorded against build `2fd64d08`; th
 
 Independent backend/importer and UI/client/source reviews found no actionable issues. Final local validation passed: lint/typecheck, 326 JavaScript checks (including 76 catalog checks), 98 SQL assertions and 12 Auth/PostgREST checks. The local-only importer transaction check skipped by ordinary CI passed separately. Temporary fixtures were cleaned up and existing application-data fingerprints remained unchanged.
 
-Required GitHub CI passed on Node 22 for PR head `acea051ff29b58a4daac4648b52041e34f2170f3`. [PR #31](https://github.com/Marchosias405/CampusClutch/pull/31) merged at `0fcbc8c5f81bf034dd2c70153794be6b324a17c3` after confirming the PR head, required checks and conflict-free merge state. This closure changes documentation only; the phone-tested app code remains source `70875ef`, delivered in Preview `b39cde7e`.
+Required GitHub CI passed on Node 22 for PR head `acea051ff29b58a4daac4648b52041e34f2170f3`. [PR #31](https://github.com/Marchosias405/Clu/pull/31) merged at `0fcbc8c5f81bf034dd2c70153794be6b324a17c3` after confirming the PR head, required checks and conflict-free merge state. This closure changes documentation only; the phone-tested app code remains source `70875ef`, delivered in Preview `b39cde7e`.
 
 ## Spring 2027 launch requirement
 

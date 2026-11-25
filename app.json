@@ -1,12 +1,12 @@
 {
   "expo": {
-    "name": "CampusClutch",
+    "name": "Clu",
     "slug": "CampusClutch",
     "owner": "marchosias405",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./src/assets/images/icon.png",
-    "scheme": "campusclutch",
+    "scheme": ["clu", "campusclutch"],
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
@@ -17,9 +17,8 @@
       "package": "com.marchosias405.campusclutch",
       "allowBackup": false,
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#FFFFFF",
         "foregroundImage": "./src/assets/images/android-icon-foreground.png",
-        "backgroundImage": "./src/assets/images/android-icon-background.png",
         "monochromeImage": "./src/assets/images/android-icon-monochrome.png"
       },
       "edgeToEdgeEnabled": true,
@@ -32,7 +31,7 @@
     "plugins": [
       "expo-router",
       "expo-secure-store",
-      "expo-notifications",
+      ["expo-notifications", { "icon": "./src/assets/images/notification-icon.png", "color": "#B50921" }],
       [
         "expo-splash-screen",
         {
@@ -49,7 +48,7 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Allow CampusClutch to access your photos so you can choose a profile picture.",
+          "photosPermission": "Allow Clu to access your photos so you can choose a profile picture.",
           "cameraPermission": false,
           "microphonePermission": false
         }

@@ -79,7 +79,7 @@ export default function AuthCallbackScreen() {
 
       if (error) {
         setErrorMessage(
-          "CampusClutch could not complete email verification."
+          "Clu could not complete email verification."
         );
         return;
       }
@@ -146,7 +146,7 @@ export default function AuthCallbackScreen() {
           />
 
           <Text style={styles.subtitle}>
-            Please wait while CampusClutch completes
+            Please wait while Clu completes
             authentication.
           </Text>
         </>

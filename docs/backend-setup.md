@@ -1,8 +1,8 @@
-# CampusClutch Backend Setup
+# Clu Backend Setup
 
 ## Purpose
 
-This guide explains how to configure and run the CampusClutch Supabase foundation.
+This guide explains how to configure and run the Clu Supabase foundation.
 
 Task 4 only establishes the backend and environment foundation. It does not migrate profiles, courses, requests, offers, conversations, messages, or notifications.
 
@@ -15,8 +15,8 @@ The [Preview deployment guide](preview-deployment.md) covers the GitHub Actions 
 | Environment | Supabase backend | EAS environment |
 |---|---|---|
 | Local | Local Supabase through Docker | Local `.env.local` |
-| Development | CampusClutch Development | `development` |
-| Preview | CampusClutch Preview | `preview` |
+| Development | Clu Development | `development` |
+| Preview | Clu Preview | `preview` |
 | Production | Not created yet | `production` reserved |
 
 The repository is linked to the hosted Development project. Do not relink it to Preview unless a later deployment procedure explicitly requires it.
@@ -64,7 +64,7 @@ Do not run `npm audit fix --force` without reviewing the dependency changes.
 
 ## Environment Variables
 
-CampusClutch uses these public Expo variables:
+Clu uses these public Expo variables:
 
 ```text
 EXPO_PUBLIC_APP_ENV
@@ -213,7 +213,7 @@ Never add real student data, production credentials, private messages, or person
 The repository is linked to:
 
 ```text
-CampusClutch Development
+Clu Development
 ```
 
 Verify the link:
@@ -222,7 +222,7 @@ Verify the link:
 npx supabase projects list
 ```
 
-The linked marker should remain beside CampusClutch Development.
+The linked marker should remain beside Clu Development.
 
 After migrations are created, reviewed, and tested locally, they can later be applied to the linked Development project with:
 
@@ -239,7 +239,7 @@ Do not create feature tables during Task 4.
 The Preview backend is:
 
 ```text
-CampusClutch Preview
+Clu Preview
 ```
 
 The local repository should remain linked to Development, not Preview.
@@ -341,7 +341,7 @@ Expected Task 4 result:
 
 ## Stop Local Supabase
 
-Stop the CampusClutch local services while preserving local database state:
+Stop the Clu local services while preserving local database state:
 
 ```powershell
 npx supabase stop

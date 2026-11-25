@@ -91,7 +91,7 @@ After Android validation, deploy and verify the migration in Development and Pre
 
 ## Stage 3: hosted database validation (2026-09-07)
 
-The request migration is deployed to CampusClutch Development (`ayisjsajufjkebvbzpdr`) and CampusClutch Preview (`udbijakeasbvoycjyghe`). Both were ACTIVE_HEALTHY before deployment. Each passed 61 request assertions and 13 course regression assertions through rollback transactions. No test users or requests remain. Existing user/course data was not reset.
+The request migration is deployed to Clu Development (`ayisjsajufjkebvbzpdr`) and Clu Preview (`udbijakeasbvoycjyghe`). Both were ACTIVE_HEALTHY before deployment. Each passed 61 request assertions and 13 course regression assertions through rollback transactions. No test users or requests remain. Existing user/course data was not reset.
 
 Migration history in both environments matches repository version `20260907204626`. The connector assigned deployment-time versions (`20260908033155` in Development and `20260908033253` in Preview); those exact history records were aligned to the repository version after successful application to prevent a future CLI push from applying the same schema twice.
 

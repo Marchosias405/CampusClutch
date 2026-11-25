@@ -1,4 +1,4 @@
--- CampusClutch local development seed data.
+-- Clu local development seed data.
 --
 -- Schema changes belong in version-controlled migration files.
 -- These records are development fixtures only.
@@ -69,7 +69,7 @@ set
 -- =========================================================
 --
 -- These are safe development fixtures based on the course records already
--- represented in the CampusClutch mock UI. They are not production enrolment
+-- represented in the Clu mock UI. They are not production enrolment
 -- or official university-registration records.
 
 insert into public.courses (

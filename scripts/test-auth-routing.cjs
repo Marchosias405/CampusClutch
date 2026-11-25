@@ -72,7 +72,7 @@ test('startup waits for restoration before offering sign-in or recovery links', 
   const pending = app.render();
   assert.deepEqual(pending.routes, []);
   assert.equal(pending.loading.length, 1);
-  assert.equal(pending.loading[0].title, 'Opening CampusClutch');
+  assert.equal(pending.loading[0].title, 'Opening Clu');
   assert.equal(pending.loading[0].detail, 'Restoring your session');
   app.auth.isRestoringSession = false;
   const { routes } = app.render();

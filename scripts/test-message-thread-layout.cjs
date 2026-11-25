@@ -518,7 +518,7 @@ test('a valid unnamed peer remains accessible from read-only direct-message hist
   app.patchState({ summary: { ...app.snapshot().summary, status: 'closed', other_display_name: null } });
   const button = profileButton(app);
   assert.ok(button);
-  assert.equal(button.props.accessibilityLabel, "View CampusClutch member's profile");
+  assert.equal(button.props.accessibilityLabel, "View Clu member's profile");
   button.props.onPress();
   assert.equal(app.navigation[0].params.id, B);
 });

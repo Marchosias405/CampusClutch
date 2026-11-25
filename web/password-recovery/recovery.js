@@ -26,7 +26,7 @@
     form.hidden = true;
     retrySignOut.hidden = true;
     password.value = confirm.value = "";
-    status.textContent = "This reset link has expired or was already used. In CampusClutch, choose Forgot password to request a new one.";
+    status.textContent = "This reset link has expired or was already used. In Clu, choose Forgot password to request a new one.";
   }
   async function auth(path, options = {}) {
     return fetch(`${config.url}/auth/v1/${path}`, {
@@ -56,7 +56,7 @@
       token = null;
       retrySignOut.hidden = true;
       title.textContent = "Password updated";
-      status.textContent = "Return to CampusClutch on your phone and sign in with your new password. You can close this page.";
+      status.textContent = "Return to Clu on your phone and sign in with your new password. You can close this page.";
     } else {
       status.textContent = "Your password was saved. Keep this page open and retry sign-out.";
       retrySignOut.hidden = false;

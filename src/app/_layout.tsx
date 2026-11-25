@@ -95,7 +95,7 @@ function RootNavigator() {
         <StatusBar style="dark" />
 
         <LoadingState
-          title={isRestoringSession ? "Opening CampusClutch" : "Loading your profile"}
+          title={isRestoringSession ? "Opening Clu" : "Loading your profile"}
           detail={isRestoringSession ? "Restoring your session" : undefined}
         />
       </View>
@@ -144,7 +144,7 @@ function RootNavigator() {
         </Text>
 
         <Text style={styles.stateMessage}>
-          Your account is signed in, but its CampusClutch profile could not be
+          Your account is signed in, but its Clu profile could not be
           found.
         </Text>
 

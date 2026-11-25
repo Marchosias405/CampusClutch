@@ -1,6 +1,6 @@
 # Deploying main to Preview
 
-GitHub Actions builds an internal Android APK for the commit that passed CI on `main`. After the APK succeeds, it applies reviewed database migrations to **CampusClutch Preview**, deploys the three Edge Functions and checks the Auth and email callback endpoints. Open **Actions → Deploy Preview → Summary** for the install link and commit.
+GitHub Actions builds an internal Android APK for the commit that passed CI on `main`. After the APK succeeds, it applies reviewed database migrations to **Clu Preview**, deploys the three Edge Functions and checks the Auth and email callback endpoints. Open **Actions → Deploy Preview → Summary** for the install link and commit.
 
 ## Enable the first release
 

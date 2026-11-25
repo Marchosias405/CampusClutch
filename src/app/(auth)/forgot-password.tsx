@@ -92,7 +92,7 @@ export default function ForgotPasswordScreen() {
         <Text style={styles.title}>Reset your password</Text>
 
         <Text style={styles.subtitle}>
-          Enter the email address connected to your CampusClutch account.
+          Enter the email address connected to your Clu account.
         </Text>
 
         <Text style={styles.label}>Email address</Text>
