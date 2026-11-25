@@ -1,6 +1,6 @@
 # Task 10 — Conversations and Messages
 
-**Current status (October 22, 2026):** Task 10 is complete and merged through [PR #29](https://github.com/Marchosias405/Clu/pull/29) at `7722916`, after final review and required GitHub CI passed. Checkpoint 2 phone tests 1–8 and all six local checkpoint 5 realtime checks passed. All six Task 10 migrations through `20261022094831` are deployed to hosted Development and Preview (24 migrations total). Each environment passes all 1,066 SQL assertions and 12 hosted realtime smoke groups, with exact fixture cleanup, unchanged existing data and no new advisor warnings. The CLI link is restored to Development. Standalone [Preview build `5b43c4c3`](https://expo.dev/accounts/marchosias405/projects/clu/builds/5b43c4c3-86cf-4d48-bdd6-ef0ab52873b7) completed from app source `01a1c17` and its downloaded APK passes all 11 artifact checks. The user confirmed all six standalone phone checks below passed on October 22, 2026. Groups are deferred: their implementation/data are retained, but navigation and server access are disabled. Group phone testing is not a release gate. Task 11 notifications is next; it has not started.
+**Current status (October 22, 2026):** Task 10 is complete and merged through [PR #29](https://github.com/Marchosias405/Clu/pull/29) at `7722916`, after final review and required GitHub CI passed. Checkpoint 2 phone tests 1–8 and all six local checkpoint 5 realtime checks passed. All six Task 10 migrations through `20261022094831` are deployed to hosted Development and Preview (24 migrations total). Each environment passes all 1,066 SQL assertions and 12 hosted realtime smoke groups, with exact fixture cleanup, unchanged existing data and no new advisor warnings. The CLI link is restored to Development. Standalone [Preview build `5b43c4c3`](https://expo.dev/accounts/marchosias405/projects/CampusClutch/builds/5b43c4c3-86cf-4d48-bdd6-ef0ab52873b7) completed from app source `01a1c17` and its downloaded APK passes all 11 artifact checks. The user confirmed all six standalone phone checks below passed on October 22, 2026. Groups are deferred: their implementation/data are retained, but navigation and server access are disabled. Group phone testing is not a release gate. Task 11 notifications is next; it has not started.
 
 ## Checkpoint 1: direct-messaging foundation
 
@@ -129,7 +129,7 @@ These automated checks exercise the real controllers, client and entry component
 
 ### Local phone setup
 
-Use the Clu [development build `872b050f`](https://expo.dev/accounts/marchosias405/projects/clu/builds/872b050f-3144-4e0a-bb1f-d9efdc788418) with the phone connected by USB and Docker Desktop running. It was rebuilt on September 27 because the older `3082844b` artifact was no longer available. Install this development APK if the standalone Preview APK is currently installed. Its native crypto support is already included; these fixes add no native dependencies. The standalone Preview APK will continue showing the previous release until a later hosted deployment/build checkpoint. Use the build page to download; signed artifact URLs expire.
+Use the Clu [development build `872b050f`](https://expo.dev/accounts/marchosias405/projects/CampusClutch/builds/872b050f-3144-4e0a-bb1f-d9efdc788418) with the phone connected by USB and Docker Desktop running. It was rebuilt on September 27 because the older `3082844b` artifact was no longer available. Install this development APK if the standalone Preview APK is currently installed. Its native crypto support is already included; these fixes add no native dependencies. The standalone Preview APK will continue showing the previous release until a later hosted deployment/build checkpoint. Use the build page to download; signed artifact URLs expire.
 
 ```powershell
 Set-Location D:\Projects\CampusClutch
@@ -387,7 +387,7 @@ The first live connection in each hosted environment encountered `MissingPartiti
 
 ### Standalone Preview APK
 
-EAS [build `5b43c4c3-86cf-4d48-bdd6-ef0ab52873b7`](https://expo.dev/accounts/marchosias405/projects/clu/builds/5b43c4c3-86cf-4d48-bdd6-ef0ab52873b7) **completed successfully** from app source `01a1c17`, using the Android `preview` profile and hosted Preview. The downloaded `Clu-Task10-Preview.apk` passes all 11 artifact checks and is ready for the phone checklist below. Use the stable build page to download; signed artifact URLs expire.
+EAS [build `5b43c4c3-86cf-4d48-bdd6-ef0ab52873b7`](https://expo.dev/accounts/marchosias405/projects/CampusClutch/builds/5b43c4c3-86cf-4d48-bdd6-ef0ab52873b7) **completed successfully** from app source `01a1c17`, using the Android `preview` profile and hosted Preview. The downloaded `Clu-Task10-Preview.apk` passes all 11 artifact checks and is ready for the phone checklist below. Use the stable build page to download; signed artifact URLs expire.
 
 - APK size: **154,201,698 bytes** (about 154.2 MB).
 - SHA-256: `96b4eb4d6190a69a0dcde1170dad9f1959b75c36577d78d4c895003984fe408c`.
@@ -400,7 +400,7 @@ The build includes the final Task 9 navigation correction and current Task 10 di
 
 ### Standalone Preview phone checklist
 
-**Passed — October 22, 2026: the user confirmed all six standalone Preview phone tests passed.** Retain these steps for regression testing. Hosted Preview validation, build completion and APK inspection have passed. Install [Preview build `5b43c4c3`](https://expo.dev/accounts/marchosias405/projects/clu/builds/5b43c4c3-86cf-4d48-bdd6-ef0ab52873b7). Use two simultaneously signed-in **hosted Preview accounts**, A and B, on two devices or a laptop browser connected to the same Preview backend. Local accounts/data are separate. The Android APK must run from its launcher with USB disconnected and without a Metro connection. Use a third Preview account C for the isolation check.
+**Passed — October 22, 2026: the user confirmed all six standalone Preview phone tests passed.** Retain these steps for regression testing. Hosted Preview validation, build completion and APK inspection have passed. Install [Preview build `5b43c4c3`](https://expo.dev/accounts/marchosias405/projects/CampusClutch/builds/5b43c4c3-86cf-4d48-bdd6-ef0ab52873b7). Use two simultaneously signed-in **hosted Preview accounts**, A and B, on two devices or a laptop browser connected to the same Preview backend. Local accounts/data are separate. The Android APK must run from its launcher with USB disconnected and without a Metro connection. Use a third Preview account C for the isolation check.
 
 For a laptop second account, run the following from a **Node 24** terminal with system CA support, then open `http://localhost:8082` and sign in with B's hosted Preview credentials:
 

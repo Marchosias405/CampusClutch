@@ -103,7 +103,7 @@ Hosted security advisors did not flag Task 8 request objects. They reported warn
 
 The EAS `preview` environment was verified as `EXPO_PUBLIC_APP_ENV=preview` and `EXPO_PUBLIC_SUPABASE_URL=https://udbijakeasbvoycjyghe.supabase.co`. Local environment files are Git-ignored and local configuration remains unchanged. TypeScript and ESLint passed before build packaging.
 
-On September 8 the user explicitly authorized uploading the current source to Expo/EAS. Upload succeeded and standalone Android Preview build `bb1edd72-ab02-4d24-8372-2f4540112157` was submitted using the existing signing key. [Build status](https://expo.dev/accounts/marchosias405/projects/clu/builds/bb1edd72-ab02-4d24-8372-2f4540112157).
+On September 8 the user explicitly authorized uploading the current source to Expo/EAS. Upload succeeded and standalone Android Preview build `bb1edd72-ab02-4d24-8372-2f4540112157` was submitted using the existing signing key. [Build status](https://expo.dev/accounts/marchosias405/projects/CampusClutch/builds/bb1edd72-ab02-4d24-8372-2f4540112157).
 
 Build status: **FINISHED**. [Download the standalone Preview APK](https://expo.dev/artifacts/eas/86g_Kk2Eal1kXnxdIS2pSdFZLZ5DqpQrb-19xq2wBQk.apk).
 

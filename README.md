@@ -4,7 +4,7 @@ Clu helps SFU students find classmates, review courses, message each other, and 
 
 **Launch status · November 25, 2026**
 
-The core app has passed Android Preview testing. The GitHub repository is now **Clu**. The new name and graduation badge are implemented on `codex/clu-launch-brand`. The next phone checkpoint is a signed Clu APK.
+The core app has passed Android Preview testing. The GitHub repository and Expo display name are now **Clu**. The app and Expo dashboard use the new graduation badge. Expo keeps `CampusClutch` as the permanent URL slug of the existing project. [Expo project](https://expo.dev/accounts/marchosias405/projects/CampusClutch)
 
 ## ✅ Complete
 
@@ -20,8 +20,8 @@ The core app has passed Android Preview testing. The GitHub repository is now **
 
 ## 🚧 Remaining before launch
 
-1. **Finish the Clu rollout.** The branding branch passed lint, TypeScript, and 42 automated checks. Verify the live Expo project name and slug, review and merge the branch, and roll out the branded database notices, Edge Functions, and separately hosted password-reset page. Existing app identifiers preserve upgrades and account access.
-2. **Produce the signed Android Preview.** The release gate, Expo credentials, and Supabase migration dry run passed. Expo’s free Android build quota stopped the APK step. The run applied no migrations and published no install link. After the reported **December 1** quota reset, check the seven-day Supabase token and deploy the current tested `main` commit. Refresh the friend-testing branch once the branded APK passes its phone check. [Deployment run](https://github.com/Marchosias405/Clu/actions/runs/45369404498) · [Release guide](docs/preview-deployment.md)
+1. **Finish the Clu rollout.** Test the Android upgrade on a phone, review and merge the branding branch, then deploy the branded database notices, Edge Functions and hosted password-reset page. Existing app identifiers preserve upgrades and account access.
+2. **Complete the first automated Preview release.** The release gate, Expo credential check and database migration dry run passed. Expo’s Android build quota stopped the cloud build before deployment. After the reported **December 1** reset, check the seven-day Supabase token and deploy the tested `main` commit. Refresh the friend-testing branch after the branded APK passes its phone check. [Deployment run](https://github.com/Marchosias405/Clu/actions/runs/45369404498) · [Release guide](docs/preview-deployment.md)
 3. **Activate production privacy controls.** Local tests passed for audited admin holds and cleanup of expired requests, messages, job history, closed cases, bell entries, and deletion receipts. Held evidence survives account deletion and becomes eligible for cleanup after its last hold and retention obligations end. Roll out the deferred migrations and schedules, verify a hosted backup restore, and enforce verified SFU email at launch. Preview accepts other email addresses for testing. Publish the operator name, monitored privacy mailbox, and final privacy notice and terms.
 4. **Prepare the store release.** Configure Production credentials, redirects, and push delivery. Recheck permissions and dependency advisories, then complete internal testing, store listings, screenshots, privacy disclosures, monitoring, and rollback arrangements.
 
@@ -35,7 +35,8 @@ The consolidated checklist has **31 of 33** confirmed passes. The later UI and p
 | **33 · Restore points once** | Delete and recreate a disposable account with the same email. The exact prior balance returns once, survives restart and sign-in, and earns no second welcome grant. |
 | **M6 · Sign-in and profile setup** | An unverified sign-in reaches verification recovery. The sign-in screen has no permanent verification shortcut, and the Continue and Delete account buttons on profile setup have visible space between them. |
 
-- **Next APK:** Install over the previous Preview. Check the Clu launcher icon, splash screen, sign-in, push notification, and account-recovery page. Confirm the existing account still opens.
+- **Branding phone check:** Install the signed Clu APK over the previous Preview. Check the launcher icon and name, splash screen, and access to the same account. While signed in, receive a DM from another account and check the Android notification icon and app label. Check the sign-in screen after signing out.
+- **After the hosted rollout:** Check the Clu wording in a new notification and on the email verification and password-reset pages.
 - **Later:** Run the multi-user notification pilot across accounts and devices. TalkBack testing is deferred. Group conversations and creator-made quests are also deferred.
 
 ## 🧪 Run the tester emulator on Windows

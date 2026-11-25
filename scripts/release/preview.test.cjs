@@ -8,6 +8,13 @@ const path = require('node:path');
 const { eligible, target, prepare, project, expoProject, deferred } = require('./preview.cjs');
 const { ensureApk } = require('./preview-apk.cjs');
 
+test('Clu builds use the existing Expo project and its permanent slug', () => {
+  const { expo } = require('../../app.json');
+  assert.equal(expo.name, 'Clu');
+  assert.equal(expo.slug, 'CampusClutch');
+  assert.equal(expo.extra.eas.projectId, expoProject);
+});
+
 const sha = 'a'.repeat(40);
 const repository = 'Marchosias405/Clu';
 const run = { head_sha:sha, head_branch:'main', head_repository:{full_name:repository}, conclusion:'success', event:'push', run_attempt:1 };
