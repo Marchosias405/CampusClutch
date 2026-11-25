@@ -37,7 +37,8 @@ The consolidated checklist has **31 of 33** confirmed passes. The later UI and p
 | **33 · Restore points once** | Delete and recreate a disposable account with the same email. The exact prior balance returns once, survives restart and sign-in, and earns no second welcome grant. |
 | **M6 · Sign-in and profile setup** | An unverified sign-in reaches verification recovery. The sign-in screen has no permanent verification shortcut, and the Continue and Delete account buttons on profile setup have visible space between them. |
 
-- **Branding phone check:** Install the signed Clu APK over the previous Preview. Check the launcher icon and name, splash screen, and access to the same account. While signed in, receive a DM from another account and check the Android notification icon and app label. Check the sign-in screen after signing out.
+- **Clu branding checks 1, 2 and 4 passed in Preview.** The launcher shows the graduation badge. The splash screen, existing account and courses, and sign-out/sign-in flow passed.
+- **Check 3 is pending on a physical Android phone.** Put Clu in the background and have another account send a DM. Check the notification icon and Clu app label, then tap the notification to open the app.
 - **After the hosted rollout:** Check the Clu wording in a new notification and on the email verification and password-reset pages.
 - **Later:** Run the multi-user notification pilot across accounts and devices. TalkBack testing is deferred. Group conversations and creator-made quests are also deferred.
 
