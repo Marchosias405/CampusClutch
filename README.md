@@ -2,30 +2,35 @@
 
 Clu helps SFU students find classmates, review courses, message each other, and exchange campus help for points. It runs on Expo, React Native, TypeScript, and Supabase.
 
-**Launch status · November 25, 2026**
+**Android Preview · November 25, 2026.** The signed Clu APK supports in-place upgrades. The launcher, splash screen and account access passed Preview testing. The branded DM notification still needs a physical Android check. [Branding PR](https://github.com/Marchosias405/Clu/pull/35)
 
-The core app has passed Android Preview testing. The GitHub repository and Expo display name are now **Clu**. The app and Expo dashboard use the new graduation badge. Expo keeps `CampusClutch` as the permanent URL slug of the existing project. [Expo project](https://expo.dev/accounts/marchosias405/projects/CampusClutch)
+## 🛠️ Project milestones
 
-The locally built `Clu-Branding-Preview.apk` is ready for the branding phone check below. Its signing certificate matches the previous Preview, and the APK points to the Preview backend.
+Clu began as a five-tab prototype with sample data. These milestones track its development into a multi-user Android Preview.
 
-## ✅ Complete
-
-| Area | What works |
+| Phase | What we built and verified |
 | --- | --- |
-| Accounts and profiles | Email signup, verification and password reset across devices, profile editing, private avatars, discoverability, and account deletion. Accepted jobs must be resolved before deletion. Other participants retain past messages under “Deleted student.” |
-| Courses and reviews | Browse Fall 2026 and Spring 2027 offerings, read reviews before joining, find classmates, and write reviews for previously taken courses through the review directory. Authors can revise a hidden review. |
-| Requests and points | Create and filter four request types, make and accept offers, finish or cancel jobs, transfer reserved points, and submit mutual ratings. New students receive a one-time welcome grant. |
-| Messages and alerts | Realtime direct messages, unread counts, profile access from a DM, a bell inbox, and Android push preferences. Background DM delivery was confirmed on a phone. New public postings stay in the request feed by default. |
-| Safety and moderation | Blocking, reports on students, requests, messages and reviews, admin review and recovery, content removal, warnings, seven-day suspensions, and appeals. Students receive reasons and can see appeal decisions and their warning count. |
-| Interface and privacy | Loading screens, skeletons, reduced-motion support, consistent profile actions, separate admin controls, and offline-readable privacy and terms drafts. |
-| Security and CI | Server-side authorization, row-level security, protected sessions and private drafts, and avatar storage limits. GitHub CI passed the app checks, database migrations, pgTAP suite, and browser workflows on `main` at `d58636e`. |
+| 1 · Build setup | Linked the Expo project to EAS and configured development, Preview and production build profiles. |
+| 2 · Android Preview | Built and installed a signed APK so testers could run the app without a development server. |
+| 3 · Backend design | Mapped the student workflows to a Postgres schema and defined who could read or change each record. [Architecture](docs/backend-plan.md) |
+| 4 · Environments | Set up local Supabase and separate hosted Development and Preview projects, with typed configuration for each environment. |
+| 5 · Authentication | Added email verification, session restoration and protected navigation. Verification and password reset work when the email opens on another device. |
+| 6 · Student profiles | Added onboarding, editable profiles, interests, private avatars and controls for who can discover a student. |
+| 7 · Courses and reviews | Imported Fall 2026 and Spring 2027 SFU offerings and connected classmates through enrolment. Students can read reviews before joining and review courses taken in earlier terms. |
+| 8 · Campus requests | Students can post delivery, pickup, event and study requests with deadlines, filter the feed by category, and edit or cancel their own requests. |
+| 9 · Offers and points | Accepting an offer reserves the points for one helper. Completion pays the helper, cancellation releases the reservation, and ratings appear after both students submit. |
+| 10 · Messaging | Built private realtime DMs, request-linked conversations, read receipts and unread counts. Students can open a classmate’s profile from a conversation. |
+| 11 · Notifications | Connected the bell inbox and Android push to messages and offer decisions. Confirmed background DM delivery on a phone. Public requests stay in the feed by default. |
+| 12 · Automated tests | Added component tests, pgTAP checks for row-level security and two-student browser tests to CI. A local run passed 59 concurrency cases, including competing offers and points transfers. [CI workflow](.github/workflows/ci.yml) |
+| 13 · Accessibility and usability | Fixed large-text clipping and keyboard layouts, added loading placeholders and reduced-motion support, and separated admin actions from student controls. TalkBack testing is deferred. |
+| 14 · Privacy and moderation | Students can block, report and appeal. Admins can remove content and issue warnings or suspensions with reasons. Added admin recovery, account deletion and offline privacy and terms drafts. |
+| 15 · Release preparation (in progress) | Applied the Clu branding, hardened sessions, drafts and avatar storage, and built the Preview deployment workflow. Verified the signed APK against the previous release certificate. |
 
 ## 🚧 Remaining before launch
 
-1. **Finish the Clu rollout.** Test the Android upgrade on a phone, review and merge the branding branch, then deploy the branded database notices, Edge Functions and hosted password-reset page. Existing app identifiers preserve upgrades and account access.
-2. **Complete the first automated Preview release.** The release gate, Expo credential check and database migration dry run passed. Expo’s Android build quota stopped the cloud build before deployment. After the reported **December 1** reset, check the seven-day Supabase token and deploy the tested `main` commit. Refresh the friend-testing branch after the branded APK passes its phone check. [Deployment run](https://github.com/Marchosias405/Clu/actions/runs/45369404498) · [Release guide](docs/preview-deployment.md)
-3. **Activate production privacy controls.** Local tests passed for audited admin holds and cleanup of expired requests, messages, job history, closed cases, bell entries, and deletion receipts. Held evidence survives account deletion and becomes eligible for cleanup after its last hold and retention obligations end. Roll out the deferred migrations and schedules, verify a hosted backup restore, and enforce verified SFU email at launch. Preview accepts other email addresses for testing. Publish the operator name, monitored privacy mailbox, and final privacy notice and terms.
-4. **Prepare the store release.** Configure Production credentials, redirects, and push delivery. Recheck permissions and dependency advisories, then complete internal testing, store listings, screenshots, privacy disclosures, monitoring, and rollback arrangements.
+- **Preview rollout.** Complete the automated release and deploy the branded notices and account-recovery pages. The earlier cloud build reached Expo’s free Android quota. Check the deployment token when the quota resets, then refresh the friend-testing branch after the phone check. [Deployment run](https://github.com/Marchosias405/Clu/actions/runs/45369404498) · [Release guide](docs/preview-deployment.md)
+- **Privacy and production readiness.** Retention holds and cleanup passed local tests, including preserving held evidence after account deletion. Deploy the schedules and deferred migrations, verify a hosted backup restore, enable SFU-only signup, and publish the operator name, privacy mailbox and final policies. Preview accepts other verified emails.
+- **Phases 16–17 · Store submission and operations (planned).** Finish production credentials and internal testing, submit the store listings and privacy disclosures, and set up crash monitoring, support and rollback procedures.
 
 ## 📱 Phone checks still open
 
