@@ -5,8 +5,8 @@ import { isLegacySessionKey, migrateCredentials, type CredentialStore } from './
 const receiptPrefix = 'campusclutch:account-deletion:v1:';
 const encodedBackendUrl = /^https?%3A%2F%2F(?:[\w.!~*'()-]|%[\da-f]{2})+$/i;
 
-// Static web uses the Auth SDK's per-client memory storage. Discard tokens
-// left by older releases the first time the browser loads the updated app.
+// Discard plaintext tokens left by older releases. New browser sessions use
+// the same encrypted IndexedDB format as account-deletion receipts.
 export function sessionStorageForProject() {
   if (typeof window !== 'undefined') {
     try {
@@ -27,7 +27,7 @@ export function sessionStorageForProject() {
       if (!(error instanceof DOMException && error.name === 'SecurityError')) throw error;
     }
   }
-  return undefined;
+  return typeof window === 'undefined' ? undefined : encryptedBrowserStorage;
 }
 
 // A deletion receipt can be needed after sign-out or a browser restart.
@@ -50,7 +50,7 @@ async function receiptRecord(mode: IDBTransactionMode, action: (store: IDBObject
   } finally { db.close(); }
 }
 
-const receipts = migrateCredentials({
+const encryptedBrowserStorage: CredentialStore = {
   async getItem(name) {
     if (typeof indexedDB === 'undefined') return null;
     const entry = await receiptRecord('readonly', store => store.get(name));
@@ -69,7 +69,9 @@ const receipts = migrateCredentials({
   async removeItem(name) {
     await receiptRecord('readwrite', store => store.delete(name));
   },
-}, AsyncStorage);
+};
+
+const receipts = migrateCredentials(encryptedBrowserStorage, AsyncStorage);
 
 // Two tabs can open the same origin during an upgrade. Serialize migration
 // with updates and removal so a delayed tab cannot restore a cleared receipt.

@@ -1,5 +1,4 @@
-// A web session lives in the open document. Exercise signed-in routes through
-// the browser history API that Expo Router listens to. A real reload needs login.
+// Exercise in-app navigation without replacing the current document.
 async function openRoute(page, url) {
   // Reopening a URL should mount the screen again, including lists whose
   // selected item lives in component state instead of the URL.
@@ -15,17 +14,8 @@ async function openRoute(page, url) {
   }, url);
 }
 
-async function reloadSignedIn(page, credentials) {
-  const destination = page.url();
+async function reloadSignedIn(page) {
   await page.reload();
-  await page.getByRole('textbox', { name: 'student@example.com', exact: true }).fill(credentials.email);
-  await page.getByPlaceholder('Enter your password').fill(credentials.password);
-  await page.getByText('Sign In', { exact: true }).click();
-  const home = page.getByRole('tab', { name: 'Home', exact: true });
-  const suspended = page.getByText('Account temporarily suspended', { exact: true });
-  const notice = page.getByText('Account notice', { exact: true });
-  await home.or(suspended).or(notice).first().waitFor();
-  if (await home.isVisible() && page.url() !== destination) await openRoute(page, destination);
 }
 
 module.exports = { openRoute, reloadSignedIn };

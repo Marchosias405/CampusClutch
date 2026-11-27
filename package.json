@@ -9,6 +9,7 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
+    "web:pilot": "node scripts/release/web-pilot.cjs",
     "lint": "expo lint",
     "typecheck": "tsc --noEmit",
     "check": "npm run lint && npm run typecheck",

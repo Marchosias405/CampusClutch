@@ -22,6 +22,7 @@ function navigator() {
   const element = (type, props) => ({ type, props });
   const Stack = { Protected: 'Stack.Protected', Screen: 'Stack.Screen' };
   const mocks = {
+    '@/components/SharedWebLink': { default: 'SharedWebLink' },
     '@/components/LoadingState': require('./loading-test-mock.cjs'),
     '@/components/LegalLinks': { default: 'LegalLinks', __esModule: true },
     '@/context/LegalDocumentsProvider': { LegalDocumentsProvider: 'LegalDocumentsProvider' },

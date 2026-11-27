@@ -2,6 +2,16 @@
 
 GitHub Actions builds an internal Android APK for the commit that passed CI on `main`. After the APK succeeds, it applies reviewed database migrations to **Clu Preview**, deploys the three Edge Functions and checks the Auth and email callback endpoints. Open **Actions → Deploy Preview → Summary** for the install link and commit.
 
+## Browser pilot
+
+Open the [Clu web pilot](https://campusclutch--pilot.expo.app) in Safari or another browser. Sign in with an Android Preview account to see the same profile, courses and conversations. To check a shared link, open [Courses](https://campusclutch--pilot.expo.app/courses) while signed out, sign in and refresh. Both steps should land on Courses.
+
+Use the same three public Preview environment variables as Android. Run
+`npm run web:pilot` to export the site and check the compiled backend and route
+manifest. Publish it with `eas deploy --export-dir .expo/clu-web-pilot --environment preview --alias pilot`.
+The `pilot` alias is independent of both the Android workflow and the `account`
+alias used in password-recovery emails.
+
 ## Enable the first release
 
 - Integrate the tested app, all its migration files and its database CI job into `main`. CI must pass both **Lint and typecheck** and **Database migrations and pgTAP** on the push. Pull requests run regression tests. A run superseded on `main` skips deployment.

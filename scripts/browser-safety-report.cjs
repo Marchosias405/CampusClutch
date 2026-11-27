@@ -25,7 +25,7 @@ async function checkStudentReport(page, account) {
   await reloadSignedIn(page, account);
   await details.waitFor();
   await other.click();
-  assert.equal(await details.inputValue(), '', 'A fresh web login clears the previous session’s report text');
+  assert.equal(await details.inputValue(), '', 'Reload clears in-memory private report text');
   await details.fill(text);
   const submit = page.getByRole('button', { name: 'Submit report', exact: true });
   await fits(page, submit);
@@ -67,7 +67,7 @@ async function checkStudentReport(page, account) {
   } finally { await page.unroute(rpc, observeRetry); }
   await openRoute(page, profileUrl);
   await entry.waitFor();
-  console.log('PASS private student report, fresh login cleanup, same-session navigation and exact retry');
+  console.log('PASS private student report, draft cleanup on reload, same-session navigation and exact retry');
 }
 
 async function checkRequestReport(poster, helper, helperAccount, posterAccount) {

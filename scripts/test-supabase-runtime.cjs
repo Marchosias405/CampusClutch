@@ -31,11 +31,11 @@ function production(os, storage, createClient, browserWindow) {
   const modules = {
     '@/lib/crypto': {}, 'react-native-url-polyfill/auto': {},
     '@react-native-async-storage/async-storage': { default: storage, __esModule: true },
-    '@supabase/supabase-js': { createClient, processLock: sdk.processLock },
+    '@supabase/supabase-js': { createClient, processLock: sdk.processLock, navigatorLock: sdk.navigatorLock },
     'react-native': { Platform: { OS: os } },
     '@/lib/env': { env: { supabaseUrl: backend, supabasePublishableKey: key } },
   };
-  const globals = browserWindow === undefined ? {} : { window: browserWindow };
+  const globals = browserWindow === undefined ? {} : { window: browserWindow, navigator: { locks: {} } };
   modules['./credentialMigration'] = load('credentialMigration.ts', {});
   modules['expo-secure-store'] = storage.keychain;
   modules['react-native-quick-crypto'] = { ...crypto, Buffer };
@@ -127,23 +127,23 @@ async function syntheticSignIn(client) {
     assert.equal(config.auth.autoRefreshToken, false);
   });
 
-  await test('only native uses protected persistent storage; browser and native refresh while running', () => {
+  await test('browser and native use protected persistent storage and refresh while running', () => {
     for (const [os, browserWindow] of [['web', browserStorage().browserWindow], ['android', undefined], ['ios', undefined]]) {
       const storage = {};
       const config = production(os, storage, (_url, _key, options) => options, browserWindow);
-      assert.equal(Boolean(config.auth.storage), os !== 'web', os);
+      assert.ok(config.auth.storage, os);
       assert.notEqual(config.auth.storage, storage, os);
-      assert.equal(config.auth.persistSession, os !== 'web', os);
+      assert.equal(config.auth.persistSession, true, os);
       assert.equal(config.auth.autoRefreshToken, true, os);
     }
   });
 
-  await test('all runtimes preserve PKCE, explicit URL handling and process locking', () => {
+  await test('all runtimes preserve PKCE and explicit URL handling, and browser tabs coordinate refreshes', () => {
     for (const [os, browserWindow] of [['web', undefined], ['web', browserStorage().browserWindow], ['android', undefined], ['ios', undefined]]) {
       const config = production(os, {}, (_url, _key, options) => options, browserWindow);
       assert.equal(config.auth.flowType, 'pkce');
       assert.equal(config.auth.detectSessionInUrl, false);
-      assert.equal(config.auth.lock, sdk.processLock);
+      assert.equal(config.auth.lock, browserWindow ? sdk.navigatorLock : sdk.processLock);
     }
   });
 
@@ -185,22 +185,16 @@ async function syntheticSignIn(client) {
     assert.equal(next.requests.length, 0);
   });
 
-  await test('browser removes legacy credentials and keeps a real SDK sign-in only in memory', async () => {
+  await test('browser removes legacy plaintext credentials before opening protected storage', async () => {
     const browser = browserStorage();
     const item = 'sb-campusclutch-runtime-auth-token';
     for (const suffix of ['', '-user', '-code-verifier']) browser.values.set(item + suffix, 'old credential');
     browser.values.set('sb-other-dev-auth-token', 'old development credential');
     browser.values.set('unrelated', 'retained');
-    const first = realClient('web', browser.storage, browser.browserWindow);
-    assert.equal(await session(first.supabase), null);
-    await syntheticSignIn(first.supabase);
-    assert.equal((await session(first.supabase)).user.id, userId);
+    const config = production('web', browser.storage, (_url, _key, options) => options, browser.browserWindow);
+    assert.ok(config.auth.storage);
     assert.deepEqual([...browser.values], [['unrelated','retained']]);
     assert.ok(!browser.operations.some(([operation]) => operation === 'set'));
-    const next = realClient('web', browser.storage, browser.browserWindow);
-    assert.equal(await session(next.supabase), null);
-    assert.equal(first.requests.length, 1);
-    assert.equal(next.requests.length, 0);
   });
 
   await test('browser startup migrates every legacy receipt independently and retries an interrupted write', async () => {
@@ -235,7 +229,7 @@ async function syntheticSignIn(client) {
       },
     }, { window: browserWindow });
     async function start() {
-      assert.equal(web.sessionStorageForProject(), undefined, 'Web sign-in still uses memory');
+      assert.ok(web.sessionStorageForProject());
       await new Promise(setImmediate); // Drain the in-memory stores' queued promises.
     }
     await start();

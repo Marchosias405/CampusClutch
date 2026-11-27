@@ -178,9 +178,26 @@ async function run() {
     await poster.page.getByPlaceholder('Enter your password').fill(accounts[0].password);
     await poster.page.getByText('Sign In', { exact: true }).click();
     await poster.page.getByText('Hi, ' + poster.name).waitFor();
+    const sessionKey = 'sb-' + new URL(backend.url).hostname.split('.')[0] + '-auth-token';
+    assert.equal(await poster.page.evaluate(async key => {
+      if (localStorage.getItem(key) || sessionStorage.getItem(key)) return false;
+      const db = await new Promise((resolve, reject) => {
+        const open = indexedDB.open('campusclutch-deletion-receipts');
+        open.onsuccess = () => resolve(open.result);
+        open.onerror = () => reject(open.error);
+      });
+      try {
+        const record = await new Promise((resolve, reject) => {
+          const read = db.transaction('receipts').objectStore('receipts').get(key);
+          read.onsuccess = () => resolve(read.result);
+          read.onerror = () => reject(read.error);
+        });
+        return record?.ciphertext instanceof ArrayBuffer && record.key instanceof CryptoKey && !record.key.extractable;
+      } finally { db.close(); }
+    }, sessionKey), true, 'Web login is persisted with a non-extractable encryption key');
     await reloadSignedIn(poster.page, accounts[0]);
     await poster.page.getByText('Hi, ' + poster.name).waitFor();
-    console.log('PASS a student signs out and signs in again after a browser reload');
+    console.log('PASS sign-out, fresh sign-in and session restoration on reload');
 
     const offering = await enroll(poster.page);
     await openRoute(poster.page, origin);
@@ -194,6 +211,27 @@ async function run() {
     await targetFits(helper.page, helper.page.getByLabel("View " + poster.name + "'s profile", { exact: true }), 'Classmate profile');
     await helper.page.getByLabel("View " + poster.name + "'s profile", { exact: true }).click();
     await helper.page.waitForURL(/\/students\//);
+    const sharedProfile = helper.page.url();
+    await openRoute(helper.page, origin + '/profile');
+    await helper.page.getByRole('button', { name: 'Log Out', exact: true }).click();
+    const emailField = helper.page.getByRole('textbox', { name: 'student@example.com', exact: true });
+    await emailField.waitFor();
+    await helper.page.goto(sharedProfile);
+    await emailField.waitFor();
+    await helper.page.reload();
+    await emailField.fill(accounts[1].email);
+    await helper.page.getByPlaceholder('Enter your password').fill(accounts[1].password);
+    await helper.page.getByText('Sign In', { exact: true }).click();
+    await helper.page.waitForURL(sharedProfile);
+    const secondTab = await helper.page.context().newPage();
+    try {
+      await secondTab.goto(sharedProfile);
+      await secondTab.getByRole('button', { name: 'Report student', exact: true }).waitFor();
+      await secondTab.reload();
+      await secondTab.getByRole('button', { name: 'Report student', exact: true }).waitFor();
+      assert.equal(secondTab.url(), sharedProfile);
+    } finally { await secondTab.close(); }
+    console.log('PASS protected profile link after login, new tab and refresh');
     await require('./browser-safety-report.cjs').checkStudentReport(helper.page, accounts[1]);
     const posterProfileUrl = helper.page.url();
     await helper.page.getByRole('button').filter({ has: helper.page.getByText('Message', { exact: true }) }).click();

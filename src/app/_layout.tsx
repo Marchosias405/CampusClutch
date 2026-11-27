@@ -23,6 +23,7 @@ import { useAndroidPush } from "@/lib/useAndroidPush";
 import { GROUP_MESSAGING_ENABLED } from "@/lib/messagingFeatures";
 import { AccountDeletionProvider } from "@/context/AccountDeletionProvider";
 import AccountStandingGate from "@/components/AccountStandingGate";
+import SharedWebLink from "@/components/SharedWebLink";
 
 export default function RootLayout() {
   return (
@@ -248,6 +249,7 @@ function RootNavigator() {
 
         <Stack.Screen name="auth/reset-password" />
       </Stack>
+      {session && isProfileComplete && !isPasswordRecovery && <SharedWebLink />}
 
       <StatusBar
         style={
