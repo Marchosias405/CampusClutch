@@ -4,7 +4,7 @@ GitHub Actions builds an internal Android APK for the commit that passed CI on `
 
 ## Browser pilot
 
-Open the [Clu web pilot](https://campusclutch--pilot.expo.app) in Safari or another browser. Sign in with an Android Preview account to see the same profile, courses and conversations. To check a shared link, open [Courses](https://campusclutch--pilot.expo.app/courses) while signed out, sign in and refresh. Both steps should land on Courses.
+Open the [Clu web pilot](https://clu--pilot.expo.app) in Safari or another browser. Sign in with an Android Preview account to see the same profile, courses and conversations. To check a shared link, open [Courses](https://clu--pilot.expo.app/courses) while signed out, sign in and refresh. Both steps should land on Courses.
 
 Use the same three public Preview environment variables as Android. Run
 `npm run web:pilot` to export the site and check the compiled backend and route

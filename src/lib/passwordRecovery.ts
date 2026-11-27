@@ -10,7 +10,7 @@ export async function sendPasswordRecoveryEmail(email: string) {
     (project.hostname === "127.0.0.1" || project.hostname === "localhost");
   const redirectTo = local
     ? "http://127.0.0.1:54731/reset-password.html"
-    : `https://campusclutch--account.expo.app/${project.hostname.split(".")[0]}/reset-password.html`;
+    : `https://clu--account.expo.app/${project.hostname.split(".")[0]}/reset-password.html`;
   const recovery = createClient(env.supabaseUrl, env.supabasePublishableKey, {
     auth: {
       flowType: "implicit",

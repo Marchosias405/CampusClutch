@@ -32,7 +32,7 @@ function loadRecovery(url, requests, clients) {
     const request=requests[0]; assert.equal(request.body.email,'student@example.test');
     assert.ok(request.body.code_challenge == null,'No requesting-device verifier may be required');
     const redirect=new URL(request.url).searchParams.get('redirect_to');
-    assert.equal(redirect,url.startsWith('http:')?'http://127.0.0.1:54731/reset-password.html':`https://campusclutch--account.expo.app/${new URL(url).hostname.split('.')[0]}/reset-password.html`);
+    assert.equal(redirect,url.startsWith('http:')?'http://127.0.0.1:54731/reset-password.html':`https://clu--account.expo.app/${new URL(url).hostname.split('.')[0]}/reset-password.html`);
     assert.equal((await clients[0].auth.getSession()).data.session,null);
   }
   console.log('PASS installed Auth SDK sends browser recovery links without PKCE or persisted sessions for all environments');
