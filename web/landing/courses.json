@@ -1,0 +1,29 @@
+[
+  {
+    "code": "CMPT 120",
+    "title": "Introduction to Computing Science and Programming I",
+    "summary": "CMPT 120 introduces programming through small problems, from choosing a loop to debugging a program. SFU designs it for students with little or no programming experience.",
+    "questions": [
+      "If programming was new to you, when did the assignments start to feel manageable?",
+      "How much time did you spend debugging compared with writing the first version?"
+    ]
+  },
+  {
+    "code": "PSYC 100",
+    "title": "Introduction to Psychology I",
+    "summary": "PSYC 100 looks at how psychologists study questions about perception, learning and motivation. Research design is part of the course alongside the findings themselves.",
+    "questions": [
+      "Did drawing out the research methods help you make sense of the readings?",
+      "What mix of reading, recall and practice questions worked for you?"
+    ]
+  },
+  {
+    "code": "BISC 101",
+    "title": "General Biology",
+    "summary": "BISC 101 connects cell biology with how whole organisms work. Lectures and labs explore subjects such as enzymes, genetic information and gas exchange.",
+    "questions": [
+      "How did you spread lab preparation and lecture review across the week?",
+      "Which connections between the labs and lectures were worth revisiting before an exam?"
+    ]
+  }
+]

@@ -1,0 +1,39 @@
+<header class="mast frame">
+  <a class="brand" href="/" aria-label="Clu home"><img src="/assets/clu.png" alt="" width="44" height="44"><span>Clu</span></a>
+  <nav aria-label="Main navigation"><a href="#course-reviews">Course reviews</a><a href="#classmates">Find classmates</a></nav>
+  <a class="utility" href="https://clu--pilot.expo.app/">Open web app</a>
+</header>
+<main id="main">
+  <section class="hero frame" aria-labelledby="intro">
+    <div class="hero-copy">
+      <h1 id="intro">What’s that <br>course <em>really like?</em></h1>
+      <p>SFU course reviews from students who’ve taken the class. Get a feel for the workload, the difficulty, and whether they’d recommend it.</p>
+      <a class="button primary" href="https://clu--pilot.expo.app/courses/review-directory">Browse course reviews</a>
+    </div>
+    <div class="art"><figure class="print">
+      <img class="campus" src="/assets/burnaby.webp" alt="The reflecting pool and concrete walkways at SFU’s Academic Quadrangle" width="1400" height="1050" fetchpriority="high">
+      <figcaption><span>Academic Quadrangle</span><span>Burnaby, BC</span></figcaption>
+    </figure></div>
+  </section>
+  <section class="course-section" id="course-reviews" aria-labelledby="course-heading">
+    <div class="frame course-layout">
+      <div>
+        <h2 id="course-heading">SFU course reviews</h2>
+        <p>Course outlines tell you what’s on the syllabus. Clu adds the student perspective. Pick a course guide, or enter a course code to open its reviews in the web app.</p>
+        <form class="lookup" action="https://clu--pilot.expo.app/courses/reviews" method="get">
+          <label for="course">Jump to a course</label>
+          <div><input id="course" type="text" name="code" placeholder="e.g. CMPT 120" pattern="[A-Za-z]{2,5} *[0-9]{3}[A-Za-z]?" title="Enter a course code such as CMPT 120" required maxlength="18" autocapitalize="characters" autocomplete="off" spellcheck="false"><button type="submit">Go</button></div>
+        </form>
+      </div>
+      <ul class="course-index">{{courseLinks}}</ul>
+    </div>
+  </section>
+  <section class="friends frame" id="classmates" aria-labelledby="friends-heading">
+    <figure><img src="/assets/surrey.webp" alt="Students walking through the high atrium at SFU’s Surrey campus" width="960" height="720" loading="lazy"><figcaption>Surrey campus</figcaption></figure>
+    <div><h2 id="friends-heading">Find a friend<br><em>in your class.</em></h2>
+      <p>Add a course you’re taking to see classmates who’ve chosen to be discoverable. Visit a profile, find a shared interest, and send the first message.</p>
+      <a class="text-link" href="https://clu--pilot.expo.app/courses">Find my classmates</a>
+    </div>
+  </section>
+  <section class="access" id="get-clu"><div class="frame access-inner"><div><h2>Take Clu to class.</h2><p>Sign in from your phone or laptop to read reviews and meet classmates.</p></div><div class="access-actions"><a class="button light" href="https://clu--pilot.expo.app/">Use Clu on the web</a>{{androidAccess}}</div></div></section>
+</main>

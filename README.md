@@ -2,6 +2,8 @@
 
 Clu helps SFU students find classmates, review courses, message each other, and exchange campus help for points. It runs on Expo, React Native, TypeScript, and Supabase.
 
+[Explore SFU course reviews](https://clu.expo.app/) · [Open the Clu web app](https://clu--pilot.expo.app/)
+
 **Android Preview · November 25, 2026.** The signed Clu APK supports in-place upgrades. The launcher, splash screen and account access passed Preview testing. The branded DM notification still needs a physical Android check. [Branding PR](https://github.com/Marchosias405/Clu/pull/35)
 
 ## 🛠️ Project milestones

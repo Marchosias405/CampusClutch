@@ -4,6 +4,15 @@ GitHub Actions builds an internal Android APK for the commit that passed CI on `
 
 ## Browser pilot
 
+The [public Clu landing page](https://clu.expo.app/) and its SFU course guides live at the root of the Expo Hosting project. They link into the signed-in pilot below. To publish the public pages:
+
+```sh
+node scripts/release/landing.cjs
+eas deploy --export-dir .expo/clu-landing --environment preview --prod
+```
+
+Use only the landing export for the root domain. Once the Android listing is public on Google Play, add `--play-store` to the build command to enable its install link.
+
 Open the [Clu web pilot](https://clu--pilot.expo.app) in Safari or another browser. Sign in with an Android Preview account to see the same profile, courses and conversations. To check a shared link, open [Courses](https://clu--pilot.expo.app/courses) while signed out, sign in and refresh. Both steps should land on Courses.
 
 Use the same three public Preview environment variables as Android. Run
